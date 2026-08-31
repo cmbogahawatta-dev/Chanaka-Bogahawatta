@@ -16,7 +16,10 @@ import {
   ImportType,
   ImportBatchRecord,
   MappingTemplate,
-  DuplicateAction
+  DuplicateAction,
+  BudgetThresholdLevel,
+  ProjectBudgetAlert,
+  ProjectBudgetSummary
 } from '../types/pettyCashTypes';
 import {
   initialExpenses,
@@ -214,6 +217,30 @@ interface PettyCashContextType {
   updateSheetsConfig: (updates: Partial<GoogleSheetsConfig>) => void;
   exportToCsv: (type: 'expenses' | 'income' | 'pivot' | 'statement', supervisorName?: string) => void;
 
+  // Budget Threshold & Supervisor Alerts
+  projectBudgetSummaries: ProjectBudgetSummary[];
+  budgetAlerts: ProjectBudgetAlert[];
+  acknowledgedAlertIds: string[];
+  acknowledgeBudgetAlert: (alertId: string, supervisorName?: string) => void;
+  unacknowledgeBudgetAlert: (alertId: string) => void;
+  clearAllBudgetAlerts: () => void;
+  updateProjectBudget: (projectIdOrCode: string, newBudget: number) => void;
+  checkBudgetImpact: (projectCode: string, additionalAmount: number) => {
+    currentSpent: number;
+    allocatedBudget: number;
+    currentPercent: number;
+    projectedSpent: number;
+    projectedPercent: number;
+    currentThreshold: BudgetThresholdLevel;
+    projectedThreshold: BudgetThresholdLevel;
+    willTrigger80: boolean;
+    willTrigger95: boolean;
+    willExceed: boolean;
+    remainingBudget: number;
+    message?: string;
+  };
+  getSupervisorBudgetAlerts: (supervisorName?: string) => ProjectBudgetAlert[];
+
   // Reset and Clear actions
   resetPettyCashData: () => void;
   clearExpensesHistory: (supervisorName?: string, projectCode?: string) => void;
@@ -235,6 +262,7 @@ const STORAGE_KEYS = {
   CURRENT_SUPERVISOR: 'ema_petty_current_sup_v1',
   SHEETS_CONFIG: 'ema_petty_sheets_config_v1',
   IMPORT_BATCHES: 'ema_petty_import_batches_v1',
+  ACKNOWLEDGED_ALERTS: 'ema_petty_acknowledged_alerts_v1',
   MAPPING_TEMPLATES: 'ema_petty_mapping_templates_v1'
 };
 
@@ -309,6 +337,15 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return saved ? JSON.parse(saved) : initialGoogleSheetsConfig;
   });
 
+  const [acknowledgedAlertIds, setAcknowledgedAlertIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.ACKNOWLEDGED_ALERTS);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [filters, setFilters] = useState<PettyCashFilterState>(defaultFilters);
   const [isSyncingWithSheets, setIsSyncingWithSheets] = useState<boolean>(false);
 
@@ -348,6 +385,10 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(sheetsConfig));
   }, [sheetsConfig]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.ACKNOWLEDGED_ALERTS, JSON.stringify(acknowledgedAlertIds));
+  }, [acknowledgedAlertIds]);
 
   const setUserRole = (role: PettyCashUserRole) => {
     setUserRoleState(role);
@@ -634,6 +675,209 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       grandTotal: overallGrandTotal
     };
   }, [categories, projects, filteredExpenses]);
+
+  // ----------------------------------------------------
+  // Project Budget Threshold & Supervisor Alert System
+  // ----------------------------------------------------
+  const projectBudgetSummaries = useMemo<ProjectBudgetSummary[]>(() => {
+    return projects.map(proj => {
+      const budget = Number(proj.BUDGET_PETTY_CASH ?? proj.BUDGET ?? 0);
+
+      // Approved expenses for this project
+      const approvedExpenses = expenses.filter(
+        e => e.PROJECT === proj.PROJECT_CODE && (e.PAYMENT_STATUS === 'Approved' || e.PAYMENT_STATUS === 'Paid' || e.PAYMENT_STATUS === 'Reimbursed')
+      );
+      const approvedSpent = approvedExpenses.reduce((sum, e) => sum + (Number(e.AMOUNT) || 0), 0);
+
+      // Pending expenses for this project
+      const pendingExpenses = expenses.filter(
+        e => e.PROJECT === proj.PROJECT_CODE && e.PAYMENT_STATUS === 'Pending'
+      );
+      const pendingSpent = pendingExpenses.reduce((sum, e) => sum + (Number(e.AMOUNT) || 0), 0);
+
+      const totalCommitted = approvedSpent + pendingSpent;
+      const remainingBudget = Math.max(0, budget - approvedSpent);
+      const utilizationPercentage = budget > 0 ? (approvedSpent / budget) * 100 : 0;
+
+      let thresholdLevel: BudgetThresholdLevel = 'NORMAL';
+      let thresholdPercent: 80 | 95 | 100 = 80;
+      let severity: 'warning' | 'critical' | 'danger' = 'warning';
+
+      if (budget > 0) {
+        if (utilizationPercentage >= 100) {
+          thresholdLevel = 'OVER_BUDGET';
+          thresholdPercent = 100;
+          severity = 'danger';
+        } else if (utilizationPercentage >= 95) {
+          thresholdLevel = 'CRITICAL_95';
+          thresholdPercent = 95;
+          severity = 'critical';
+        } else if (utilizationPercentage >= 80) {
+          thresholdLevel = 'WARNING_80';
+          thresholdPercent = 80;
+          severity = 'warning';
+        }
+      }
+
+      // Find assigned / involved supervisors for this project
+      const assignedSupNames = new Set<string>();
+      supervisors.forEach(sup => {
+        if (sup.ASSIGNED_PROJECTS && sup.ASSIGNED_PROJECTS.some(p => p.trim().toUpperCase() === proj.PROJECT_CODE.trim().toUpperCase())) {
+          assignedSupNames.add(sup.SUPERVISOR_NAME);
+        }
+      });
+      // Also include supervisors who recorded expenses for this project
+      expenses.filter(e => e.PROJECT === proj.PROJECT_CODE).forEach(e => {
+        if (e.SUPERVISOR) assignedSupNames.add(e.SUPERVISOR);
+      });
+      const assignedSupervisors = Array.from(assignedSupNames);
+
+      let alert: ProjectBudgetAlert | undefined = undefined;
+      if (thresholdLevel !== 'NORMAL') {
+        const alertId = `alert-${proj.PROJECT_CODE}-${thresholdLevel}`;
+        const isAcknowledged = acknowledgedAlertIds.includes(alertId);
+
+        let message = '';
+        if (thresholdLevel === 'OVER_BUDGET') {
+          message = `Project ${proj.PROJECT_CODE} has EXCEEDED its allocated petty cash budget of LKR ${budget.toLocaleString('en-LK', { minimumFractionDigits: 2 })} by LKR ${(approvedSpent - budget).toLocaleString('en-LK', { minimumFractionDigits: 2 })} (${utilizationPercentage.toFixed(1)}% spent).`;
+        } else if (thresholdLevel === 'CRITICAL_95') {
+          message = `CRITICAL 95% ALERT: Project ${proj.PROJECT_CODE} has utilized ${utilizationPercentage.toFixed(1)}% (LKR ${approvedSpent.toLocaleString('en-LK', { minimumFractionDigits: 2 })} of LKR ${budget.toLocaleString('en-LK', { minimumFractionDigits: 2 })}) of its allocated budget. Only LKR ${(budget - approvedSpent).toLocaleString('en-LK', { minimumFractionDigits: 2 })} remaining.`;
+        } else {
+          message = `80% BUDGET WARNING: Project ${proj.PROJECT_CODE} has reached ${utilizationPercentage.toFixed(1)}% (LKR ${approvedSpent.toLocaleString('en-LK', { minimumFractionDigits: 2 })} of LKR ${budget.toLocaleString('en-LK', { minimumFractionDigits: 2 })}) of its allocated petty cash budget.`;
+        }
+
+        alert = {
+          id: alertId,
+          projectId: proj.id,
+          projectCode: proj.PROJECT_CODE,
+          projectName: proj.PROJECT_NAME,
+          allocatedBudget: budget,
+          spentAmount: approvedSpent,
+          pendingAmount: pendingSpent,
+          totalCommitted,
+          remainingBudget,
+          utilizationPercentage,
+          thresholdLevel,
+          thresholdPercent,
+          severity,
+          message,
+          assignedSupervisors,
+          acknowledged: isAcknowledged,
+          timestamp: new Date().toISOString()
+        };
+      }
+
+      return {
+        projectId: proj.id,
+        projectCode: proj.PROJECT_CODE,
+        projectName: proj.PROJECT_NAME,
+        client: proj.CLIENT || proj.CLIENT_NAME,
+        status: proj.STATUS,
+        allocatedBudget: budget,
+        approvedSpent,
+        pendingSpent,
+        totalCommitted,
+        remainingBudget,
+        utilizationPercentage,
+        thresholdLevel,
+        assignedSupervisors,
+        alert
+      };
+    });
+  }, [projects, expenses, supervisors, acknowledgedAlertIds]);
+
+  const budgetAlerts = useMemo<ProjectBudgetAlert[]>(() => {
+    return projectBudgetSummaries
+      .map(s => s.alert)
+      .filter((a): a is ProjectBudgetAlert => a !== undefined);
+  }, [projectBudgetSummaries]);
+
+  const acknowledgeBudgetAlert = (alertId: string, supervisorName?: string) => {
+    setAcknowledgedAlertIds(prev => prev.includes(alertId) ? prev : [...prev, alertId]);
+  };
+
+  const unacknowledgeBudgetAlert = (alertId: string) => {
+    setAcknowledgedAlertIds(prev => prev.filter(id => id !== alertId));
+  };
+
+  const clearAllBudgetAlerts = () => {
+    const allAlertIds = budgetAlerts.map(a => a.id);
+    setAcknowledgedAlertIds(prev => Array.from(new Set([...prev, ...allAlertIds])));
+  };
+
+  const updateProjectBudget = (projectIdOrCode: string, newBudget: number) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id === projectIdOrCode || p.PROJECT_CODE === projectIdOrCode || p.PROJECT_ID === projectIdOrCode) {
+        return {
+          ...p,
+          BUDGET_PETTY_CASH: newBudget,
+          BUDGET: newBudget
+        };
+      }
+      return p;
+    }));
+  };
+
+  const checkBudgetImpact = (projectCode: string, additionalAmount: number) => {
+    const proj = projects.find(p => p.PROJECT_CODE === projectCode);
+    const budget = Number(proj?.BUDGET_PETTY_CASH ?? proj?.BUDGET ?? 0);
+    const approvedExpenses = expenses.filter(
+      e => e.PROJECT === projectCode && (e.PAYMENT_STATUS === 'Approved' || e.PAYMENT_STATUS === 'Paid' || e.PAYMENT_STATUS === 'Reimbursed')
+    );
+    const currentSpent = approvedExpenses.reduce((sum, e) => sum + (Number(e.AMOUNT) || 0), 0);
+    const currentPercent = budget > 0 ? (currentSpent / budget) * 100 : 0;
+    const projectedSpent = currentSpent + Math.max(0, additionalAmount || 0);
+    const projectedPercent = budget > 0 ? (projectedSpent / budget) * 100 : 0;
+
+    let currentThreshold: BudgetThresholdLevel = 'NORMAL';
+    if (budget > 0) {
+      if (currentPercent >= 100) currentThreshold = 'OVER_BUDGET';
+      else if (currentPercent >= 95) currentThreshold = 'CRITICAL_95';
+      else if (currentPercent >= 80) currentThreshold = 'WARNING_80';
+    }
+
+    let projectedThreshold: BudgetThresholdLevel = 'NORMAL';
+    if (budget > 0) {
+      if (projectedPercent >= 100) projectedThreshold = 'OVER_BUDGET';
+      else if (projectedPercent >= 95) projectedThreshold = 'CRITICAL_95';
+      else if (projectedPercent >= 80) projectedThreshold = 'WARNING_80';
+    }
+
+    const willTrigger80 = currentPercent < 80 && projectedPercent >= 80 && projectedPercent < 95;
+    const willTrigger95 = currentPercent < 95 && projectedPercent >= 95 && projectedPercent < 100;
+    const willExceed = currentPercent < 100 && projectedPercent >= 100;
+
+    let message = '';
+    if (projectedPercent >= 100) {
+      message = `This expense of LKR ${(additionalAmount || 0).toLocaleString()} will cause ${projectCode} to EXCEED its allocated petty cash budget (${projectedPercent.toFixed(1)}% utilized).`;
+    } else if (projectedPercent >= 95) {
+      message = `Critical 95% Threshold Alert: Adding this expense will push ${projectCode} budget utilization to ${projectedPercent.toFixed(1)}% (LKR ${projectedSpent.toLocaleString()} of LKR ${budget.toLocaleString()}).`;
+    } else if (projectedPercent >= 80) {
+      message = `80% Threshold Warning: Adding this expense will push ${projectCode} budget utilization to ${projectedPercent.toFixed(1)}% (LKR ${projectedSpent.toLocaleString()} of LKR ${budget.toLocaleString()}).`;
+    }
+
+    return {
+      currentSpent,
+      allocatedBudget: budget,
+      currentPercent,
+      projectedSpent,
+      projectedPercent,
+      currentThreshold,
+      projectedThreshold,
+      willTrigger80,
+      willTrigger95,
+      willExceed,
+      remainingBudget: Math.max(0, budget - projectedSpent),
+      message
+    };
+  };
+
+  const getSupervisorBudgetAlerts = (supervisorName?: string) => {
+    const targetName = (supervisorName || currentSupervisorName).trim().toUpperCase();
+    return budgetAlerts.filter(a =>
+      a.assignedSupervisors.some(s => s.trim().toUpperCase() === targetName)
+    );
+  };
 
   // Sequential Supervisor Petty Cash Statement Generator
   const getSupervisorStatement = (supervisorName: string): PettyCashStatementRow[] => {
@@ -1457,6 +1701,15 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         syncWithGoogleSheets,
         updateSheetsConfig,
         exportToCsv,
+        projectBudgetSummaries,
+        budgetAlerts,
+        acknowledgedAlertIds,
+        acknowledgeBudgetAlert,
+        unacknowledgeBudgetAlert,
+        clearAllBudgetAlerts,
+        updateProjectBudget,
+        checkBudgetImpact,
+        getSupervisorBudgetAlerts,
         resetPettyCashData,
         clearExpensesHistory,
         clearIncomeHistory,

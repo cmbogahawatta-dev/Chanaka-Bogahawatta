@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Upload, CheckCircle2, AlertCircle, Calendar, User, Building, Tag, DollarSign, FileText, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Upload, CheckCircle2, AlertCircle, Calendar, User, Building, Tag, DollarSign, FileText, Image as ImageIcon, AlertTriangle, AlertOctagon, ShieldAlert } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { Expense, TransactionType } from '../../types/pettyCashTypes';
 
@@ -23,7 +23,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     currentSupervisorName,
     userRole,
     addExpense,
-    updateExpense
+    updateExpense,
+    checkBudgetImpact
   } = usePettyCash();
 
   // Form State
@@ -40,8 +41,16 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [remarks, setRemarks] = useState<string>('');
   const [proofDocument, setProofDocument] = useState<string>('');
   const [proofDocName, setProofDocName] = useState<string>('');
+  const [supervisorConfirmedThreshold, setSupervisorConfirmedThreshold] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [submittedExpenseId, setSubmittedExpenseId] = useState<string | null>(null);
+
+  const numericAmount = parseFloat(amount.replace(/,/g, '')) || 0;
+
+  // Real-time project budget impact calculation
+  const budgetImpact = useMemo(() => {
+    return checkBudgetImpact(project, numericAmount);
+  }, [project, numericAmount, checkBudgetImpact]);
 
   useEffect(() => {
     if (expenseToEdit) {
@@ -55,6 +64,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setRemarks(expenseToEdit.REMARKS || '');
       setProofDocument(expenseToEdit.PROOF_DOCUMENT || '');
       setProofDocName(expenseToEdit.PROOF_DOCUMENT_NAME || '');
+      setSupervisorConfirmedThreshold(false);
       setError('');
     } else {
       setDateRef(todayIso);
@@ -67,6 +77,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setRemarks('');
       setProofDocument('');
       setProofDocName('');
+      setSupervisorConfirmedThreshold(false);
       setError('');
     }
   }, [expenseToEdit, isOpen]);
@@ -424,6 +435,97 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Real-time Project Budget Threshold Alert Notification */}
+            {budgetImpact.allocatedBudget > 0 && (
+              <div
+                className={`p-3.5 rounded-xl border transition-all ${
+                  budgetImpact.projectedThreshold === 'OVER_BUDGET'
+                    ? 'bg-rose-950/40 border-rose-700/80 shadow-md shadow-rose-950/20'
+                    : budgetImpact.projectedThreshold === 'CRITICAL_95'
+                    ? 'bg-orange-950/40 border-orange-700/80 shadow-md shadow-orange-950/20'
+                    : budgetImpact.projectedThreshold === 'WARNING_80'
+                    ? 'bg-amber-950/40 border-amber-700/80 shadow-md shadow-amber-950/20'
+                    : 'bg-slate-950/60 border-slate-800'
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <div className="shrink-0 mt-0.5">
+                    {budgetImpact.projectedThreshold === 'OVER_BUDGET' ? (
+                      <ShieldAlert className="w-4 h-4 text-rose-400 animate-pulse" />
+                    ) : budgetImpact.projectedThreshold === 'CRITICAL_95' ? (
+                      <AlertOctagon className="w-4 h-4 text-orange-400 animate-pulse" />
+                    ) : budgetImpact.projectedThreshold === 'WARNING_80' ? (
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    )}
+                  </div>
+
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-200">
+                        {budgetImpact.projectedThreshold === 'OVER_BUDGET'
+                          ? '🚨 Budget Exceeded Warning'
+                          : budgetImpact.projectedThreshold === 'CRITICAL_95'
+                          ? '⚠️ 95% Critical Budget Threshold'
+                          : budgetImpact.projectedThreshold === 'WARNING_80'
+                          ? '⚡ 80% Budget Threshold Warning'
+                          : 'Petty Cash Budget Status'}
+                      </span>
+                      <span className="text-xs font-mono font-bold text-slate-300">
+                        {budgetImpact.projectedPercent.toFixed(1)}% Projected
+                      </span>
+                    </div>
+
+                    <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden my-1.5 border border-slate-800 relative">
+                      <div className="absolute top-0 bottom-0 left-[80%] w-0.5 bg-amber-400/60" />
+                      <div className="absolute top-0 bottom-0 left-[95%] w-0.5 bg-orange-400/60" />
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          budgetImpact.projectedThreshold === 'OVER_BUDGET'
+                            ? 'bg-rose-500'
+                            : budgetImpact.projectedThreshold === 'CRITICAL_95'
+                            ? 'bg-orange-500'
+                            : budgetImpact.projectedThreshold === 'WARNING_80'
+                            ? 'bg-amber-400'
+                            : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, budgetImpact.projectedPercent)}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Spent: LKR {budgetImpact.projectedSpent.toLocaleString()}</span>
+                      <span>Budget: LKR {budgetImpact.allocatedBudget.toLocaleString()}</span>
+                      <span className={budgetImpact.remainingBudget <= 0 ? 'text-rose-400 font-bold' : 'text-slate-300'}>
+                        Buffer: LKR {budgetImpact.remainingBudget.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {budgetImpact.message && (
+                      <p className="text-[11px] mt-1 text-slate-300 font-medium leading-tight">
+                        {budgetImpact.message}
+                      </p>
+                    )}
+
+                    {(budgetImpact.projectedThreshold === 'CRITICAL_95' || budgetImpact.projectedThreshold === 'OVER_BUDGET') && (
+                      <label className="mt-2 flex items-center gap-2 cursor-pointer pt-1.5 border-t border-slate-800">
+                        <input
+                          type="checkbox"
+                          checked={supervisorConfirmedThreshold}
+                          onChange={(e) => setSupervisorConfirmedThreshold(e.target.checked)}
+                          className="w-3.5 h-3.5 rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500"
+                        />
+                        <span className="text-[11px] font-semibold text-amber-300">
+                          Supervisor Acknowledgment: I confirm this project budget threshold impact.
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Modal Actions */}
             <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-800">

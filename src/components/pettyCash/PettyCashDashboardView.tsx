@@ -15,7 +15,11 @@ import {
   Eye,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Bell,
+  AlertTriangle,
+  AlertOctagon,
+  Sliders
 } from 'lucide-react';
 import {
   BarChart,
@@ -32,6 +36,7 @@ import {
 } from 'recharts';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { PettyCashFilterBar } from './PettyCashFilterBar';
+import { BudgetThresholdAlertBanner } from './BudgetThresholdAlertBanner';
 import { Expense, PaymentStatus } from '../../types/pettyCashTypes';
 
 interface PettyCashDashboardViewProps {
@@ -40,6 +45,7 @@ interface PettyCashDashboardViewProps {
   onOpenAddIncome: () => void;
   onSelectExpenseForDetail: (expense: Expense) => void;
   onSelectSupervisorForStatement: (supervisorName: string) => void;
+  onOpenBudgetAlerts?: () => void;
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316', '#64748b'];
@@ -49,7 +55,8 @@ export const PettyCashDashboardView: React.FC<PettyCashDashboardViewProps> = ({
   onOpenAddExpense,
   onOpenAddIncome,
   onSelectExpenseForDetail,
-  onSelectSupervisorForStatement
+  onSelectSupervisorForStatement,
+  onOpenBudgetAlerts
 }) => {
   const {
     kpiMetrics,
@@ -58,6 +65,8 @@ export const PettyCashDashboardView: React.FC<PettyCashDashboardViewProps> = ({
     supervisors,
     filteredExpenses,
     filteredIncome,
+    projectBudgetSummaries,
+    budgetAlerts,
     exportToCsv,
     userRole
   } = usePettyCash();
@@ -102,6 +111,11 @@ export const PettyCashDashboardView: React.FC<PettyCashDashboardViewProps> = ({
 
   return (
     <div className="space-y-6 pb-12">
+      {/* Real-time Project Budget Threshold Alert Banner */}
+      {onOpenBudgetAlerts && (
+        <BudgetThresholdAlertBanner onOpenAlertsModal={onOpenBudgetAlerts} />
+      )}
+
       {/* Top Welcome & KPI Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/50 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-md">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
@@ -323,6 +337,145 @@ export const PettyCashDashboardView: React.FC<PettyCashDashboardViewProps> = ({
               </tr>
             </tfoot>
           </table>
+        </div>
+      </div>
+
+      {/* PROJECT BUDGET THRESHOLD ALERT & UTILIZATION MONITOR */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-md">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-base sm:text-lg font-black text-slate-100 tracking-tight flex items-center gap-2">
+              <Sliders className="w-5 h-5 text-amber-400" />
+              <span>Project Budget Threshold Alerts & Utilization</span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Live tracking against allocated project budgets. Automated notification threshold triggers at 80% (Warning) and 95% (Critical).
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {onOpenBudgetAlerts && (
+              <button
+                onClick={onOpenBudgetAlerts}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-700/60 text-xs font-bold transition-all"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                <span>Alerts Center ({budgetAlerts.length})</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {projectBudgetSummaries.map((summary) => {
+            const isExceeded = summary.thresholdLevel === 'OVER_BUDGET';
+            const is95 = summary.thresholdLevel === 'CRITICAL_95';
+            const is80 = summary.thresholdLevel === 'WARNING_80';
+
+            const cardBorder = isExceeded
+              ? 'border-rose-700/80 bg-rose-950/20 shadow-sm shadow-rose-950/20'
+              : is95
+              ? 'border-orange-700/80 bg-orange-950/20 shadow-sm shadow-orange-950/20'
+              : is80
+              ? 'border-amber-700/80 bg-amber-950/20 shadow-sm shadow-amber-950/20'
+              : 'border-slate-800 bg-slate-950/50';
+
+            const progressBarColor = isExceeded
+              ? 'bg-rose-500'
+              : is95
+              ? 'bg-orange-500'
+              : is80
+              ? 'bg-amber-400'
+              : 'bg-emerald-500';
+
+            return (
+              <div key={summary.projectId} className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${cardBorder}`}>
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs font-black text-slate-100 bg-slate-900 border border-slate-700 px-2 py-0.5 rounded">
+                          {summary.projectCode}
+                        </span>
+                        <span className="text-[11px] text-slate-400 truncate max-w-[140px]" title={summary.client}>
+                          {summary.client}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-200 mt-1 line-clamp-1" title={summary.projectName}>
+                        {summary.projectName}
+                      </h4>
+                    </div>
+
+                    {summary.thresholdLevel !== 'NORMAL' ? (
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-black shrink-0 flex items-center gap-1 ${
+                          isExceeded
+                            ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                            : is95
+                            ? 'bg-orange-950 text-orange-300 border border-orange-800'
+                            : 'bg-amber-950 text-amber-300 border border-amber-800'
+                        }`}
+                      >
+                        {isExceeded ? <ShieldAlert className="w-3 h-3" /> : is95 ? <AlertOctagon className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                        <span>{isExceeded ? '100% EXCEEDED' : is95 ? '95% CRITICAL' : '80% WARNING'}</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 shrink-0">
+                        HEALTHY
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Progress Bar with markers at 80% and 95% */}
+                  <div className="space-y-1 my-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[11px] text-slate-400 font-medium">Spent:</span>
+                      <span className="font-mono text-xs font-bold text-slate-200">
+                        {summary.utilizationPercentage.toFixed(1)}% ({formatLKR(summary.approvedSpent)})
+                      </span>
+                    </div>
+                    <div className="relative w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                      <div className="absolute top-0 bottom-0 left-[80%] w-0.5 bg-amber-400/50 z-10" />
+                      <div className="absolute top-0 bottom-0 left-[95%] w-0.5 bg-orange-400/50 z-10" />
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${progressBarColor}`}
+                        style={{ width: `${Math.min(100, summary.utilizationPercentage)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Key Metrics */}
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-2 border-t border-slate-800/80">
+                    <div>
+                      <span className="block text-[10px] font-sans text-slate-400 uppercase">Allocated Budget</span>
+                      <span className="font-bold text-slate-200">{formatLKR(summary.allocatedBudget)}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-sans text-slate-400 uppercase">Remaining Buffer</span>
+                      <span className={`font-bold ${summary.remainingBudget <= 0 ? 'text-rose-400' : 'text-slate-300'}`}>
+                        {formatLKR(summary.remainingBudget)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Assigned Supervisors */}
+                <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Assigned:</span>
+                  <div className="flex flex-wrap gap-1 justify-end">
+                    {summary.assignedSupervisors.slice(0, 2).map((s) => (
+                      <span key={s} className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-bold text-[10px]">
+                        {s}
+                      </span>
+                    ))}
+                    {summary.assignedSupervisors.length > 2 && (
+                      <span className="text-[10px] text-slate-400 font-bold">+{summary.assignedSupervisors.length - 2}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

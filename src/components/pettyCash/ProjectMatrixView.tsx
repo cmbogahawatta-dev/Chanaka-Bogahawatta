@@ -12,11 +12,13 @@ import {
   ExternalLink,
   Edit2,
   Trash2,
-  CheckCircle2
+  CheckCircle2,
+  FileSpreadsheet
 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { PettyCashFilterBar } from './PettyCashFilterBar';
 import { Project, Expense } from '../../types/pettyCashTypes';
+import { BulkImportProjectsModal } from './BulkImportProjectsModal';
 
 interface ProjectMatrixViewProps {
   onSelectExpenseForDetail: (expense: Expense) => void;
@@ -27,6 +29,8 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
     projects,
     pivotMatrix,
     filteredExpenses,
+    projectBudgetSummaries,
+    budgetAlerts,
     exportToCsv,
     addProject,
     updateProject,
@@ -40,6 +44,9 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
     projectCode: string;
     amount: number;
   } | null>(null);
+
+  // Bulk Import Project Modal State
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
 
   // Add Project Modal State
   const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState<boolean>(false);
@@ -103,6 +110,16 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            id="btn-bulk-import-projects"
+            onClick={() => setIsBulkImportOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-bold shadow-md transition-all active:scale-95"
+            title="Bulk import projects from Excel/CSV with Admin PIN authorization"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Bulk Import</span>
+          </button>
+
           <button
             id="btn-export-full-pivot-csv"
             onClick={() => exportToCsv('pivot')}
@@ -202,7 +219,7 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
             <tfoot>
               <tr className="bg-slate-800 text-slate-100 font-bold border-t-2 border-slate-700">
                 <td colSpan={2} className="py-3 px-3.5 sticky left-0 bg-slate-800 font-sans uppercase tracking-wider text-xs">
-                  TOTAL PROJECT EXPENDITURE
+                  TOTAL APPROVED SPEND
                 </td>
                 {pivotMatrix.projects.map((p) => {
                   const colTotal = pivotMatrix.columnTotals[p.PROJECT_CODE] || 0;
@@ -214,6 +231,70 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
                 })}
                 <td className="py-3 px-3.5 text-right font-black text-sm bg-emerald-900/80 text-emerald-200">
                   {formatLKR(pivotMatrix.grandTotal)}
+                </td>
+              </tr>
+
+              {/* Allocated Petty Cash Budget Row */}
+              <tr className="bg-slate-900/90 text-slate-300 font-medium border-t border-slate-800">
+                <td colSpan={2} className="py-2.5 px-3.5 sticky left-0 bg-slate-900 font-sans uppercase tracking-wider text-[11px] text-slate-400">
+                  ALLOCATED PETTY CASH BUDGET
+                </td>
+                {pivotMatrix.projects.map((p) => {
+                  const budget = Number(p.BUDGET_PETTY_CASH ?? p.BUDGET ?? 0);
+                  return (
+                    <td key={p.id} className="py-2.5 px-3 text-right font-mono text-xs text-slate-300">
+                      {budget > 0 ? budget.toLocaleString('en-LK', { minimumFractionDigits: 2 }) : '-'}
+                    </td>
+                  );
+                })}
+                <td className="py-2.5 px-3.5 text-right font-mono text-xs font-bold text-slate-200 bg-slate-900">
+                  {formatLKR(pivotMatrix.projects.reduce((sum, p) => sum + Number(p.BUDGET_PETTY_CASH ?? p.BUDGET ?? 0), 0))}
+                </td>
+              </tr>
+
+              {/* Budget Threshold Utilization Row */}
+              <tr className="bg-slate-950 text-slate-100 font-bold border-t border-slate-800">
+                <td colSpan={2} className="py-2.5 px-3.5 sticky left-0 bg-slate-950 font-sans uppercase tracking-wider text-[11px] text-slate-400">
+                  BUDGET UTILIZATION & ALERT
+                </td>
+                {pivotMatrix.projects.map((p) => {
+                  const budget = Number(p.BUDGET_PETTY_CASH ?? p.BUDGET ?? 0);
+                  const spent = pivotMatrix.columnTotals[p.PROJECT_CODE] || 0;
+                  const pct = budget > 0 ? (spent / budget) * 100 : 0;
+
+                  const isExceeded = pct >= 100;
+                  const is95 = pct >= 95 && pct < 100;
+                  const is80 = pct >= 80 && pct < 95;
+
+                  return (
+                    <td key={p.id} className="py-2.5 px-3 text-right font-mono text-xs">
+                      {budget > 0 ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
+                              isExceeded
+                                ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                                : is95
+                                ? 'bg-orange-950 text-orange-300 border border-orange-800'
+                                : is80
+                                ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            }`}
+                          >
+                            {pct.toFixed(1)}% {isExceeded ? '⛔' : is95 ? '🚨 95%' : is80 ? '⚠️ 80%' : '✓'}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 font-normal">N/A</span>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="py-2.5 px-3.5 text-right font-mono text-xs font-black text-emerald-300 bg-slate-950">
+                  {(() => {
+                    const totalB = pivotMatrix.projects.reduce((sum, p) => sum + Number(p.BUDGET_PETTY_CASH ?? p.BUDGET ?? 0), 0);
+                    return totalB > 0 ? `${((pivotMatrix.grandTotal / totalB) * 100).toFixed(1)}% Overall` : '-';
+                  })()}
                 </td>
               </tr>
             </tfoot>
@@ -288,7 +369,7 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
 
       {/* MASTER PROJECTS TABLE (Master Data Management) */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-md">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h3 className="text-base font-black text-slate-100 tracking-tight flex items-center gap-2">
               <Building className="w-5 h-5 text-emerald-400" />
@@ -297,6 +378,28 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
             <p className="text-xs text-slate-400 mt-0.5">
               Active road contracts, package codes, and assigned budgets.
             </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              id="btn-projects-section-bulk-import"
+              onClick={() => setIsBulkImportOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-bold shadow-md transition-all active:scale-95"
+              title="Bulk import projects from Excel/CSV with Admin PIN authorization"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Bulk Import Projects</span>
+            </button>
+
+            {(userRole === 'ADMIN' || userRole === 'FINANCE') && (
+              <button
+                onClick={() => setIsAddProjectModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all active:scale-95"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Add Project</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -314,28 +417,54 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {projects.map((p) => {
-                const spent = pivotMatrix.columnTotals[p.PROJECT_CODE] || 0;
-                return (
-                  <tr key={p.id} className="hover:bg-slate-800/40">
-                    <td className="py-2.5 px-3 font-mono font-bold text-emerald-400">{p.PROJECT_CODE}</td>
-                    <td className="py-2.5 px-3 font-semibold text-slate-100">{p.PROJECT_NAME}</td>
-                    <td className="py-2.5 px-3 text-slate-300">{p.CLIENT_NAME || 'RDA'}</td>
-                    <td className="py-2.5 px-3 text-slate-400">{p.LOCATION || 'Sri Lanka'}</td>
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-300">
-                      {p.BUDGET ? formatLKR(p.BUDGET) : 'Open'}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-100">
-                      {formatLKR(spent)}
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
-                        {p.STATUS}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
+              {projects.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                    <Building className="w-10 h-10 mx-auto mb-2 opacity-30 text-slate-400" />
+                    <p className="font-semibold text-slate-400 text-sm">Project Directory is Empty</p>
+                    <p className="text-[11px] text-slate-600 mt-1 mb-4">Click "Add Project" to register projects manually, or import bulk records from Excel / CSV.</p>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => setIsBulkImportOpen(true)}
+                        className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-md"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        Bulk Import Projects
+                      </button>
+                      <button
+                        onClick={() => setIsAddProjectModalOpen(true)}
+                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-md"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        Add Single Project
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                projects.map((p) => {
+                  const spent = pivotMatrix.columnTotals[p.PROJECT_CODE] || 0;
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-800/40">
+                      <td className="py-2.5 px-3 font-mono font-bold text-emerald-400">{p.PROJECT_CODE}</td>
+                      <td className="py-2.5 px-3 font-semibold text-slate-100">{p.PROJECT_NAME}</td>
+                      <td className="py-2.5 px-3 text-slate-300">{p.CLIENT_NAME || 'RDA'}</td>
+                      <td className="py-2.5 px-3 text-slate-400">{p.LOCATION || 'Sri Lanka'}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-slate-300">
+                        {p.BUDGET ? formatLKR(p.BUDGET) : 'Open'}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-100">
+                        {formatLKR(spent)}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
+                          {p.STATUS}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -408,6 +537,12 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
           </div>
         </div>
       )}
+
+      {/* Bulk Import Projects Modal */}
+      <BulkImportProjectsModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+      />
     </div>
   );
 };

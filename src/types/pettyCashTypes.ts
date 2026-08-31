@@ -122,15 +122,17 @@ export interface Project {
   PROJECT_ID: string; // e.g. "PRJ-001"
   PROJECT_CODE: string; // e.g. "PIDM 26"
   PROJECT_NAME: string;
-  CLIENT: string;
+  CLIENT?: string;
+  CLIENT_NAME?: string;
   LOCATION: string;
-  CONTRACT_VALUE: number; // LKR
-  START_DATE: string;
-  END_DATE: string;
+  CONTRACT_VALUE?: number; // LKR
+  START_DATE?: string;
+  END_DATE?: string;
   STATUS: 'Active' | 'On Hold' | 'Completed' | 'Closed';
-  PROJECT_MANAGER: string;
+  PROJECT_MANAGER?: string;
   REMARKS?: string;
   BUDGET_PETTY_CASH?: number;
+  BUDGET?: number; // Alias for budget
 
   // Historical Import Metadata
   DATA_SOURCE?: 'HISTORICAL_IMPORT' | 'SYSTEM_ORIGINAL' | string;
@@ -138,6 +140,47 @@ export interface Project {
   IMPORTED_BY?: string;
   IMPORTED_AT?: string;
   IS_HISTORICAL?: boolean;
+}
+
+export type BudgetThresholdLevel = 'NORMAL' | 'WARNING_80' | 'CRITICAL_95' | 'OVER_BUDGET';
+
+export interface ProjectBudgetAlert {
+  id: string;
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  allocatedBudget: number;
+  spentAmount: number;
+  pendingAmount: number;
+  totalCommitted: number;
+  remainingBudget: number;
+  utilizationPercentage: number;
+  thresholdLevel: 'WARNING_80' | 'CRITICAL_95' | 'OVER_BUDGET';
+  thresholdPercent: 80 | 95 | 100;
+  severity: 'warning' | 'critical' | 'danger';
+  message: string;
+  assignedSupervisors: string[];
+  acknowledged: boolean;
+  acknowledgedBy?: string;
+  acknowledgedAt?: string;
+  timestamp: string;
+}
+
+export interface ProjectBudgetSummary {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  client?: string;
+  status: string;
+  allocatedBudget: number;
+  approvedSpent: number;
+  pendingSpent: number;
+  totalCommitted: number;
+  remainingBudget: number;
+  utilizationPercentage: number;
+  thresholdLevel: BudgetThresholdLevel;
+  assignedSupervisors: string[];
+  alert?: ProjectBudgetAlert;
 }
 
 export interface ExpenseCategory {

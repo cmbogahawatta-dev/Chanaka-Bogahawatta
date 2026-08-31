@@ -11,7 +11,8 @@ import {
   User,
   ArrowUpDown,
   Edit2,
-  Trash2
+  Trash2,
+  FileSpreadsheet
 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
@@ -19,6 +20,7 @@ import { PettyCashFilterBar } from './PettyCashFilterBar';
 import { Income } from '../../types/pettyCashTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { AddIncomeModal } from './AddIncomeModal';
+import { BulkImportIncomeModal } from './BulkImportIncomeModal';
 
 interface IncomeListViewProps {
   onOpenAddIncome: () => void;
@@ -31,6 +33,7 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({ onOpenAddIncome 
 
   const [selectedIncome, setSelectedIncome] = useState<Income | null>(null);
   const [editingIncome, setEditingIncome] = useState<Income | null>(null);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
 
   const formatLKR = (amount: number): string => {
     return new Intl.NumberFormat('en-LK', {
@@ -65,6 +68,16 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({ onOpenAddIncome 
             preservedItemsDescription="Supervisors, projects, and chart of accounts remain intact."
             onClear={() => clearIncomeHistory()}
           />
+
+          <button
+            id="btn-bulk-import-income"
+            onClick={() => setIsBulkImportOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-xs font-bold shadow-md transition-all active:scale-95"
+            title="Bulk import income and top-ups from Excel/CSV with Admin PIN authorization"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Bulk Import</span>
+          </button>
 
           <button
             id="btn-export-income-csv"
@@ -288,6 +301,12 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({ onOpenAddIncome 
           incomeToEdit={editingIncome}
         />
       )}
+
+      {/* Bulk Import Income Modal */}
+      <BulkImportIncomeModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+      />
     </div>
   );
 };

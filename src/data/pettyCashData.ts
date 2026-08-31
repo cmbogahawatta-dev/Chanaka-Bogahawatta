@@ -62,13 +62,16 @@ export const initialProjects: Project[] = [
     PROJECT_CODE: 'PIDB 26',
     PROJECT_NAME: 'Badulla Provincial Road Widening & Drainage Package 26',
     CLIENT: 'Road Development Authority (RDA)',
+    CLIENT_NAME: 'Road Development Authority (RDA)',
     LOCATION: 'Badulla / Passara',
     CONTRACT_VALUE: 185000000.00,
     START_DATE: '01/01/2026',
     END_DATE: '31/12/2026',
     STATUS: 'Active',
     PROJECT_MANAGER: 'Eng. K. Perera',
-    REMARKS: 'Bridge culverts and concrete paving phase'
+    REMARKS: 'Bridge culverts and concrete paving phase',
+    BUDGET_PETTY_CASH: 75000.00,
+    BUDGET: 75000.00
   },
   {
     id: 'prj-2',
@@ -76,13 +79,16 @@ export const initialProjects: Project[] = [
     PROJECT_CODE: 'PIDM 2',
     PROJECT_NAME: 'Monaragala District Highway Access Link Phase 2',
     CLIENT: 'Ministry of Transport & Highways',
+    CLIENT_NAME: 'Ministry of Transport & Highways',
     LOCATION: 'Monaragala',
     CONTRACT_VALUE: 142000000.00,
     START_DATE: '15/02/2026',
     END_DATE: '15/11/2026',
     STATUS: 'Active',
     PROJECT_MANAGER: 'Eng. S. Jayasinghe',
-    REMARKS: 'Sub-base compaction and embankment filling'
+    REMARKS: 'Sub-base compaction and embankment filling',
+    BUDGET_PETTY_CASH: 80000.00,
+    BUDGET: 80000.00
   },
   {
     id: 'prj-3',
@@ -90,13 +96,16 @@ export const initialProjects: Project[] = [
     PROJECT_CODE: 'PIDM 26',
     PROJECT_NAME: 'Matara Southern Expressway Feeder Rehabilitation 26',
     CLIENT: 'RDA Southern Provincial Office',
+    CLIENT_NAME: 'RDA Southern Provincial Office',
     LOCATION: 'Matara / Akuressa',
     CONTRACT_VALUE: 220000000.00,
     START_DATE: '10/01/2026',
     END_DATE: '28/02/2027',
     STATUS: 'Active',
     PROJECT_MANAGER: 'Eng. D. Weerasinghe',
-    REMARKS: 'Heavy asphalt paving & storm water drainage construction'
+    REMARKS: 'Heavy asphalt paving & storm water drainage construction',
+    BUDGET_PETTY_CASH: 150000.00,
+    BUDGET: 150000.00
   },
   {
     id: 'prj-4',
@@ -104,13 +113,16 @@ export const initialProjects: Project[] = [
     PROJECT_CODE: 'PIDM 28',
     PROJECT_NAME: 'Hambantota Coastal Bypass Connection 28',
     CLIENT: 'Road Development Authority',
+    CLIENT_NAME: 'Road Development Authority',
     LOCATION: 'Hambantota',
     CONTRACT_VALUE: 168000000.00,
     START_DATE: '01/03/2026',
     END_DATE: '30/11/2026',
     STATUS: 'Active',
     PROJECT_MANAGER: 'Eng. N. Fernando',
-    REMARKS: 'Kerb laying and bitumen spraying'
+    REMARKS: 'Kerb laying and bitumen spraying',
+    BUDGET_PETTY_CASH: 60000.00,
+    BUDGET: 60000.00
   },
   {
     id: 'prj-5',
@@ -118,13 +130,16 @@ export const initialProjects: Project[] = [
     PROJECT_CODE: 'RDA-DIT-MAH-27',
     PROJECT_NAME: 'Mahiyangana Town Bypass & Junction Improvement',
     CLIENT: 'RDA Uva Province',
+    CLIENT_NAME: 'RDA Uva Province',
     LOCATION: 'Mahiyangana',
     CONTRACT_VALUE: 95000000.00,
     START_DATE: '15/01/2026',
     END_DATE: '30/09/2026',
     STATUS: 'Active',
     PROJECT_MANAGER: 'Eng. K. Perera',
-    REMARKS: 'Retaining walls and pedestrian walkways'
+    REMARKS: 'Retaining walls and pedestrian walkways',
+    BUDGET_PETTY_CASH: 150000.00,
+    BUDGET: 150000.00
   },
   {
     id: 'prj-6',
@@ -132,13 +147,16 @@ export const initialProjects: Project[] = [
     PROJECT_CODE: 'RDA-DIT-MON-28',
     PROJECT_NAME: 'Monaragala Town Centre Internal Pavement Upgrade',
     CLIENT: 'Uva Provincial Council',
+    CLIENT_NAME: 'Uva Provincial Council',
     LOCATION: 'Monaragala',
     CONTRACT_VALUE: 78000000.00,
     START_DATE: '01/02/2026',
     END_DATE: '31/08/2026',
     STATUS: 'Active',
     PROJECT_MANAGER: 'Eng. S. Jayasinghe',
-    REMARKS: 'Interlocking pavers & storm drains'
+    REMARKS: 'Interlocking pavers & storm drains',
+    BUDGET_PETTY_CASH: 100000.00,
+    BUDGET: 100000.00
   },
   {
     id: 'prj-7',
@@ -146,13 +164,16 @@ export const initialProjects: Project[] = [
     PROJECT_CODE: 'RDA-RD-BDL-01',
     PROJECT_NAME: 'Badulla Ella Scenic Corridor Strengthening 01',
     CLIENT: 'RDA Central & Uva',
+    CLIENT_NAME: 'RDA Central & Uva',
     LOCATION: 'Ella / Bandarawela',
     CONTRACT_VALUE: 135000000.00,
     START_DATE: '15/02/2026',
     END_DATE: '31/12/2026',
     STATUS: 'Active',
     PROJECT_MANAGER: 'Eng. N. Fernando',
-    REMARKS: 'Slope stabilization & rock bolting works'
+    REMARKS: 'Slope stabilization & rock bolting works',
+    BUDGET_PETTY_CASH: 90000.00,
+    BUDGET: 90000.00
   },
   {
     id: 'prj-8',
@@ -160,13 +181,16 @@ export const initialProjects: Project[] = [
     PROJECT_CODE: 'RDA-RD-BDL-15',
     PROJECT_NAME: 'Badulla Mahiyangana Highway Section 15 Upgrade',
     CLIENT: 'RDA Uva Province',
+    CLIENT_NAME: 'RDA Uva Province',
     LOCATION: 'Badulla',
     CONTRACT_VALUE: 110000000.00,
     START_DATE: '01/01/2026',
     END_DATE: '31/10/2026',
     STATUS: 'Active',
     PROJECT_MANAGER: 'Eng. K. Perera',
-    REMARKS: 'Culvert extension and asphalt binder course'
+    REMARKS: 'Culvert extension and asphalt binder course',
+    BUDGET_PETTY_CASH: 120000.00,
+    BUDGET: 120000.00
   },
   {
     id: 'prj-9',
@@ -174,13 +198,16 @@ export const initialProjects: Project[] = [
     PROJECT_CODE: 'RDA-RDA-AKK-05',
     PROJECT_NAME: 'Akkaraipattu Coastal Highway Bridge Approaches',
     CLIENT: 'RDA Eastern Province',
+    CLIENT_NAME: 'RDA Eastern Province',
     LOCATION: 'Akkaraipattu / Ampara',
     CONTRACT_VALUE: 190000000.00,
     START_DATE: '01/03/2026',
     END_DATE: '31/01/2027',
     STATUS: 'Active',
     PROJECT_MANAGER: 'Eng. D. Weerasinghe',
-    REMARKS: 'Bridge approach slab casting and guardrails'
+    REMARKS: 'Bridge approach slab casting and guardrails',
+    BUDGET_PETTY_CASH: 110000.00,
+    BUDGET: 110000.00
   }
 ];
 

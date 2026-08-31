@@ -10,7 +10,9 @@ import {
   ShieldAlert,
   FileSpreadsheet,
   CheckCircle2,
-  Upload
+  Upload,
+  Bell,
+  AlertTriangle
 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { PettyCashUserRole } from '../../types/pettyCashTypes';
@@ -23,6 +25,7 @@ interface PettyCashHeaderProps {
   onOpenTransfer: () => void;
   onOpenSheetsSync: () => void;
   onOpenBulkImport?: () => void;
+  onOpenBudgetAlerts?: () => void;
 }
 
 export const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
@@ -32,7 +35,8 @@ export const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
   onOpenAddIncome,
   onOpenTransfer,
   onOpenSheetsSync,
-  onOpenBulkImport
+  onOpenBulkImport,
+  onOpenBudgetAlerts
 }) => {
   const {
     userRole,
@@ -43,8 +47,12 @@ export const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
     sheetsConfig,
     isSyncingWithSheets,
     syncWithGoogleSheets,
-    kpiMetrics
+    kpiMetrics,
+    budgetAlerts
   } = usePettyCash();
+
+  const unacknowledgedCount = budgetAlerts.filter(a => !a.acknowledged).length;
+  const criticalCount = budgetAlerts.filter(a => a.thresholdLevel === 'CRITICAL_95' || a.thresholdLevel === 'OVER_BUDGET').length;
 
   const handleQuickSync = async () => {
     const res = await syncWithGoogleSheets();
@@ -123,6 +131,29 @@ export const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncingWithSheets ? 'animate-spin text-emerald-400' : ''}`} />
           </button>
+
+          {/* Budget Threshold Alerts Bell Button */}
+          {onOpenBudgetAlerts && (
+            <button
+              id="header-btn-budget-alerts-bell"
+              onClick={onOpenBudgetAlerts}
+              title={`${budgetAlerts.length} Budget Threshold Alerts (${unacknowledgedCount} unacknowledged)`}
+              className={`relative p-1.5 rounded-md border transition-all ${
+                criticalCount > 0
+                  ? 'bg-orange-950/60 border-orange-700 text-orange-300 hover:bg-orange-900/60'
+                  : unacknowledgedCount > 0
+                  ? 'bg-amber-950/60 border-amber-700 text-amber-300 hover:bg-amber-900/60'
+                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-amber-400'
+              }`}
+            >
+              <Bell className="w-3.5 h-3.5" />
+              {unacknowledgedCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center shadow-sm animate-pulse">
+                  {unacknowledgedCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* User Role Switcher Dropdown */}
           <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-md border border-slate-800">

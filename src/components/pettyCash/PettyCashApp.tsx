@@ -18,6 +18,7 @@ import { AddIncomeModal } from './AddIncomeModal';
 import { InternalTransferModal } from './InternalTransferModal';
 import { ExpenseDetailModal } from './ExpenseDetailModal';
 import { BulkImportExpensesModal } from './BulkImportExpensesModal';
+import { BudgetAlertsNotificationModal } from './BudgetAlertsNotificationModal';
 import { Expense, PettyCashNavTab } from '../../types/pettyCashTypes';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { adminSecurityService } from '../../services/adminSecurityService';
@@ -48,6 +49,7 @@ export const PettyCashApp: React.FC<PettyCashAppProps> = ({
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState<boolean>(false);
   const [isTransferOpen, setIsTransferOpen] = useState<boolean>(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
+  const [isBudgetAlertsOpen, setIsBudgetAlertsOpen] = useState<boolean>(false);
   const [selectedExpenseForDetail, setSelectedExpenseForDetail] = useState<Expense | null>(null);
   const [selectedSupervisorForStatement, setSelectedSupervisorForStatement] = useState<string | undefined>(undefined);
 
@@ -105,6 +107,7 @@ export const PettyCashApp: React.FC<PettyCashAppProps> = ({
         onOpenTransfer={() => setIsTransferOpen(true)}
         onOpenSheetsSync={() => setActiveTab('settings')}
         onOpenBulkImport={() => setIsBulkImportOpen(true)}
+        onOpenBudgetAlerts={() => setIsBudgetAlertsOpen(true)}
       />
 
       {/* Main Body Layout with Sidebar */}
@@ -139,6 +142,7 @@ export const PettyCashApp: React.FC<PettyCashAppProps> = ({
               onOpenAddIncome={() => setIsAddIncomeOpen(true)}
               onSelectExpenseForDetail={(exp) => setSelectedExpenseForDetail(exp)}
               onSelectSupervisorForStatement={handleOpenSupervisorStatement}
+              onOpenBudgetAlerts={() => setIsBudgetAlertsOpen(true)}
             />
           )}
 
@@ -225,6 +229,11 @@ export const PettyCashApp: React.FC<PettyCashAppProps> = ({
       <BulkImportExpensesModal
         isOpen={isBulkImportOpen}
         onClose={() => setIsBulkImportOpen(false)}
+      />
+
+      <BudgetAlertsNotificationModal
+        isOpen={isBudgetAlertsOpen}
+        onClose={() => setIsBudgetAlertsOpen(false)}
       />
     </div>
   );

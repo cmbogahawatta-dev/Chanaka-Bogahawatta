@@ -153,7 +153,23 @@ export const MasterSupervisorsView: React.FC = () => {
                   <td colSpan={7} className="py-12 text-center text-slate-500">
                     <Users className="w-10 h-10 mx-auto mb-2 opacity-30 text-slate-400" />
                     <p className="font-semibold text-slate-400 text-sm">Supervisors Directory is Empty</p>
-                    <p className="text-[11px] text-slate-600 mt-1">Click "Add Supervisor" to register site officers, or restore sample data from Administration.</p>
+                    <p className="text-[11px] text-slate-600 mt-1 mb-4">Click "Add Supervisor" to register site officers, or import bulk records from Excel / CSV.</p>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => setIsBulkImportOpen(true)}
+                        className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-md"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        Bulk Import Supervisors
+                      </button>
+                      <button
+                        onClick={handleOpenAdd}
+                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-md"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        Add Single Supervisor
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -311,6 +327,12 @@ export const MasterSupervisorsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Bulk Import Supervisors Modal */}
+      <BulkImportSupervisorsModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+      />
     </div>
   );
 };

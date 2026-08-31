@@ -120,7 +120,7 @@ export const BulkImportIncomeModal: React.FC<BulkImportIncomeModalProps> = ({
     setIsParsing(true);
     setParseError(null);
     try {
-      const data = DataImportService.parseRawText(pastedText, 'Pasted_Income_Records.txt');
+      const data = DataImportService.parseRawText(pastedText);
       processParsedData(data);
     } catch (err: any) {
       setParseError(err.message || 'Failed to parse pasted income data.');
@@ -131,7 +131,7 @@ export const BulkImportIncomeModal: React.FC<BulkImportIncomeModalProps> = ({
 
   const processParsedData = (data: ParsedRawData) => {
     setParsedData(data);
-    const suggested = DataImportService.suggestColumnMapping(data.headers, 'HISTORICAL_INCOME');
+    const suggested = DataImportService.autoMapColumns('HISTORICAL_INCOME', data.headers);
     setColumnMapping(suggested);
 
     // Initial validation
@@ -189,12 +189,12 @@ export const BulkImportIncomeModal: React.FC<BulkImportIncomeModalProps> = ({
   };
 
   // --- Step 3: Admin Approval Verification & Execution ---
-  const handleExecuteImport = () => {
+  const handleExecuteImport = async () => {
     setAdminPinError(null);
 
     // Admin PIN verification
-    const pinCheck = AdminSecurityService.verifyPin(adminPin);
-    if (!pinCheck.valid) {
+    const pinCheck = await AdminSecurityService.verifyCode(adminPin);
+    if (!pinCheck.success) {
       setAdminPinError(pinCheck.message || 'Invalid Master Admin PIN. Authorization required.');
       return;
     }
@@ -323,13 +323,20 @@ export const BulkImportIncomeModal: React.FC<BulkImportIncomeModalProps> = ({
                   <h3 className="text-base font-semibold text-slate-100">Upload Income / Float Top-up File</h3>
                   <p className="text-xs text-slate-400">Select an Excel (.xlsx / .xls) or CSV sheet, or paste tabular records.</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => DataImportService.downloadTemplate('HISTORICAL_INCOME', 'xlsx')}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-200 rounded-lg transition"
                   >
                     <Download className="w-3.5 h-3.5 text-emerald-400" />
-                    Download Income Template (.xlsx)
+                    Template (.xlsx)
+                  </button>
+                  <button
+                    onClick={() => DataImportService.downloadTemplate('HISTORICAL_INCOME', 'csv')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-200 rounded-lg transition"
+                  >
+                    <Download className="w-3.5 h-3.5 text-blue-400" />
+                    Template (.csv)
                   </button>
                 </div>
               </div>
