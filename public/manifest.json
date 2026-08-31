@@ -1,0 +1,45 @@
+{
+  "name": "FleetTrack - Company Vehicle & Fleet Management",
+  "short_name": "FleetTrack",
+  "description": "Enterprise mobile vehicle management system for running charts, fuel records, maintenance schedules, and driver transfers with AI document OCR.",
+  "start_url": "/",
+  "id": "io.fleettrack.app",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#020617",
+  "theme_color": "#0f172a",
+  "scope": "/",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Trip Chart",
+      "short_name": "Trip Log",
+      "description": "Log vehicle departure and arrival running chart",
+      "url": "/?action=trip",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Add Fuel Log",
+      "short_name": "Fuel",
+      "description": "Record fuel refill, invoice and economy",
+      "url": "/?action=fuel",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Vehicle Transfer",
+      "short_name": "Handover",
+      "description": "Inspect and sign vehicle handover checklist",
+      "url": "/?action=transfer",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    }
+  ]
+}

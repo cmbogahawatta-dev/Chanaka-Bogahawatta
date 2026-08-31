@@ -1,0 +1,10 @@
+{
+  "name": "Remix Remix FleetTrack - Company Vehicle Management",
+  "description": "Mobile-first company vehicle management system with interactive Recharts visualization dashboard for 30-day fuel consumption trends and fleet utilization, running charts, fuel logs, automated service reminders, driver registry, and driver-to-driver transfer records.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
