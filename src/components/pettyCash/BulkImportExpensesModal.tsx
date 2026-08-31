@@ -270,7 +270,7 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
   };
 
   // Execute Import & Posting
-  const handleCommitImport = () => {
+  const handleCommitImport = async () => {
     if (!validationSummary || !parsedData) return;
 
     // Check Admin PIN if direct approved mode is selected by non-admin
@@ -279,8 +279,8 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
         setAdminPinError('Please enter the Admin PIN to authorize immediate approval.');
         return;
       }
-      const verified = AdminSecurityService.verifyCode(adminPin);
-      if (!verified) {
+      const verified = await AdminSecurityService.verifyCode(adminPin);
+      if (!verified.success) {
         setAdminPinError('Invalid Admin PIN code. Direct approval requires valid authorization.');
         return;
       }
@@ -833,12 +833,12 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
                     <span>Admin Security Authorization Required</span>
                   </div>
                   <p className="text-xs text-slate-400">
-                    Direct approved bulk posting requires an active Administrator session or authorization passcode (e.g., <code className="text-emerald-300 font-bold">ADMIN2026</code> or <code className="text-emerald-300 font-bold">EMA2026</code>).
+                    Direct approved bulk posting requires an active Administrator session or authorized corporate security code.
                   </p>
                   <div className="max-w-xs">
                     <input
                       type="password"
-                      placeholder="Enter Admin PIN (e.g. ADMIN2026)"
+                      placeholder="Enter Admin Security Code"
                       value={adminPin}
                       onChange={(e) => {
                         setAdminPin(e.target.value);

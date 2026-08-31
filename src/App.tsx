@@ -4,6 +4,7 @@ import { PettyCashProvider } from './context/PettyCashContext';
 import { EnterpriseProvider, useEnterprise } from './context/EnterpriseContext';
 import { PRVProvider } from './context/PRVContext';
 import { SiteRecordProvider } from './context/SiteRecordContext';
+import { StaffProvider } from './context/StaffContext';
 
 // Enterprise Header & Components
 import { EnterpriseHeader } from './components/enterprise/EnterpriseHeader';
@@ -15,6 +16,7 @@ import { PaymentsView } from './components/payments/PaymentsView';
 import { EnterpriseReportsView } from './components/reports/EnterpriseReportsView';
 import { DocumentsView } from './components/documents/DocumentsView';
 import { AdministrationView } from './components/admin/AdministrationView';
+import { StaffDirectoryView } from './components/staff/StaffDirectoryView';
 
 // Petty Cash Components
 import { PettyCashDashboardView } from './components/pettyCash/PettyCashDashboardView';
@@ -419,6 +421,9 @@ const EnterpriseAppContent: React.FC = () => {
         {/* MODULE 3.5: CONSTRUCTION DAILY SITE RECORDS (DSR) */}
         {currentModule === 'site-records' && <SiteRecordsView />}
 
+        {/* MODULE 3.8: STAFF & HR DIRECTORY */}
+        {currentModule === 'staff' && <StaffDirectoryView />}
+
         {/* MODULE 4: PROJECTS & CONSTRUCTION */}
         {currentModule === 'projects' && <ProjectsView />}
 
@@ -495,7 +500,9 @@ export default function App() {
         <EnterpriseProvider>
           <PRVProvider>
             <SiteRecordProvider>
-              <EnterpriseAppContent />
+              <StaffProvider>
+                <EnterpriseAppContent />
+              </StaffProvider>
             </SiteRecordProvider>
           </PRVProvider>
         </EnterpriseProvider>

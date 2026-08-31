@@ -3,6 +3,7 @@ export type EnterpriseModule =
   | 'site-records'
   | 'petty-cash'
   | 'fleet'
+  | 'staff'
   | 'projects'
   | 'procurement'
   | 'payments'

@@ -49,11 +49,6 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
     }
   };
 
-  const handleQuickFill = (code: string) => {
-    setSecurityCode(code);
-    setErrorMsg('');
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div
@@ -123,27 +118,8 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
             </div>
             <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
               <KeyRound className="w-3 h-3 text-slate-400" />
-              <span>Authorized Enterprise Code</span>
+              <span>Contact your system administrator if you do not possess an authorization code.</span>
             </p>
-          </div>
-
-          {/* Quick Code helper chips for development / convenience */}
-          <div className="p-2.5 bg-slate-950/50 rounded-lg border border-slate-800/80">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1.5">
-              Authorized Master Codes (Demo / Production):
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {['EMA@ADMIN#2026', 'ADMIN2026', 'EMA9988'].map((code) => (
-                <button
-                  key={code}
-                  type="button"
-                  onClick={() => handleQuickFill(code)}
-                  className="text-[10px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded border border-slate-700 hover:border-emerald-500/50 transition-colors"
-                >
-                  {code}
-                </button>
-              ))}
-            </div>
           </div>
 
           {errorMsg && (

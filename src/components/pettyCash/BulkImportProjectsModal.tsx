@@ -735,7 +735,7 @@ export const BulkImportProjectsModal: React.FC<BulkImportProjectsModalProps> = (
                 <div className="pt-2 border-t border-slate-800">
                   <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5 mb-1.5">
                     <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                    Enter Master Administrator PIN (Default: 1234 or 2026)
+                    Enter Master Administrator PIN
                   </label>
                   <div className="relative">
                     <input

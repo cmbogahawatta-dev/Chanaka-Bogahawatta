@@ -25,7 +25,8 @@ import {
   ArrowRightLeft,
   DollarSign,
   Search,
-  ClipboardList
+  ClipboardList,
+  Users
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
@@ -91,6 +92,7 @@ export const EnterpriseHeader: React.FC<EnterpriseHeaderProps> = ({
     { id: 'site-records', label: 'Daily Site Records', icon: ClipboardList, color: 'text-violet-400' },
     { id: 'petty-cash', label: 'Petty Cash & Expenses', icon: Wallet, color: 'text-emerald-400' },
     { id: 'fleet', label: 'FleetTrack Vehicles', icon: Truck, color: 'text-blue-400' },
+    { id: 'staff', label: 'Staff & HR Directory', icon: Users, color: 'text-cyan-400' },
     { id: 'projects', label: 'Projects & Construction', icon: FolderKanban, color: 'text-purple-400' },
     { id: 'procurement', label: 'Procurement', icon: ShoppingCart, color: 'text-orange-400' },
     { id: 'payments', label: 'Finance & Payments', icon: CreditCard, color: 'text-rose-400' },

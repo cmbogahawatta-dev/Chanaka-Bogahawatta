@@ -51,7 +51,7 @@ export const AdminClearHistoryModal: React.FC<AdminClearHistoryModalProps> = ({
     }
 
     if (requirePin) {
-      const isValid = verifyAdminPin(pinInput) || pinInput === '1234';
+      const isValid = verifyAdminPin(pinInput);
       if (!isValid) {
         setPinError(true);
         return;

@@ -319,7 +319,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [adminPin, setAdminPinState] = useState<string>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.ADMIN_PIN);
-    return saved || currentEnterprise.adminPin || '1234';
+    return saved || currentEnterprise?.adminPin || '';
   });
 
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
@@ -425,7 +425,9 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const verifyAdminPin = (inputPin: string): boolean => {
-    const effectivePin = currentEnterprise?.adminPin || adminPin || '1234';
+    if (!inputPin || !inputPin.trim()) return false;
+    const effectivePin = currentEnterprise?.adminPin || adminPin;
+    if (!effectivePin || !effectivePin.trim()) return false;
     return inputPin.trim() === effectivePin.trim();
   };
 
@@ -495,7 +497,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (pinOrEmail && pinOrEmail.trim()) {
       const trimmed = pinOrEmail.trim();
-      if (trimmed === target.adminPin || trimmed === '1234') {
+      if (trimmed === target.adminPin) {
         // Authenticated as Admin
         setActiveEnterpriseId(target.id);
         localStorage.setItem(STORAGE_KEYS.ACTIVE_ENTERPRISE_ID, target.id);

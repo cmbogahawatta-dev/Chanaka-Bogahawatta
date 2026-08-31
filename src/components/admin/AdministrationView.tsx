@@ -25,13 +25,15 @@ import {
   ShoppingBag,
   Bell,
   Layers,
-  Sparkles
+  Sparkles,
+  RotateCcw
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useFleet } from '../../context/FleetContext';
 import { usePRV } from '../../context/PRVContext';
 import { useSiteRecords } from '../../context/SiteRecordContext';
+import { useStaff } from '../../context/StaffContext';
 import { EnterpriseRole } from '../../types/enterpriseTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 
@@ -102,6 +104,11 @@ export const AdministrationView: React.FC = () => {
     resetPRVsToDefault
   } = usePRV();
 
+  const {
+    staffMembers,
+    resetStaffDirectory
+  } = useStaff();
+
   const [activeAdminTab, setActiveAdminTab] = useState<'ROLES' | 'SHEETS' | 'MASTER' | 'CACHE'>('ROLES');
   const [sheetIdInput, setSheetIdInput] = useState(sheetsConfig.spreadsheetId || '1XyZ_SAMPLE_EMA_CONSTRUCTION_PETTY_CASH_FLEET_2026');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -165,9 +172,10 @@ export const AdministrationView: React.FC = () => {
   };
 
   const handleFullDatabaseReset = () => {
-    if (confirm('Are you sure you want to reset demo data for all modules (Petty Cash, FleetTrack, Daily Site Records, Projects, Procurement, Payments)?')) {
+    if (confirm('Are you sure you want to reset demo data for all modules (Petty Cash, FleetTrack, Staff Directory, Daily Site Records, Projects, Procurement, Payments)?')) {
       resetToDefaultMasterData();
       resetFleetSampleData();
+      resetStaffDirectory();
       resetSiteRecordsData();
       resetProcurementData();
       resetDocumentsData();
@@ -247,7 +255,7 @@ export const AdministrationView: React.FC = () => {
             activeAdminTab === 'MASTER' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Shared Master Entities ({projects.length} Projects, {vehicles.length} Vehicles)
+          Shared Master Entities ({projects.length} Projects, {vehicles.length} Vehicles, {staffMembers.length} Staff)
         </button>
         <button
           onClick={() => setActiveAdminTab('CACHE')}
@@ -375,12 +383,12 @@ export const AdministrationView: React.FC = () => {
 
       {/* Tab C: Shared Master Entities */}
       {activeAdminTab === 'MASTER' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3 flex flex-col justify-between">
             <div className="space-y-3">
               <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
                 <FolderKanban className="w-4 h-4 text-purple-400" />
-                <span>Registered Construction Projects ({projects.length})</span>
+                <span>Registered Projects ({projects.length})</span>
               </h3>
               <div className="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">
                 {projects.length === 0 ? (
@@ -414,7 +422,7 @@ export const AdministrationView: React.FC = () => {
           <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <Truck className="w-4 h-4 text-blue-400" />
-              <span>Registered Fleet Vehicles ({vehicles.length})</span>
+              <span>Fleet Vehicles ({vehicles.length})</span>
             </h3>
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">
               {vehicles.map(v => (
@@ -463,6 +471,47 @@ export const AdministrationView: React.FC = () => {
                 buttonText="Clear Supervisors"
                 onClear={() => clearSupervisorsDirectory()}
               />
+            </div>
+          </div>
+
+          {/* Card 4: Staff & HR Personnel Directory */}
+          <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-cyan-400" />
+                  <span>Staff & HR Directory ({staffMembers.length})</span>
+                </h3>
+              </div>
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1 text-xs">
+                {staffMembers.length === 0 ? (
+                  <p className="text-center py-6 text-slate-500 italic">No staff members registered.</p>
+                ) : (
+                  staffMembers.map(s => (
+                    <div key={s.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between">
+                      <div>
+                        <span className="font-mono font-bold text-cyan-300">{s.preferredName}</span>
+                        <span className="block text-[11px] text-slate-400">{s.designation}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400">{s.employeeCode}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="pt-2 border-t border-slate-800/60">
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`Are you sure you want to reset the Staff & HR Directory back to the 16 corporate seed members?`)) {
+                    resetStaffDirectory();
+                  }
+                }}
+                className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 border border-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Staff Seed ({staffMembers.length})</span>
+              </button>
             </div>
           </div>
         </div>

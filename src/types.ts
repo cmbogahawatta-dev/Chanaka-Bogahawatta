@@ -388,5 +388,5 @@ export interface GPSGatewayConfig {
   pairedDevicesCount: number;
 }
 
-
-
+// Re-export Staff Directory & HR Types
+export * from './types/staffTypes';
