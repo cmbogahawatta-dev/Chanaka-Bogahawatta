@@ -83,6 +83,7 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
   const [skipInvalidRows, setSkipInvalidRows] = useState<boolean>(true);
 
   // Step 4: Final output
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [createdBatchId, setCreatedBatchId] = useState<string>('');
   const [importedCount, setImportedCount] = useState<number>(0);
   const [importedTotalAmount, setImportedTotalAmount] = useState<number>(0);
@@ -271,17 +272,35 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
 
   // Execute Import & Posting
   const handleCommitImport = async () => {
-    if (!validationSummary || !parsedData) return;
+    if (!validationSummary || !parsedData || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setAdminPinError(null);
 
     // Check Admin PIN if direct approved mode is selected by non-admin
     if (approvalMode === 'APPROVED' && !isAdminSession) {
-      if (!adminPin) {
-        setAdminPinError('Please enter the Admin PIN to authorize immediate approval.');
+      if (!adminPin || !adminPin.trim()) {
+        setAdminPinError('Please enter the Admin Security Key to authorize immediate approval.');
+        setIsSubmitting(false);
         return;
       }
-      const verified = await AdminSecurityService.verifyCode(adminPin);
-      if (!verified.success) {
-        setAdminPinError('Invalid Admin PIN code. Direct approval requires valid authorization.');
+      try {
+        const verified = await AdminSecurityService.verifySecurityKey(
+          adminPin,
+          'Bulk Expense Direct Approval Authorization',
+          {
+            name: approverName || 'Finance Officer',
+            role: userRole
+          }
+        );
+        if (!verified.success) {
+          setAdminPinError(verified.message || 'Invalid Admin Security Key. Direct approval requires valid authorization.');
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (e: any) {
+        setAdminPinError(e.message || 'Security verification failed due to an error.');
+        setIsSubmitting(false);
         return;
       }
     }
@@ -319,6 +338,8 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
       }
     } catch (err: any) {
       alert(`Import Failed: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1020,10 +1041,20 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
             {currentStep === 3 && (
               <button
                 onClick={handleCommitImport}
-                className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg transition-all"
+                disabled={isSubmitting}
+                className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-lg transition-all"
               >
-                <ShieldCheck className="w-4 h-4" />
-                Execute Bulk Import & {approvalMode === 'APPROVED' ? 'Approve' : 'Submit'}
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Verifying & Importing...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Execute Bulk Import & {approvalMode === 'APPROVED' ? 'Approve' : 'Submit'}</span>
+                  </>
+                )}
               </button>
             )}
           </div>

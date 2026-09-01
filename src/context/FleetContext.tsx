@@ -324,7 +324,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.IS_ADMIN_AUTH);
-    return saved !== null ? saved === 'true' : true;
+    return saved === 'true';
   });
 
   // Keep adminPin in sync with currentEnterprise
@@ -536,9 +536,12 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setSelectedVehicleId('all');
         return { success: true, message: `Welcome back ${member.name}! Logged in to ${target.name}.`, enterprise: target, user: member };
       }
+
+      // Provided credential did not match admin PIN or member email
+      return { success: false, message: 'Invalid Admin PIN or member credentials for this workspace. Access denied.' };
     }
 
-    // Switch workspace
+    // Switch workspace in view mode only
     switchEnterprise(target.id);
     return { success: true, message: `Connected to ${target.name} workspace.`, enterprise: target };
   };
@@ -564,7 +567,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       plan: data.plan || 'Enterprise Fleet',
       adminEmail: data.adminEmail.trim(),
       adminName: data.adminName.trim(),
-      adminPin: data.adminPin.trim() || '1234',
+      adminPin: data.adminPin.trim() || String(Math.floor(1000 + Math.random() * 9000)),
       city: data.city || 'Headquarters',
       country: data.country || 'Global',
       createdAt: new Date().toISOString().split('T')[0],
@@ -1319,7 +1322,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem(STORAGE_KEYS.MAINTENANCE_LOGS, JSON.stringify(initialMaintenanceLogs));
     localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(initialTransfers));
     localStorage.setItem(STORAGE_KEYS.SELECTED_VEHICLE, 'all');
-    localStorage.setItem(STORAGE_KEYS.ADMIN_PIN, '1234');
+    localStorage.setItem(STORAGE_KEYS.ADMIN_PIN, initialEnterprises[0]?.adminPin || '8902');
 
     setEnterprises(initialEnterprises);
     setEnterpriseUsers(initialEnterpriseUsers);
@@ -1334,7 +1337,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setRawMaintenanceLogs(initialMaintenanceLogs);
     setRawTransfers(initialTransfers);
     setSelectedVehicleId('all');
-    setAdminPinState('1234');
+    setAdminPinState(initialEnterprises[0]?.adminPin || '8902');
     setUserRoleState('admin');
     setIsAdminAuthenticated(true);
   };

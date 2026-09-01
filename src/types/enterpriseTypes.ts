@@ -13,6 +13,7 @@ export type EnterpriseModule =
 
 export type EnterpriseRole =
   | 'ADMIN'
+  | 'HR'
   | 'FINANCE'
   | 'PROJECT_MANAGER'
   | 'SITE_ENGINEER'
@@ -82,7 +83,7 @@ export interface EnterpriseDocument {
 export interface EnterpriseNotification {
   id: string;
   TIMESTAMP: string;
-  MODULE: 'Petty Cash' | 'FleetTrack' | 'Projects' | 'Procurement' | 'Payments' | 'System';
+  MODULE: 'Petty Cash' | 'FleetTrack' | 'Projects' | 'Procurement' | 'Payments' | 'System' | 'HR' | 'Attendance' | 'Leave' | 'Payroll' | 'Staff';
   SEVERITY: 'info' | 'warning' | 'urgent' | 'success';
   TITLE: string;
   MESSAGE: string;

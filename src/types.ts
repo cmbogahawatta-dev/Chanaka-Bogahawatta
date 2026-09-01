@@ -290,7 +290,12 @@ export type AuditLogAction =
   | 'LOGIN'
   | 'LOGOUT'
   | 'SECURITY_RESET'
-  | 'EXPORT';
+  | 'EXPORT'
+  | 'SYNC'
+  | 'BULK_APPROVE'
+  | 'OVERRIDE'
+  | 'CORRECTION'
+  | 'PAYROLL_LOCK';
 
 export type AuditLogModule =
   | 'VEHICLES'
@@ -303,7 +308,17 @@ export type AuditLogModule =
   | 'FLEET'
   | 'ENTERPRISE'
   | 'SECURITY'
-  | 'DOCUMENTS';
+  | 'DOCUMENTS'
+  | 'STAFF'
+  | 'HR'
+  | 'ATTENDANCE'
+  | 'LEAVE'
+  | 'PAYROLL'
+  | 'JIBBLE_SYNC'
+  | 'GEOFENCE'
+  | 'WORKFLOW'
+  | 'ALLOCATION'
+  | 'SALARY';
 
 export interface AuditLogEntry {
   id: string;

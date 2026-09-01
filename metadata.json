@@ -1,6 +1,6 @@
 {
-  "name": "Remix Remix FleetTrack - Company Vehicle Management",
-  "description": "Mobile-first company vehicle management system with interactive Recharts visualization dashboard for 30-day fuel consumption trends and fleet utilization, running charts, fuel logs, automated service reminders, driver registry, and driver-to-driver transfer records.",
+  "name": "EMA Enterprise Corporate Suite - Construction & Fleet Operations",
+  "description": "Unified Construction & Fleet Operations ERP uniting Petty Cash & Expenses, FleetTrack Vehicles, Projects, Staff Directory, Procurement, Payments, Documents, and Executive Reporting with enterprise cryptographic authorization.",
   "requestFramePermissions": [
     "camera"
   ],

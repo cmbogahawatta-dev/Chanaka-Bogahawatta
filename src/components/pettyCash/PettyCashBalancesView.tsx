@@ -12,9 +12,11 @@ import {
   FileSpreadsheet,
   ArrowUpRight,
   Clock,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Lock
 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
+import { useEnterprise } from '../../context/EnterpriseContext';
 import { Supervisor } from '../../types/pettyCashTypes';
 
 interface PettyCashBalancesViewProps {
@@ -38,6 +40,7 @@ export const PettyCashBalancesView: React.FC<PettyCashBalancesViewProps> = ({
     userRole,
     currentSupervisorName
   } = usePettyCash();
+  const { currentRole } = useEnterprise();
 
   // If initialSupervisor is passed or role is supervisor, select it
   const defaultSelected = userRole === 'SUPERVISOR'
@@ -45,6 +48,19 @@ export const PettyCashBalancesView: React.FC<PettyCashBalancesViewProps> = ({
     : initialSupervisor || supervisors[0]?.SUPERVISOR_NAME || 'BUDDIKA';
 
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>(defaultSelected);
+
+  // Authorized roles: ADMIN, FINANCE, OWNER (and site supervisors for their own balance)
+  const isAuthorizedFinancialRole =
+    currentRole === 'ADMIN' ||
+    currentRole === 'FINANCE' ||
+    currentRole === 'OWNER' ||
+    userRole === 'ADMIN' ||
+    userRole === 'FINANCE';
+
+  const canViewActiveLedger =
+    isAuthorizedFinancialRole ||
+    (userRole === 'SUPERVISOR' &&
+      currentSupervisorName.trim().toUpperCase() === selectedSupervisor.trim().toUpperCase());
 
   const formatLKR = (amount: number): string => {
     return new Intl.NumberFormat('en-LK', {
@@ -157,8 +173,11 @@ export const PettyCashBalancesView: React.FC<PettyCashBalancesViewProps> = ({
                         {sup.SUPERVISOR_NAME.slice(0, 2)}
                       </div>
                       <div>
-                        <h4 className="text-sm font-bold text-slate-100">{sup.SUPERVISOR_NAME}</h4>
-                        <span className="text-[10px] text-slate-400">{sup.PHONE}</span>
+                        <h4 className="text-sm font-bold text-slate-100">{sup.FULL_NAME || sup.SUPERVISOR_NAME}</h4>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] font-mono text-emerald-400 font-bold">{sup.employeeCode || sup.SUPERVISOR_ID}</span>
+                          <span className="text-[10px] text-slate-400">• {sup.designation || sup.PHONE}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -178,7 +197,7 @@ export const PettyCashBalancesView: React.FC<PettyCashBalancesViewProps> = ({
                     <span className={`text-sm font-mono font-black ${
                       bal.isOverdrawn ? 'text-rose-400' : 'text-emerald-300'
                     }`}>
-                      {formatLKR(bal.currentBalance)}
+                      {isAuthorizedFinancialRole ? formatLKR(bal.currentBalance) : '••••••••'}
                     </span>
                   </div>
                 </div>
@@ -191,6 +210,13 @@ export const PettyCashBalancesView: React.FC<PettyCashBalancesViewProps> = ({
       {/* SELECTED SUPERVISOR DETAILED ACCOUNT OVERVIEW */}
       {activeSup && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-md space-y-6">
+          {!canViewActiveLedger && (
+            <div className="p-3 bg-amber-950/40 border border-amber-800/60 rounded-xl flex items-center gap-2 text-xs text-amber-300 font-medium">
+              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Financial float balance details are restricted. Log in as ADMIN, FINANCE, or OWNER to view ledger statements.</span>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
             <div className="flex items-center gap-3">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg text-white shadow-md ${
@@ -223,12 +249,14 @@ export const PettyCashBalancesView: React.FC<PettyCashBalancesViewProps> = ({
               <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${
                 activeBal.isOverdrawn ? 'text-rose-400' : 'text-emerald-300'
               }`}>
-                {formatLKR(activeBal.currentBalance)}
+                {canViewActiveLedger ? formatLKR(activeBal.currentBalance) : '••••••••'}
               </span>
               <span className={`text-[10px] font-bold mt-0.5 ${
                 activeBal.isOverdrawn ? 'text-rose-300' : 'text-emerald-400'
               }`}>
-                {activeBal.isOverdrawn ? '⚠️ Overdrawn / Negative Balance' : '✓ Float Available in Hand'}
+                {canViewActiveLedger
+                  ? activeBal.isOverdrawn ? '⚠️ Overdrawn / Negative Balance' : '✓ Float Available in Hand'
+                  : '🔒 Confidential'}
               </span>
             </div>
           </div>
@@ -237,23 +265,27 @@ export const PettyCashBalancesView: React.FC<PettyCashBalancesViewProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
               <span className="text-[10px] text-slate-400 uppercase font-bold block">Opening Float</span>
-              <span className="text-sm font-bold font-mono text-slate-200">{formatLKR(activeBal.opening)}</span>
+              <span className="text-sm font-bold font-mono text-slate-200">
+                {canViewActiveLedger ? formatLKR(activeBal.opening) : '••••••••'}
+              </span>
             </div>
             <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
               <span className="text-[10px] text-emerald-400 uppercase font-bold block">Total Received (+)</span>
               <span className="text-sm font-bold font-mono text-emerald-400">
-                {formatLKR(activeBal.incomeTotal + activeBal.transfersIn)}
+                {canViewActiveLedger ? formatLKR(activeBal.incomeTotal + activeBal.transfersIn) : '••••••••'}
               </span>
             </div>
             <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
               <span className="text-[10px] text-rose-400 uppercase font-bold block">Approved Spent (-)</span>
               <span className="text-sm font-bold font-mono text-rose-400">
-                {formatLKR(activeBal.approvedExpenses + activeBal.transfersOut)}
+                {canViewActiveLedger ? formatLKR(activeBal.approvedExpenses + activeBal.transfersOut) : '••••••••'}
               </span>
             </div>
             <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
               <span className="text-[10px] text-amber-400 uppercase font-bold block">Pending Expenses</span>
-              <span className="text-sm font-bold font-mono text-amber-300">{formatLKR(activeBal.pendingExpenses)}</span>
+              <span className="text-sm font-bold font-mono text-amber-300">
+                {canViewActiveLedger ? formatLKR(activeBal.pendingExpenses) : '••••••••'}
+              </span>
             </div>
           </div>
 
@@ -297,15 +329,19 @@ export const PettyCashBalancesView: React.FC<PettyCashBalancesViewProps> = ({
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-right text-emerald-400">
-                        {row.incomeAmount > 0 ? formatLKR(row.incomeAmount) : '-'}
+                        {canViewActiveLedger
+                          ? row.incomeAmount > 0 ? formatLKR(row.incomeAmount) : '-'
+                          : '••••••••'}
                       </td>
                       <td className="py-2.5 px-3 text-right text-rose-400">
-                        {row.expenseAmount > 0 ? formatLKR(row.expenseAmount) : '-'}
+                        {canViewActiveLedger
+                          ? row.expenseAmount > 0 ? formatLKR(row.expenseAmount) : '-'
+                          : '••••••••'}
                       </td>
                       <td className={`py-2.5 px-3 text-right font-black bg-slate-900/90 ${
                         row.runningBalance < 0 ? 'text-rose-400' : 'text-emerald-300'
                       }`}>
-                        {formatLKR(row.runningBalance)}
+                        {canViewActiveLedger ? formatLKR(row.runningBalance) : '••••••••'}
                       </td>
                       <td className="py-2.5 px-3 text-center font-sans">
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full inline-block ${

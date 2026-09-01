@@ -99,10 +99,10 @@ export const PettyCashFilterBar: React.FC<PettyCashFilterBarProps> = ({
               onChange={(e) => handleFilterChange('supervisor', e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
             >
-              <option value="ALL">All Supervisors</option>
+              <option value="ALL">All Supervisors / Staff</option>
               {supervisors.map(s => (
                 <option key={s.id} value={s.SUPERVISOR_NAME}>
-                  {s.SUPERVISOR_NAME}
+                  {s.employeeCode || s.SUPERVISOR_ID} — {s.FULL_NAME || s.SUPERVISOR_NAME}
                 </option>
               ))}
             </select>

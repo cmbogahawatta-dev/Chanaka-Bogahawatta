@@ -42,7 +42,8 @@ export interface Expense {
   EXPENSES_ID: string; // e.g. "EXP-202608-0104"
   DATE_REF: string; // ISO date format "YYYY-MM-DD"
   DATE: string; // Display date "DD/MM/YYYY"
-  SUPERVISOR: string; // FK to SUPERVISORS.SUPERVISOR_NAME
+  SUPERVISOR: string; // FK to SUPERVISORS.SUPERVISOR_NAME or Employee name
+  SUPERVISOR_ID?: string; // FK to Employee ID (Staff Directory) or legacy supervisor ID
   PROJECT: string; // FK to PROJECTS.PROJECT_CODE
   EXPENSES_CATEGORY: string; // FK to EXPENSE_CATEGORIES.CATEGORY_NAME
   TRANSACTION_TYPE: TransactionType;
@@ -83,7 +84,8 @@ export interface Income {
   INCOME_ID: string; // e.g. "INC-202608-0042"
   DATE_REF: string;
   DATE: string;
-  SUPERVISOR: string;
+  SUPERVISOR: string; // FK to SUPERVISORS.SUPERVISOR_NAME or Employee name
+  SUPERVISOR_ID?: string; // FK to Employee ID (Staff Directory) or legacy supervisor ID
   PROJECT: string;
   INCOME_SOURCE: IncomeSource;
   TRANSACTION_TYPE: TransactionType;
@@ -95,10 +97,19 @@ export interface Income {
   REMARKS?: string;
 }
 
+export interface PettyCashAllocation {
+  employeeId: string;
+  supervisorName?: string;
+  openingBalance: number;
+  currentBalance?: number;
+}
+
 export interface Supervisor {
   id: string;
-  SUPERVISOR_ID: string; // e.g. "SUP-001"
+  SUPERVISOR_ID: string; // e.g. "SUP-001" or employee code
+  legacySupervisorId?: string; // Preserved legacy supervisor ID
   SUPERVISOR_NAME: string; // e.g. "BUDDIKA"
+  FULL_NAME?: string;
   PHONE: string;
   EMAIL: string;
   ACTIVE: boolean;
@@ -108,6 +119,13 @@ export interface Supervisor {
   DEFAULT_PROJECT?: string;
   ASSIGNED_PROJECTS?: string[];
   AVATAR_COLOR?: string;
+
+  // Staff Directory master link
+  staffId?: string;
+  employeeCode?: string;
+  role?: string;
+  department?: string;
+  designation?: string;
 
   // Historical Import Metadata
   DATA_SOURCE?: 'HISTORICAL_IMPORT' | 'SYSTEM_ORIGINAL' | string;

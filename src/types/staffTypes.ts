@@ -83,8 +83,12 @@ export interface StaffMember {
   confirmationDate?: string;         // YYYY-MM-DD
   assignedProjectCode: string;       // Primary Site e.g. "PRJ-001" or "HEAD_OFFICE" / "ALL"
   assignedProjectName?: string;
+  assignedProjectCodes?: string[];   // Multi-project site allocations (e.g. ['PIDM 26', 'PIDM 28'])
   reportsToId?: string;              // Staff ID of Direct Supervisor / Manager
   reportsToName?: string;            // Cached name of Manager for display
+  isSupervisor?: boolean;            // Whether employee acts as an operational/field supervisor
+  supervisorId?: string;             // Associated operational supervisor ID (e.g. "SUP-001")
+  legacySupervisorId?: string;       // Preserved legacy supervisor ID (e.g. "SUP-001")
   avatarUrl?: string;
   residentialAddress: string;
   emergencyContact: StaffEmergencyContact;
@@ -92,8 +96,40 @@ export interface StaffMember {
   qualifications?: string[];         // e.g. ["B.Sc. Civil Eng (Hons)", "Chartered Engineer - IESL"]
   notes?: string;
   epfRegistrationNumber?: string;    // EPF Member No (e.g. "EMA/EPF/1042")
+  nicNo?: string;                    // Alias / standard NIC representation
+  epfNo?: string;                    // Alias for EPF
+  etfNo?: string;                    // ETF registration number
+  salaryType?: 'Monthly' | 'Daily' | 'Hourly';
+  epfEligible?: boolean;             // Whether subject to EPF contributions
+  etfEligible?: boolean;             // Whether subject to ETF contributions
+  otEligible?: boolean;              // Whether eligible for Overtime payment
+  bankName?: string;                 // e.g. Commercial Bank
+  bankAccountNo?: string;            // Account number
+  profilePhotoUrl?: string;          // base64 / URL image
+  jibbleMemberId?: string;           // Linked external Jibble Member ID
   createdAt: string;                 // ISO Date String
   updatedAt: string;                 // ISO Date String
+}
+
+export interface DerivedSupervisorView {
+  id: string;                        // Staff ID or Supervisor ID
+  staffId: string;                   // Canonical Staff ID in Master Directory
+  employeeCode: string;
+  SUPERVISOR_ID: string;             // e.g. "SUP-001"
+  legacySupervisorId?: string;       // Preserved legacy supervisor ID
+  SUPERVISOR_NAME: string;           // e.g. "BUDDIKA"
+  FULL_NAME: string;
+  PHONE: string;
+  EMAIL: string;
+  ACTIVE: boolean;
+  OPENING_PETTY_CASH: number;
+  CURRENT_BALANCE?: number;
+  REMARKS: string;
+  ASSIGNED_PROJECTS: string[];
+  AVATAR_COLOR?: string;
+  role: EmployeeRole;
+  department: Department;
+  designation: string;
 }
 
 export interface ReportingHierarchyNode {
@@ -109,6 +145,8 @@ export interface StaffFilterState {
   role: string;                      // "ALL" or EmployeeRole
   status: string;                    // "ALL" or StaffStatus
   employmentType: string;            // "ALL" or EmploymentType
+  supervisorOnly?: boolean;          // If true, filter only employees acting as supervisors
+  reportsToId?: string;              // "ALL" or manager ID
 }
 
 export interface StaffSummaryStats {

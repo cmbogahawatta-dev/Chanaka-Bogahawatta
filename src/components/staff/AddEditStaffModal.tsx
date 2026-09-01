@@ -14,7 +14,8 @@ import {
   AlertCircle,
   FileBadge,
   CheckCircle2,
-  Users
+  Users,
+  Lock
 } from 'lucide-react';
 import {
   StaffMember,
@@ -24,6 +25,7 @@ import {
   StaffStatus
 } from '../../types/staffTypes';
 import { useStaff } from '../../context/StaffContext';
+import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 
 interface AddEditStaffModalProps {
@@ -96,7 +98,13 @@ export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({
   staffToEdit
 }) => {
   const { staffMembers, addStaffMember, updateStaffMember } = useStaff();
+  const { currentRole } = useEnterprise();
   const { projects } = usePettyCash();
+
+  const canEditSalary =
+    currentRole === 'ADMIN' ||
+    currentRole === 'OWNER' ||
+    currentRole === 'FINANCE';
 
   // Basic Info Form State
   const [employeeCode, setEmployeeCode] = useState('');
@@ -292,22 +300,39 @@ export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({
         phone: emergencyPhone.trim(),
         alternatePhone: emergencyAltPhone.trim() || undefined
       },
-      salaryStructure: {
-        basicSalary: Number(basicSalary) || 0,
-        budgetaryReliefAllowance: Number(budgetaryRelief) || 0,
-        siteAllowance: Number(siteAllowance) || 0,
-        transportAllowance: Number(transportAllowance) || 0,
-        phoneAllowance: Number(phoneAllowance) || 0,
-        epfEmployeeRate: 8,
-        epfEmployerRate: 12,
-        etfEmployerRate: 3,
-        bankName,
-        bankBranch: bankBranch.trim() || 'Main Branch',
-        accountNumber: accountNumber.trim() || '0000000000',
-        paymentMode,
-        taxDeductions: Number(taxDeductions) || 0,
-        effectiveDate: joinedDate
-      },
+      salaryStructure: canEditSalary
+        ? {
+            basicSalary: Number(basicSalary) || 0,
+            budgetaryReliefAllowance: Number(budgetaryRelief) || 0,
+            siteAllowance: Number(siteAllowance) || 0,
+            transportAllowance: Number(transportAllowance) || 0,
+            phoneAllowance: Number(phoneAllowance) || 0,
+            epfEmployeeRate: 8,
+            epfEmployerRate: 12,
+            etfEmployerRate: 3,
+            bankName,
+            bankBranch: bankBranch.trim() || 'Main Branch',
+            accountNumber: accountNumber.trim() || '0000000000',
+            paymentMode,
+            taxDeductions: Number(taxDeductions) || 0,
+            effectiveDate: joinedDate
+          }
+        : staffToEdit?.salaryStructure || {
+            basicSalary: 0,
+            budgetaryReliefAllowance: 0,
+            siteAllowance: 0,
+            transportAllowance: 0,
+            phoneAllowance: 0,
+            epfEmployeeRate: 8,
+            epfEmployerRate: 12,
+            etfEmployerRate: 3,
+            bankName: SRI_LANKA_BANKS[0],
+            bankBranch: 'Main Branch',
+            accountNumber: 'CONFIDENTIAL',
+            paymentMode: 'Bank Transfer',
+            taxDeductions: 0,
+            effectiveDate: joinedDate
+          },
       qualifications,
       notes: notes.trim() || undefined,
       epfRegistrationNumber: epfRegNo.trim() || undefined
@@ -492,13 +517,15 @@ export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">Assigned Project / Site</label>
+                <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                  Project <span className="text-cyan-400 font-normal">(Project Directory)</span>
+                </label>
                 <select
                   value={assignedProjectCode}
                   onChange={(e) => setAssignedProjectCode(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-cyan-500 font-medium"
                 >
-                  <option value="HEAD_OFFICE">Corporate Head Office - Colombo</option>
+                  <option value="HEAD_OFFICE">HEAD_OFFICE - Corporate Head Office - Colombo</option>
                   {projects.map((p) => (
                     <option key={p.id} value={p.PROJECT_CODE}>
                       {p.PROJECT_CODE} - {p.PROJECT_NAME}
@@ -508,18 +535,25 @@ export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">Reports To (Supervisor)</label>
+                <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                  Supervisor <span className="text-cyan-400 font-normal">(Active Staff Directory Supervisors)</span>
+                </label>
                 <select
                   value={reportsToId}
                   onChange={(e) => setReportsToId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-cyan-500 font-medium"
                 >
-                  <option value="">Directly to Board / Independent</option>
+                  <option value="">Directly to Management / Board</option>
                   {staffMembers
-                    .filter((m) => !staffToEdit || m.id !== staffToEdit.id)
-                    .map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.fullName} ({m.designation})
+                    .filter(
+                      (m) =>
+                        (m.role === 'SUPERVISOR' || m.isSupervisor === true || m.designation?.toLowerCase().includes('supervisor')) &&
+                        m.status === 'Active' &&
+                        (!staffToEdit || m.id !== staffToEdit.id)
+                    )
+                    .map((sup) => (
+                      <option key={sup.id} value={sup.id}>
+                        {sup.employeeCode} - {sup.fullName}
                       </option>
                     ))}
                 </select>
@@ -615,117 +649,147 @@ export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({
 
           {/* Section 3: Remuneration & Bank Routing */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold text-slate-100 flex items-center gap-2 pb-1 border-b border-slate-800">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-              <span>3. Compensation & Statutory Banking Details (LKR)</span>
+            <h4 className="text-xs font-bold text-slate-100 flex items-center justify-between pb-1 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+                <span>3. Compensation & Statutory Banking Details (LKR)</span>
+              </div>
+              {!canEditSalary && (
+                <span className="text-[10px] font-mono text-amber-400 bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded flex items-center gap-1 font-bold">
+                  <Lock className="w-3 h-3" />
+                  RESTRICTED ACCESS
+                </span>
+              )}
             </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">Basic Salary (LKR)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={basicSalary}
-                  onChange={(e) => setBasicSalary(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
-                />
-              </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">Site Allowance</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={siteAllowance}
-                  onChange={(e) => setSiteAllowance(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+            {canEditSalary ? (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Basic Salary (LKR)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={basicSalary}
+                      onChange={(e) => setBasicSalary(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">Transport / Fuel</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={transportAllowance}
-                  onChange={(e) => setTransportAllowance(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Site Allowance</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={siteAllowance}
+                      onChange={(e) => setSiteAllowance(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">Phone Allowance</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={phoneAllowance}
-                  onChange={(e) => setPhoneAllowance(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Transport / Fuel</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={transportAllowance}
+                      onChange={(e) => setTransportAllowance(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">Budgetary Relief</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={budgetaryRelief}
-                  onChange={(e) => setBudgetaryRelief(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Phone Allowance</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={phoneAllowance}
+                      onChange={(e) => setPhoneAllowance(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
 
-            {/* Bank details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">Bank Name</label>
-                <select
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
-                >
-                  {SRI_LANKA_BANKS.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Budgetary Relief</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={budgetaryRelief}
+                      onChange={(e) => setBudgetaryRelief(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">Bank Branch</label>
-                <input
-                  type="text"
-                  value={bankBranch}
-                  onChange={(e) => setBankBranch(e.target.value)}
-                  placeholder="e.g. Kandy City"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+                {/* Bank details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Bank Name</label>
+                    <select
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
+                    >
+                      {SRI_LANKA_BANKS.map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">Account Number</label>
-                <input
-                  type="text"
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  placeholder="Bank Account No."
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Bank Branch</label>
+                    <input
+                      type="text"
+                      value={bankBranch}
+                      onChange={(e) => setBankBranch(e.target.value)}
+                      placeholder="e.g. Kandy City"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1">EPF Registration No.</label>
-                <input
-                  type="text"
-                  value={epfRegNo}
-                  onChange={(e) => setEpfRegNo(e.target.value)}
-                  placeholder="e.g. EMA/EPF/042"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
-                />
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Account Number</label>
+                    <input
+                      type="text"
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value)}
+                      placeholder="Bank Account No."
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">EPF Registration No.</label>
+                    <input
+                      type="text"
+                      value={epfRegNo}
+                      onChange={(e) => setEpfRegNo(e.target.value)}
+                      placeholder="e.g. EMA/EPF/042"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between text-slate-400">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-amber-400">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-300">Confidential Compensation & Payroll Structure</p>
+                    <p className="text-[11px] text-slate-500">
+                      Salary structure and banking parameters are restricted to Executive (Admin/Owner) and Finance authorized roles.
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-500 font-bold">
+                  CONFIDENTIAL
+                </span>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Section 4: Qualifications & Remarks */}

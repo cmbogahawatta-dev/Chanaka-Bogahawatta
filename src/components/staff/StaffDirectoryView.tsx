@@ -26,7 +26,14 @@ import {
   DollarSign,
   UserCheck,
   UserX,
-  HardHat
+  HardHat,
+  FolderKanban,
+  GitFork,
+  Radio,
+  Calendar,
+  FileCheck2,
+  TrendingUp,
+  Percent
 } from 'lucide-react';
 import { useStaff } from '../../context/StaffContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
@@ -34,6 +41,30 @@ import { usePettyCash } from '../../context/PettyCashContext';
 import { StaffMember, Department, EmployeeRole, StaffStatus, EmploymentType } from '../../types/staffTypes';
 import { StaffProfileModal } from './StaffProfileModal';
 import { AddEditStaffModal } from './AddEditStaffModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+
+// HR Modules
+import { ProjectAllocationsView } from './ProjectAllocationsView';
+import { ApprovalWorkflowsView } from './ApprovalWorkflowsView';
+import { JibbleGeofencesView } from './JibbleGeofencesView';
+import { AttendanceManagementView } from './AttendanceManagementView';
+import { LeaveManagementView } from './LeaveManagementView';
+import { OvertimeRegisterView } from './OvertimeRegisterView';
+import { SalaryHistoryView } from './SalaryHistoryView';
+import { PayrollProcessingView } from './PayrollProcessingView';
+import { LabourCostReportView } from './LabourCostReportView';
+
+export type HRTab =
+  | 'DIRECTORY'
+  | 'ALLOCATIONS'
+  | 'WORKFLOWS'
+  | 'JIBBLE_GEOFENCES'
+  | 'ATTENDANCE'
+  | 'LEAVE'
+  | 'OVERTIME'
+  | 'SALARIES'
+  | 'PAYROLL'
+  | 'LABOUR_COST';
 
 export const StaffDirectoryView: React.FC = () => {
   const {
@@ -46,11 +77,15 @@ export const StaffDirectoryView: React.FC = () => {
     selectedStaffMember,
     setSelectedStaffMember,
     deleteStaffMember,
-    resetStaffDirectory
+    resetStaffDirectory,
+    clearStaffDirectory
   } = useStaff();
 
   const { currentRole } = useEnterprise();
   const { projects } = usePettyCash();
+
+  // Primary HR Portal Navigation Tab
+  const [activeHRTab, setActiveHRTab] = useState<HRTab>('DIRECTORY');
 
   // Local View States
   const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
@@ -179,62 +214,211 @@ export const StaffDirectoryView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* 1. TOP HEADER & KPI METRIC CARDS */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center font-bold">
-                <Users className="w-4 h-4" />
+      {/* 0. HR & STAFF SYSTEM SUB-NAVIGATION RIBBON */}
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800 text-xs shadow-sm">
+        <button
+          onClick={() => setActiveHRTab('DIRECTORY')}
+          className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeHRTab === 'DIRECTORY'
+              ? 'bg-cyan-600 text-white shadow-md shadow-cyan-950/50'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Staff Directory</span>
+        </button>
+
+        <button
+          onClick={() => setActiveHRTab('ALLOCATIONS')}
+          className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeHRTab === 'ALLOCATIONS'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-950/50'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <FolderKanban className="w-3.5 h-3.5" />
+          <span>Project Allocations</span>
+        </button>
+
+        <button
+          onClick={() => setActiveHRTab('WORKFLOWS')}
+          className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeHRTab === 'WORKFLOWS'
+              ? 'bg-purple-600 text-white shadow-md shadow-purple-950/50'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <GitFork className="w-3.5 h-3.5" />
+          <span>Approval Workflows</span>
+        </button>
+
+        <button
+          onClick={() => setActiveHRTab('JIBBLE_GEOFENCES')}
+          className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeHRTab === 'JIBBLE_GEOFENCES'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/50'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Radio className="w-3.5 h-3.5" />
+          <span>Jibble & Geofences</span>
+        </button>
+
+        <button
+          onClick={() => setActiveHRTab('ATTENDANCE')}
+          className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeHRTab === 'ATTENDANCE'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-950/50'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          <span>Time & Attendance</span>
+        </button>
+
+        <button
+          onClick={() => setActiveHRTab('LEAVE')}
+          className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeHRTab === 'LEAVE'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/50'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Calendar className="w-3.5 h-3.5" />
+          <span>Leave Management</span>
+        </button>
+
+        <button
+          onClick={() => setActiveHRTab('OVERTIME')}
+          className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeHRTab === 'OVERTIME'
+              ? 'bg-amber-600 text-white shadow-md shadow-amber-950/50'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          <span>Overtime Register</span>
+        </button>
+
+        <button
+          onClick={() => setActiveHRTab('SALARIES')}
+          className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeHRTab === 'SALARIES'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/50'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <DollarSign className="w-3.5 h-3.5" />
+          <span>Salary Structures</span>
+        </button>
+
+        <button
+          onClick={() => setActiveHRTab('PAYROLL')}
+          className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeHRTab === 'PAYROLL'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/50'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <FileCheck2 className="w-3.5 h-3.5" />
+          <span>Monthly Payroll</span>
+        </button>
+
+        <button
+          onClick={() => setActiveHRTab('LABOUR_COST')}
+          className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeHRTab === 'LABOUR_COST'
+              ? 'bg-amber-600 text-white shadow-md shadow-amber-950/50'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Building2 className="w-3.5 h-3.5" />
+          <span>Labour Cost Allocation</span>
+        </button>
+      </div>
+
+      {/* MODULE ROUTING */}
+      {activeHRTab === 'ALLOCATIONS' && <ProjectAllocationsView />}
+      {activeHRTab === 'WORKFLOWS' && <ApprovalWorkflowsView />}
+      {activeHRTab === 'JIBBLE_GEOFENCES' && <JibbleGeofencesView />}
+      {activeHRTab === 'ATTENDANCE' && <AttendanceManagementView />}
+      {activeHRTab === 'LEAVE' && <LeaveManagementView />}
+      {activeHRTab === 'OVERTIME' && <OvertimeRegisterView />}
+      {activeHRTab === 'SALARIES' && <SalaryHistoryView />}
+      {activeHRTab === 'PAYROLL' && <PayrollProcessingView />}
+      {activeHRTab === 'LABOUR_COST' && <LabourCostReportView />}
+
+      {/* MAIN STAFF DIRECTORY TAB */}
+      {activeHRTab === 'DIRECTORY' && (
+        <div className="space-y-6">
+          {/* 1. TOP HEADER & KPI METRIC CARDS */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center font-bold">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <h2 className="text-xl font-black text-slate-100 tracking-tight">Staff & HR Directory</h2>
+                  <span className="px-2.5 py-0.5 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-800/80 text-xs font-mono font-bold">
+                    {summaryStats.totalStaff} Personnel
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Construction human resource records, project allocations, statutory EPF/ETF remits & management hierarchy
+                </p>
               </div>
-              <h2 className="text-xl font-black text-slate-100 tracking-tight">Staff & HR Directory</h2>
-              <span className="px-2.5 py-0.5 rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-800/80 text-xs font-mono font-bold">
-                {summaryStats.totalStaff} Personnel
-              </span>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                  title="Export Staff Directory to CSV / Excel"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Export Excel</span>
+                </button>
+
+                {canManageStaff && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStaffToEdit(null);
+                      setIsAddModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all shadow-lg shadow-cyan-950/50 flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Staff Member</span>
+                  </button>
+                )}
+
+                {canResetDirectory && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowResetConfirm(true)}
+                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-cyan-300 border border-slate-700 text-xs transition-colors"
+                      title="Admin: Reset Staff Directory to Factory Seed"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                    <AdminClearHistoryButton
+                      id="btn-admin-clear-staff-directory"
+                      moduleName="Staff & HR Directory"
+                      itemCount={staffMembers.length}
+                      itemDescription="registered personnel profiles, payroll configurations, and emergency contact details"
+                      preservedItemsDescription="Core projects, fleet records, and petty cash expense vouchers will remain intact."
+                      buttonText="Clear Staff Records"
+                      buttonClassName="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/80 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                      onClear={() => clearStaffDirectory()}
+                    />
+                  </>
+                )}
+              </div>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Construction human resource records, project allocations, statutory EPF/ETF remits & management hierarchy
-            </p>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-              title="Export Staff Directory to CSV / Excel"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Export Excel</span>
-            </button>
-
-            {canManageStaff && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStaffToEdit(null);
-                  setIsAddModalOpen(true);
-                }}
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all shadow-lg shadow-cyan-950/50 flex items-center gap-1.5 active:scale-95"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Staff Member</span>
-              </button>
-            )}
-
-            {canResetDirectory && (
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm(true)}
-                className="p-2 rounded-xl bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-amber-400 border border-slate-700/80 text-xs transition-colors"
-                title="Admin: Reset Staff Directory to Factory Seed"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
 
         {/* Metric Cards Row */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -307,7 +491,7 @@ export const StaffDirectoryView: React.FC = () => {
       <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
           {/* Search Input */}
-          <div className="lg:col-span-4 relative">
+          <div className="lg:col-span-3 relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -328,13 +512,13 @@ export const StaffDirectoryView: React.FC = () => {
           </div>
 
           {/* Department Filter */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-2">
             <select
               value={filterState.department}
               onChange={(e) => setFilterState((prev) => ({ ...prev, department: e.target.value as any }))}
               className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-cyan-500"
             >
-              <option value="ALL">All Departments ({staffMembers.length})</option>
+              <option value="ALL">All Departments</option>
               <option value="Management">Management ({summaryStats.departmentBreakdown['Management'] || 0})</option>
               <option value="Civil Engineering">Civil Engineering ({summaryStats.departmentBreakdown['Civil Engineering'] || 0})</option>
               <option value="Project Operations">Project Operations ({summaryStats.departmentBreakdown['Project Operations'] || 0})</option>
@@ -347,7 +531,7 @@ export const StaffDirectoryView: React.FC = () => {
           </div>
 
           {/* Project Filter */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-2">
             <select
               value={filterState.projectCode}
               onChange={(e) => setFilterState((prev) => ({ ...prev, projectCode: e.target.value }))}
@@ -363,20 +547,55 @@ export const StaffDirectoryView: React.FC = () => {
             </select>
           </div>
 
-          {/* Status & View Mode */}
-          <div className="lg:col-span-2 flex items-center justify-between gap-2">
+          {/* Role Filter */}
+          <div className="lg:col-span-2">
             <select
-              value={filterState.status}
-              onChange={(e) => setFilterState((prev) => ({ ...prev, status: e.target.value as any }))}
+              value={filterState.role}
+              onChange={(e) => setFilterState((prev) => ({ ...prev, role: e.target.value as any }))}
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-cyan-500"
+            >
+              <option value="ALL">All Roles</option>
+              <option value="DIRECTOR">Director</option>
+              <option value="PROJECT_MANAGER">Project Manager</option>
+              <option value="SITE_ENGINEER">Site Engineer</option>
+              <option value="QUANTITY_SURVEYOR">Quantity Surveyor</option>
+              <option value="SUPERVISOR">Site Supervisor</option>
+              <option value="ACCOUNTANT">Accountant</option>
+              <option value="FLEET_MANAGER">Fleet Manager</option>
+              <option value="HR_OFFICER">HR Officer</option>
+              <option value="SAFETY_OFFICER">Safety Officer</option>
+              <option value="TECHNICAL_OFFICER">Technical Officer</option>
+              <option value="SURVEYOR">Land Surveyor</option>
+              <option value="FOREMAN">Site Foreman</option>
+              <option value="STOREKEEPER">Storekeeper</option>
+              <option value="ADMIN_ASSISTANT">Admin Assistant</option>
+            </select>
+          </div>
+
+          {/* Supervisor Filter */}
+          <div className="lg:col-span-2">
+            <select
+              value={filterState.reportsToId || 'ALL'}
+              onChange={(e) => setFilterState((prev) => ({ ...prev, reportsToId: e.target.value }))}
               className="w-full px-2.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-cyan-500"
             >
-              <option value="ALL">All Status</option>
-              <option value="Active">Active</option>
-              <option value="On Leave">On Leave</option>
-              <option value="Probation">Probation</option>
-              <option value="Transferred">Transferred</option>
+              <option value="ALL">All Supervisors / Leads</option>
+              {staffMembers
+                .filter(
+                  (m) =>
+                    (m.role === 'SUPERVISOR' || m.isSupervisor === true || m.designation?.toLowerCase().includes('supervisor')) &&
+                    m.status === 'Active'
+                )
+                .map((sup) => (
+                  <option key={sup.id} value={sup.id}>
+                    {sup.employeeCode} - {sup.fullName}
+                  </option>
+                ))}
             </select>
+          </div>
 
+          {/* View Mode Toggle */}
+          <div className="lg:col-span-1 flex items-center justify-end">
             <div className="flex items-center bg-slate-950 rounded-xl border border-slate-800 p-0.5 shrink-0">
               <button
                 type="button"
@@ -406,6 +625,8 @@ export const StaffDirectoryView: React.FC = () => {
         {(filterState.searchQuery ||
           filterState.department !== 'ALL' ||
           filterState.projectCode !== 'ALL' ||
+          filterState.role !== 'ALL' ||
+          (filterState.reportsToId && filterState.reportsToId !== 'ALL') ||
           filterState.status !== 'ALL') && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60 text-xs">
             <span className="text-slate-400 text-[11px]">Active Filters:</span>
@@ -433,6 +654,24 @@ export const StaffDirectoryView: React.FC = () => {
                 <X
                   className="w-3 h-3 cursor-pointer"
                   onClick={() => setFilterState((p) => ({ ...p, projectCode: 'ALL' }))}
+                />
+              </span>
+            )}
+            {filterState.role !== 'ALL' && (
+              <span className="px-2 py-0.5 rounded-md bg-cyan-950 text-cyan-300 border border-cyan-800 text-[11px] flex items-center gap-1">
+                Role: {filterState.role}
+                <X
+                  className="w-3 h-3 cursor-pointer"
+                  onClick={() => setFilterState((p) => ({ ...p, role: 'ALL' }))}
+                />
+              </span>
+            )}
+            {filterState.reportsToId && filterState.reportsToId !== 'ALL' && (
+              <span className="px-2 py-0.5 rounded-md bg-cyan-950 text-cyan-300 border border-cyan-800 text-[11px] flex items-center gap-1">
+                Supervisor: {staffMembers.find((m) => m.id === filterState.reportsToId)?.preferredName || filterState.reportsToId}
+                <X
+                  className="w-3 h-3 cursor-pointer"
+                  onClick={() => setFilterState((p) => ({ ...p, reportsToId: 'ALL' }))}
                 />
               </span>
             )}
@@ -689,6 +928,8 @@ export const StaffDirectoryView: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
         </div>
       )}
 

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useFleet } from '../../context/FleetContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
+import { AdminSecurityService } from '../../services/adminSecurityService';
 
 export interface AdminClearHistoryModalProps {
   isOpen: boolean;
@@ -40,20 +41,39 @@ export const AdminClearHistoryModal: React.FC<AdminClearHistoryModalProps> = ({
   const isRoleAdmin = currentRole === 'ADMIN' || isAdmin;
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleExecute = () => {
+  const handleExecute = async () => {
     if (!isRoleAdmin) {
       alert('Access Denied: Only administrators have authority to clear history data.');
       return;
     }
 
     if (requirePin) {
-      const isValid = verifyAdminPin(pinInput);
-      if (!isValid) {
+      if (!pinInput.trim()) {
         setPinError(true);
+        setErrorMessage('Admin Security Key or PIN is required.');
+        return;
+      }
+
+      // Check PIN or Security Key
+      const isPinValid = verifyAdminPin(pinInput.trim());
+      let isSecKeyValid = false;
+      if (!isPinValid && AdminSecurityService.hasSecurityKey()) {
+        const secRes = await AdminSecurityService.verifySecurityKey(pinInput.trim(), `Clear History: ${moduleName}`, {
+          id: 'admin-usr',
+          name: currentUser,
+          role: currentRole
+        });
+        isSecKeyValid = secRes.success;
+      }
+
+      if (!isPinValid && !isSecKeyValid) {
+        setPinError(true);
+        setErrorMessage('Incorrect Administrator PIN or Security Key. Access denied.');
         return;
       }
     }
@@ -64,6 +84,7 @@ export const AdminClearHistoryModal: React.FC<AdminClearHistoryModalProps> = ({
       setIsSuccess(false);
       setPinInput('');
       setPinError(false);
+      setErrorMessage(null);
       onClose();
     }, 600);
   };
@@ -142,20 +163,20 @@ export const AdminClearHistoryModal: React.FC<AdminClearHistoryModalProps> = ({
                   <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
                       <Lock className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Enter Admin Security PIN</span>
+                      <span>Enter Admin Security PIN or Key</span>
                     </span>
-                    <span className="text-[10px] text-slate-500">Default PIN: 1234</span>
                   </label>
                   <div className="relative">
                     <input
                       type="password"
-                      maxLength={6}
+                      maxLength={20}
                       value={pinInput}
                       onChange={(e) => {
                         setPinInput(e.target.value);
                         setPinError(false);
+                        setErrorMessage(null);
                       }}
-                      placeholder="••••"
+                      placeholder="••••••••"
                       className={`w-full px-4 py-2.5 rounded-xl bg-slate-950 border ${
                         pinError ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-700'
                       } text-slate-100 text-center tracking-widest text-lg font-mono focus:outline-none focus:border-red-500`}
@@ -166,7 +187,7 @@ export const AdminClearHistoryModal: React.FC<AdminClearHistoryModalProps> = ({
                   {pinError && (
                     <p className="text-[11px] font-medium text-red-400 flex items-center gap-1 mt-1">
                       <AlertTriangle className="w-3 h-3" />
-                      <span>Incorrect Administrator PIN. Please verify and retry.</span>
+                      <span>{errorMessage || 'Incorrect Administrator PIN or Key. Please verify and retry.'}</span>
                     </p>
                   )}
                 </div>

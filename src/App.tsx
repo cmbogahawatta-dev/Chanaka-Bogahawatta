@@ -6,6 +6,15 @@ import { PRVProvider } from './context/PRVContext';
 import { SiteRecordProvider } from './context/SiteRecordContext';
 import { StaffProvider } from './context/StaffContext';
 
+// HR & Payroll Context Providers
+import { StaffAllocationProvider } from './context/StaffAllocationContext';
+import { ApprovalWorkflowProvider } from './context/ApprovalWorkflowContext';
+import { GeofenceProvider } from './context/GeofenceContext';
+import { AttendanceProvider } from './context/AttendanceContext';
+import { LeaveProvider } from './context/LeaveContext';
+import { SalaryHistoryProvider } from './context/SalaryHistoryContext';
+import { PayrollProvider } from './context/PayrollContext';
+
 // Enterprise Header & Components
 import { EnterpriseHeader } from './components/enterprise/EnterpriseHeader';
 import { MasterDashboardView } from './components/masterDashboard/MasterDashboardView';
@@ -495,18 +504,32 @@ const EnterpriseAppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <FleetProvider>
-      <PettyCashProvider>
-        <EnterpriseProvider>
-          <PRVProvider>
-            <SiteRecordProvider>
-              <StaffProvider>
-                <EnterpriseAppContent />
-              </StaffProvider>
-            </SiteRecordProvider>
-          </PRVProvider>
-        </EnterpriseProvider>
-      </PettyCashProvider>
-    </FleetProvider>
+    <StaffProvider>
+      <FleetProvider>
+        <PettyCashProvider>
+          <EnterpriseProvider>
+            <PRVProvider>
+              <SiteRecordProvider>
+                <StaffAllocationProvider>
+                  <ApprovalWorkflowProvider>
+                    <GeofenceProvider>
+                      <AttendanceProvider>
+                        <LeaveProvider>
+                          <SalaryHistoryProvider>
+                            <PayrollProvider>
+                              <EnterpriseAppContent />
+                            </PayrollProvider>
+                          </SalaryHistoryProvider>
+                        </LeaveProvider>
+                      </AttendanceProvider>
+                    </GeofenceProvider>
+                  </ApprovalWorkflowProvider>
+                </StaffAllocationProvider>
+              </SiteRecordProvider>
+            </PRVProvider>
+          </EnterpriseProvider>
+        </PettyCashProvider>
+      </FleetProvider>
+    </StaffProvider>
   );
 }

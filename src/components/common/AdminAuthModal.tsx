@@ -73,7 +73,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
         onClose();
       }, 600);
     } else {
-      setErrorMsg('Incorrect Admin PIN. Default PIN is 1234 unless previously changed.');
+      setErrorMsg('Incorrect Admin PIN. Access denied.');
     }
   };
 
@@ -267,11 +267,8 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                     Admin Authorization Required
                   </p>
                   <p className="text-[11px] text-slate-400">
-                    Enter the master Administrator PIN to unlock full management controls, vehicle wiping, and sample data restoration.
+                    Enter the configured Administrator PIN to unlock management controls, vehicle wiping, and sample data restoration.
                   </p>
-                  <div className="text-[10px] text-blue-400/90 font-mono pt-1">
-                    💡 Default Demo PIN: <strong>1234</strong>
-                  </div>
                 </div>
 
                 <div>
@@ -283,7 +280,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                       type={showPin ? 'text' : 'password'}
                       value={pinInput}
                       onChange={(e) => setPinInput(e.target.value)}
-                      placeholder="Enter 4-digit PIN (e.g. 1234)"
+                      placeholder="Enter Admin PIN"
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:ring-1 focus:ring-blue-500 focus:outline-hidden tracking-widest"
                       maxLength={12}
                       autoFocus
@@ -323,7 +320,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
         {tab === 'changePin' && (
           <form onSubmit={handleChangePin} className="space-y-3.5">
             <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800 text-[11px] text-slate-400">
-              Update the master PIN used to authorize factory data resets, full dataset clears, and administrative configurations.
+              Update the PIN used to authorize factory data resets, full dataset clears, and administrative configurations.
             </div>
 
             <div>
@@ -334,7 +331,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                 type={showChangePins ? 'text' : 'password'}
                 value={currentPin}
                 onChange={(e) => setCurrentPin(e.target.value)}
-                placeholder="Current PIN (Default: 1234)"
+                placeholder="Enter current Admin PIN"
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
               />
             </div>

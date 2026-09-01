@@ -226,10 +226,10 @@ export const BudgetAlertsNotificationModal: React.FC<BudgetAlertsNotificationMod
               onChange={(e) => setSelectedSupervisorFilter(e.target.value)}
               className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
             >
-              <option value="ALL">All Supervisors</option>
+              <option value="ALL">All Supervisors / Staff</option>
               {supervisors.map(s => (
                 <option key={s.id} value={s.SUPERVISOR_NAME}>
-                  {s.SUPERVISOR_NAME} ({s.ASSIGNED_PROJECTS?.length || 0} projects)
+                  {s.employeeCode || s.SUPERVISOR_ID} — {s.FULL_NAME || s.SUPERVISOR_NAME} ({s.ASSIGNED_PROJECTS?.length || 0} projects)
                 </option>
               ))}
             </select>

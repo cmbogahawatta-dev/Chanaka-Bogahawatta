@@ -698,7 +698,6 @@ export const Header: React.FC<HeaderProps> = ({
                     <Lock className="w-3.5 h-3.5 text-amber-400" />
                     <span>Enter Admin Security PIN</span>
                   </label>
-                  <span className="text-[10px] text-slate-400 font-mono">Default: 1234</span>
                 </div>
                 <div className="relative">
                   <input
@@ -806,7 +805,6 @@ export const Header: React.FC<HeaderProps> = ({
                     <Lock className="w-3.5 h-3.5 text-red-400" />
                     <span>Enter Admin Security PIN</span>
                   </label>
-                  <span className="text-[10px] text-slate-400 font-mono">Default: 1234</span>
                 </div>
                 <div className="relative">
                   <input

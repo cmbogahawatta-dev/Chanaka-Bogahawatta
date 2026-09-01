@@ -156,7 +156,7 @@ export const InternalTransferModal: React.FC<InternalTransferModalProps> = ({
                 >
                   {supervisors.map(s => (
                     <option key={s.id} value={s.SUPERVISOR_NAME}>
-                      {s.SUPERVISOR_NAME}
+                      {s.employeeCode || s.SUPERVISOR_ID} — {s.FULL_NAME || s.SUPERVISOR_NAME}
                     </option>
                   ))}
                 </select>
@@ -174,7 +174,7 @@ export const InternalTransferModal: React.FC<InternalTransferModalProps> = ({
                 >
                   {supervisors.map(s => (
                     <option key={s.id} value={s.SUPERVISOR_NAME}>
-                      {s.SUPERVISOR_NAME}
+                      {s.employeeCode || s.SUPERVISOR_ID} — {s.FULL_NAME || s.SUPERVISOR_NAME}
                     </option>
                   ))}
                 </select>

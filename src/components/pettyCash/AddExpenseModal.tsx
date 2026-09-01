@@ -138,11 +138,22 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
     try {
       const displayDate = formatDateDisplay(dateRef);
+      const selectedSupObj = supervisors.find(s =>
+        s.SUPERVISOR_NAME.trim().toUpperCase() === supervisor.trim().toUpperCase() ||
+        s.id === supervisor ||
+        s.SUPERVISOR_ID === supervisor ||
+        s.employeeCode === supervisor ||
+        s.staffId === supervisor
+      );
+      const supId = selectedSupObj?.staffId || selectedSupObj?.id || selectedSupObj?.employeeCode || supervisor;
+      const supName = selectedSupObj?.SUPERVISOR_NAME || supervisor;
+
       if (expenseToEdit) {
         updateExpense(expenseToEdit.id, {
           DATE_REF: dateRef,
           DATE: displayDate,
-          SUPERVISOR: supervisor,
+          SUPERVISOR: supName,
+          SUPERVISOR_ID: supId,
           PROJECT: project,
           EXPENSES_CATEGORY: category,
           TRANSACTION_TYPE: transactionType,
@@ -158,7 +169,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         const newExp = addExpense({
           DATE_REF: dateRef,
           DATE: displayDate,
-          SUPERVISOR: supervisor,
+          SUPERVISOR: supName,
+          SUPERVISOR_ID: supId,
           PROJECT: project,
           EXPENSES_CATEGORY: category,
           TRANSACTION_TYPE: transactionType,
@@ -167,7 +179,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           PAYMENT_STATUS: userRole === 'ADMIN' || userRole === 'FINANCE' ? 'Approved' : 'Pending',
           PROOF_DOCUMENT: proofDocument || undefined,
           PROOF_DOCUMENT_NAME: proofDocName || undefined,
-          CREATED_BY: `${supervisor.toLowerCase()}@company.com`,
+          CREATED_BY: `${supName.toLowerCase()}@company.com`,
           REMARKS: remarks.trim() || undefined
         });
 
@@ -287,7 +299,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 >
                   {supervisors.map(s => (
                     <option key={s.id} value={s.SUPERVISOR_NAME}>
-                      {s.SUPERVISOR_NAME}
+                      {s.employeeCode || s.SUPERVISOR_ID} — {s.FULL_NAME || s.SUPERVISOR_NAME}
                     </option>
                   ))}
                 </select>

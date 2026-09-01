@@ -115,14 +115,16 @@ export const PettyCashReportsView: React.FC = () => {
 
               {rep.id === 'supervisor_statement' && (
                 <div>
-                  <label className="block text-[11px] text-slate-300 font-bold mb-1">Select Supervisor:</label>
+                  <label className="block text-[11px] text-slate-300 font-bold mb-1">Select Supervisor / Staff:</label>
                   <select
                     value={reportSupervisor}
                     onChange={(e) => setReportSupervisor(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs text-slate-200"
                   >
                     {supervisors.map(s => (
-                      <option key={s.id} value={s.SUPERVISOR_NAME}>{s.SUPERVISOR_NAME}</option>
+                      <option key={s.id} value={s.SUPERVISOR_NAME}>
+                        {s.employeeCode || s.SUPERVISOR_ID} — {s.FULL_NAME || s.SUPERVISOR_NAME}
+                      </option>
                     ))}
                   </select>
                 </div>

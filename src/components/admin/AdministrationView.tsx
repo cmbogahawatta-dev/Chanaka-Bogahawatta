@@ -36,6 +36,8 @@ import { useSiteRecords } from '../../context/SiteRecordContext';
 import { useStaff } from '../../context/StaffContext';
 import { EnterpriseRole } from '../../types/enterpriseTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { SecurityStatusIndicator } from './SecurityStatusIndicator';
+import { AuditLogView } from './AuditLogView';
 
 export const AdministrationView: React.FC = () => {
   const {
@@ -106,10 +108,11 @@ export const AdministrationView: React.FC = () => {
 
   const {
     staffMembers,
-    resetStaffDirectory
+    resetStaffDirectory,
+    clearStaffDirectory
   } = useStaff();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'ROLES' | 'SHEETS' | 'MASTER' | 'CACHE'>('ROLES');
+  const [activeAdminTab, setActiveAdminTab] = useState<'ROLES' | 'SECURITY' | 'SHEETS' | 'MASTER' | 'CACHE'>('ROLES');
   const [sheetIdInput, setSheetIdInput] = useState(sheetsConfig.spreadsheetId || '1XyZ_SAMPLE_EMA_CONSTRUCTION_PETTY_CASH_FLEET_2026');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -242,6 +245,15 @@ export const AdministrationView: React.FC = () => {
           Roles & Permissions Matrix
         </button>
         <button
+          onClick={() => setActiveAdminTab('SECURITY')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            activeAdminTab === 'SECURITY' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>Security & Audit Logs</span>
+        </button>
+        <button
           onClick={() => setActiveAdminTab('SHEETS')}
           className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
             activeAdminTab === 'SHEETS' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
@@ -273,6 +285,7 @@ export const AdministrationView: React.FC = () => {
       {/* Tab A: Roles Matrix */}
       {activeAdminTab === 'ROLES' && (
         <div className="space-y-4">
+          <SecurityStatusIndicator />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {rolesMatrix.map(item => (
               <div
@@ -320,7 +333,15 @@ export const AdministrationView: React.FC = () => {
         </div>
       )}
 
-      {/* Tab B: Google Sheets Central Sync */}
+      {/* Tab B: Security & Audit Trail */}
+      {activeAdminTab === 'SECURITY' && (
+        <div className="space-y-6">
+          <SecurityStatusIndicator />
+          <AuditLogView />
+        </div>
+      )}
+
+      {/* Tab C: Google Sheets Central Sync */}
       {activeAdminTab === 'SHEETS' && (
         <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-5">
           <div className="flex items-start gap-3">
@@ -928,6 +949,35 @@ export const AdministrationView: React.FC = () => {
                   preservedItemsDescription="Registered construction projects, company vehicles, and master personnel remain intact."
                   buttonText="Clear Daily Reports"
                   onClear={() => clearSiteRecordsHistory()}
+                />
+              </div>
+            </div>
+
+            {/* Card 13: Staff & Corporate HR Directory */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Staff & HR Directory</h4>
+                    <span className="text-[11px] font-mono text-cyan-400 font-bold">{staffMembers.length} personnel</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Clears employee directory records, payroll configurations, emergency contacts, and direct reporting lines.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-staff-cache-tab"
+                  moduleName="Staff & HR Directory"
+                  itemCount={staffMembers.length}
+                  itemDescription="all registered employees, designations, and salary structures"
+                  preservedItemsDescription="Underlying transaction vouchers and project assignments will remain intact."
+                  buttonText="Clear Staff Records"
+                  onClear={() => clearStaffDirectory()}
                 />
               </div>
             </div>

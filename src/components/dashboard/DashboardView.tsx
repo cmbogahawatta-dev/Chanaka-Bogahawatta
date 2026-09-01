@@ -43,8 +43,9 @@ import { formatCurrency, formatDate, calculateServiceStatus } from '../../utils/
 import { ActiveTab } from '../common/BottomNav';
 import { VehicleTransfer } from '../../types';
 import { FleetKPICards } from './FleetKPICards';
+import { FleetQuickFilterBar, QuickFilterState } from './FleetQuickFilterBar';
 
-export { FleetKPICards };
+export { FleetKPICards, FleetQuickFilterBar };
 
 interface DashboardViewProps {
   onNavigateTab?: (tab: ActiveTab) => void;
@@ -101,6 +102,48 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [showPinText, setShowPinText] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
 
+  // Quick Filter Bar State for Vehicle Category & Active Site
+  const [quickFilters, setQuickFilters] = useState<QuickFilterState>({
+    category: 'ALL',
+    site: 'ALL'
+  });
+
+  // Extract unique available active sites / departments from vehicles
+  const availableSites = useMemo(() => {
+    const sites = new Set<string>();
+    vehicles.forEach(v => {
+      if (v.department && v.department.trim()) {
+        sites.add(v.department.trim());
+      }
+    });
+    return Array.from(sites).sort();
+  }, [vehicles]);
+
+  // Matching vehicles based on Quick Filter bar selection
+  const matchedVehicles = useMemo(() => {
+    return vehicles.filter(v => {
+      // 1. Category filter
+      if (quickFilters.category === 'HEAVY_DUTY' && v.type !== 'Lorry / Truck') {
+        return false;
+      }
+      if (quickFilters.category === 'LIGHT_DUTY' && !['Pickup', 'SUV', 'Van', 'Sedan'].includes(v.type)) {
+        return false;
+      }
+      if (quickFilters.category === 'MOTORCYCLE' && v.type !== 'Motorcycle') {
+        return false;
+      }
+
+      // 2. Site / Department filter
+      if (quickFilters.site !== 'ALL' && v.department !== quickFilters.site) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [vehicles, quickFilters]);
+
+  const matchedVehicleIdSet = useMemo(() => new Set(matchedVehicles.map(v => v.id)), [matchedVehicles]);
+
   const handleDashboardReset = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setPinError(null);
@@ -151,22 +194,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }, 4500);
   };
 
-  // Filtered dataset according to active vehicle selection
-  const filteredRunningCharts = selectedVehicleId === 'all'
-    ? runningCharts
-    : runningCharts.filter(rc => rc.vehicleId === selectedVehicleId);
+  // Filtered dataset according to active vehicle spotlight or Quick Filter selection
+  const filteredRunningCharts = useMemo(() => {
+    if (selectedVehicleId !== 'all') {
+      return runningCharts.filter(rc => rc.vehicleId === selectedVehicleId);
+    }
+    return runningCharts.filter(rc => matchedVehicleIdSet.has(rc.vehicleId));
+  }, [runningCharts, selectedVehicleId, matchedVehicleIdSet]);
 
-  const filteredFuelRecords = selectedVehicleId === 'all'
-    ? fuelRecords
-    : fuelRecords.filter(f => f.vehicleId === selectedVehicleId);
+  const filteredFuelRecords = useMemo(() => {
+    if (selectedVehicleId !== 'all') {
+      return fuelRecords.filter(f => f.vehicleId === selectedVehicleId);
+    }
+    return fuelRecords.filter(f => matchedVehicleIdSet.has(f.vehicleId));
+  }, [fuelRecords, selectedVehicleId, matchedVehicleIdSet]);
 
-  const filteredSchedules = selectedVehicleId === 'all'
-    ? serviceSchedules
-    : serviceSchedules.filter(s => s.vehicleId === selectedVehicleId);
+  const filteredSchedules = useMemo(() => {
+    if (selectedVehicleId !== 'all') {
+      return serviceSchedules.filter(s => s.vehicleId === selectedVehicleId);
+    }
+    return serviceSchedules.filter(s => matchedVehicleIdSet.has(s.vehicleId));
+  }, [serviceSchedules, selectedVehicleId, matchedVehicleIdSet]);
 
-  const filteredTransfers = selectedVehicleId === 'all'
-    ? transfers
-    : transfers.filter(t => t.vehicleId === selectedVehicleId);
+  const filteredTransfers = useMemo(() => {
+    if (selectedVehicleId !== 'all') {
+      return transfers.filter(t => t.vehicleId === selectedVehicleId);
+    }
+    return transfers.filter(t => matchedVehicleIdSet.has(t.vehicleId));
+  }, [transfers, selectedVehicleId, matchedVehicleIdSet]);
 
   // Computations
   const totalTripDistanceKm = filteredRunningCharts.reduce((sum, rc) => sum + (rc.distanceKm || 0), 0);
@@ -194,8 +249,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Active vehicle count
   const activeVehiclesCount = useMemo(() => {
-    return vehicles.filter(v => v.status === 'active').length;
-  }, [vehicles]);
+    return matchedVehicles.filter(v => v.status === 'active').length;
+  }, [matchedVehicles]);
+
+  const totalFilteredVehiclesCount = matchedVehicles.length;
 
   // Monthly Fuel Metrics Computation (Current Month / 30-day window)
   const currentMonthPrefix = new Date().toISOString().slice(0, 7);
@@ -248,10 +305,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-4 pb-20 pt-1">
+      {/* Fleet Quick Filter Bar for single-click category and site filtering */}
+      <FleetQuickFilterBar
+        filterState={quickFilters}
+        onFilterChange={setQuickFilters}
+        vehicles={vehicles}
+        availableSites={availableSites}
+        totalVehiclesCount={vehicles.length}
+        filteredVehiclesCount={totalFilteredVehiclesCount}
+      />
+
       {/* Fleet KPI Summary Cards with Entrance Animations */}
       <FleetKPICards
         activeVehiclesCount={activeVehiclesCount}
-        totalVehiclesCount={vehicles.length}
+        totalVehiclesCount={totalFilteredVehiclesCount}
         monthlyFuelLiters={monthlyFuelLiters}
         monthlyFuelCost={monthlyFuelCost}
         pendingMaintenanceCount={pendingMaintenanceAlertsCount}
@@ -932,7 +999,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <Lock className="w-3.5 h-3.5 text-amber-400" />
                     <span>Enter Admin Security PIN</span>
                   </label>
-                  <span className="text-[10px] text-slate-400 font-mono">Default: 1234</span>
                 </div>
                 <div className="relative">
                   <input
@@ -1040,7 +1106,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <Lock className="w-3.5 h-3.5 text-red-400" />
                     <span>Enter Admin Security PIN</span>
                   </label>
-                  <span className="text-[10px] text-slate-400 font-mono">Default: 1234</span>
                 </div>
                 <div className="relative">
                   <input

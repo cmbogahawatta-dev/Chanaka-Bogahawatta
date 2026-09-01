@@ -33,6 +33,7 @@ import {
   initialMappingTemplates
 } from '../data/pettyCashData';
 import { DataImportService, dataImportService, ValidationSummary } from '../services/dataImportService';
+import { useStaff } from './StaffContext';
 
 interface PivotMatrixRow {
   categoryId: string;
@@ -255,6 +256,7 @@ const STORAGE_KEYS = {
   EXPENSES: 'ema_petty_expenses_v1',
   INCOME: 'ema_petty_income_v1',
   SUPERVISORS: 'ema_petty_supervisors_v1',
+  ALLOCATIONS: 'ema_petty_allocations_v1',
   PROJECTS: 'ema_petty_projects_v1',
   CATEGORIES: 'ema_petty_categories_v1',
   TRANSFERS: 'ema_petty_transfers_v1',
@@ -281,6 +283,8 @@ const defaultFilters: PettyCashFilterState = {
 const PettyCashContext = createContext<PettyCashContextType | undefined>(undefined);
 
 export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { staffMembers } = useStaff();
+
   // State Initialization from LocalStorage or Defaults
   const [expenses, setExpenses] = useState<Expense[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.EXPENSES);
@@ -292,10 +296,102 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return saved ? JSON.parse(saved) : initialIncome;
   });
 
-  const [supervisors, setSupervisors] = useState<Supervisor[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.SUPERVISORS);
-    return saved ? JSON.parse(saved) : initialSupervisors;
+  // Step C: Petty Cash opening float allocations keyed by employeeId (with legacy aliases)
+  const [allocations, setAllocations] = useState<Record<string, number>>(() => {
+    const initialMap: Record<string, number> = {};
+
+    // 1. Try loading saved allocations
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.ALLOCATIONS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((alloc: any) => {
+            if (alloc.employeeId && typeof alloc.openingBalance === 'number') {
+              initialMap[alloc.employeeId] = alloc.openingBalance;
+            }
+          });
+        } else if (typeof parsed === 'object' && parsed !== null) {
+          Object.assign(initialMap, parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Additive migration: check legacy supervisors from localStorage and initialSupervisors
+    let legacySupervisors: any[] = [];
+    try {
+      const savedLegacy = localStorage.getItem(STORAGE_KEYS.SUPERVISORS);
+      if (savedLegacy) {
+        const parsed = JSON.parse(savedLegacy);
+        if (Array.isArray(parsed)) legacySupervisors = parsed;
+      }
+    } catch {
+      // ignore
+    }
+
+    initialSupervisors.forEach(s => {
+      if (!legacySupervisors.some(ls => (ls.SUPERVISOR_ID && ls.SUPERVISOR_ID === s.SUPERVISOR_ID) || (ls.SUPERVISOR_NAME && ls.SUPERVISOR_NAME.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase()))) {
+        legacySupervisors.push(s);
+      }
+    });
+
+    legacySupervisors.forEach(s => {
+      const supName = (s.SUPERVISOR_NAME || '').trim().toUpperCase();
+      const supId = s.SUPERVISOR_ID || s.id;
+      const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 50000;
+
+      if (supName && initialMap[supName] === undefined) initialMap[supName] = opening;
+      if (supId && initialMap[supId] === undefined) initialMap[supId] = opening;
+      if (s.id && initialMap[s.id] === undefined) initialMap[s.id] = opening;
+    });
+
+    return initialMap;
   });
+
+  // Supervisors state derived from Staff Directory (All active employees)
+  // Preserving historical compatibility with existing petty cash float allocations
+  const supervisors: Supervisor[] = useMemo(() => {
+    const activeStaff = staffMembers.filter(m => m.status === 'Active');
+
+    return activeStaff.map(m => {
+      const assignedProjects = m.assignedProjectCodes && m.assignedProjectCodes.length > 0
+        ? m.assignedProjectCodes
+        : m.assignedProjectCode && m.assignedProjectCode !== 'HEAD_OFFICE'
+          ? [m.assignedProjectCode]
+          : [];
+
+      const supervisorName = (m.preferredName || m.fullName.split(' ')[0]).toUpperCase();
+
+      const customOpening = allocations[m.id] ?? allocations[m.employeeCode] ?? allocations[m.supervisorId || ''] ?? (m.legacySupervisorId ? allocations[m.legacySupervisorId] : undefined) ?? allocations[supervisorName];
+      const opening = customOpening !== undefined ? customOpening : (
+        ['BUDDIKA', 'GAYANI', 'GEETH', 'LASANTHA'].includes(supervisorName) || m.role === 'SUPERVISOR' || m.isSupervisor ? 50000.0 : 0.0
+      );
+
+      return {
+        id: m.supervisorId || m.id,
+        staffId: m.id,
+        employeeCode: m.employeeCode,
+        SUPERVISOR_ID: m.supervisorId || m.employeeCode,
+        legacySupervisorId: m.legacySupervisorId || m.supervisorId || m.employeeCode,
+        SUPERVISOR_NAME: supervisorName,
+        FULL_NAME: m.fullName,
+        PHONE: m.phone,
+        EMAIL: m.email,
+        ACTIVE: m.status === 'Active',
+        OPENING_PETTY_CASH: opening,
+        CURRENT_BALANCE: opening,
+        REMARKS: m.notes || `${m.designation} - ${m.department}`,
+        DEFAULT_PROJECT: assignedProjects[0] || 'PIDM 26',
+        ASSIGNED_PROJECTS: assignedProjects,
+        AVATAR_COLOR: 'emerald',
+        role: m.role,
+        department: m.department,
+        designation: m.designation
+      };
+    });
+  }, [staffMembers, allocations]);
 
   const [projects, setProjects] = useState<Project[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PROJECTS);
@@ -359,6 +455,10 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [income]);
 
   useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.ALLOCATIONS, JSON.stringify(allocations));
+  }, [allocations]);
+
+  useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.SUPERVISORS, JSON.stringify(supervisors));
   }, [supervisors]);
 
@@ -404,6 +504,52 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setFilters(defaultFilters);
   };
 
+  // Step B Helper: Resolve expense to supervisor using SUPERVISOR_ID first, then historical SUPERVISOR name
+  const isExpenseForSupervisor = (exp: Expense, sup: Supervisor): boolean => {
+    if (exp.SUPERVISOR_ID) {
+      if (
+        exp.SUPERVISOR_ID === sup.staffId ||
+        exp.SUPERVISOR_ID === sup.id ||
+        exp.SUPERVISOR_ID === sup.employeeCode ||
+        exp.SUPERVISOR_ID === sup.SUPERVISOR_ID ||
+        (sup.legacySupervisorId && exp.SUPERVISOR_ID === sup.legacySupervisorId)
+      ) {
+        return true;
+      }
+    }
+    const supName = sup.SUPERVISOR_NAME.trim().toUpperCase();
+    const expSup = exp.SUPERVISOR?.trim().toUpperCase();
+    if (expSup === supName) return true;
+    if (sup.FULL_NAME && expSup === sup.FULL_NAME.trim().toUpperCase()) return true;
+    if (sup.employeeCode && expSup === sup.employeeCode.trim().toUpperCase()) return true;
+    if (sup.SUPERVISOR_ID && expSup === sup.SUPERVISOR_ID.trim().toUpperCase()) return true;
+    if (sup.legacySupervisorId && expSup === sup.legacySupervisorId.trim().toUpperCase()) return true;
+    return false;
+  };
+
+  // Step B Helper: Resolve income to supervisor using SUPERVISOR_ID first, then historical SUPERVISOR name
+  const isIncomeForSupervisor = (inc: Income, sup: Supervisor): boolean => {
+    if (inc.SUPERVISOR_ID) {
+      if (
+        inc.SUPERVISOR_ID === sup.staffId ||
+        inc.SUPERVISOR_ID === sup.id ||
+        inc.SUPERVISOR_ID === sup.employeeCode ||
+        inc.SUPERVISOR_ID === sup.SUPERVISOR_ID ||
+        (sup.legacySupervisorId && inc.SUPERVISOR_ID === sup.legacySupervisorId)
+      ) {
+        return true;
+      }
+    }
+    const supName = sup.SUPERVISOR_NAME.trim().toUpperCase();
+    const incSup = inc.SUPERVISOR?.trim().toUpperCase();
+    if (incSup === supName) return true;
+    if (sup.FULL_NAME && incSup === sup.FULL_NAME.trim().toUpperCase()) return true;
+    if (sup.employeeCode && incSup === sup.employeeCode.trim().toUpperCase()) return true;
+    if (sup.SUPERVISOR_ID && incSup === sup.SUPERVISOR_ID.trim().toUpperCase()) return true;
+    if (sup.legacySupervisorId && incSup === sup.legacySupervisorId.trim().toUpperCase()) return true;
+    return false;
+  };
+
   // Dynamic Supervisor Petty Cash Balance calculation engine
   const supervisorBalances = useMemo(() => {
     const balances: Record<string, {
@@ -423,23 +569,23 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // Income / Top-ups to this supervisor
       const incomeTotal = income
-        .filter(inc => inc.SUPERVISOR?.trim().toUpperCase() === supName)
+        .filter(inc => isIncomeForSupervisor(inc, sup))
         .reduce((sum, inc) => sum + (Number(inc.AMOUNT) || 0), 0);
 
       // Internal Transfers In
       const transfersIn = transfers
-        .filter(trf => trf.TO_SUPERVISOR?.trim().toUpperCase() === supName && trf.STATUS === 'Completed')
+        .filter(trf => (trf.TO_SUPERVISOR?.trim().toUpperCase() === supName || trf.TO_SUPERVISOR === sup.SUPERVISOR_ID || trf.TO_SUPERVISOR === sup.employeeCode) && trf.STATUS === 'Completed')
         .reduce((sum, trf) => sum + (Number(trf.AMOUNT) || 0), 0);
 
       // Internal Transfers Out
       const transfersOut = transfers
-        .filter(trf => trf.FROM_SUPERVISOR?.trim().toUpperCase() === supName && trf.STATUS === 'Completed')
+        .filter(trf => (trf.FROM_SUPERVISOR?.trim().toUpperCase() === supName || trf.FROM_SUPERVISOR === sup.SUPERVISOR_ID || trf.FROM_SUPERVISOR === sup.employeeCode) && trf.STATUS === 'Completed')
         .reduce((sum, trf) => sum + (Number(trf.AMOUNT) || 0), 0);
 
       // Approved / Paid / Reimbursed expenses
       const approvedExpenses = expenses
         .filter(exp => 
-          exp.SUPERVISOR?.trim().toUpperCase() === supName && 
+          isExpenseForSupervisor(exp, sup) && 
           (exp.PAYMENT_STATUS === 'Approved' || exp.PAYMENT_STATUS === 'Paid' || exp.PAYMENT_STATUS === 'Reimbursed')
         )
         .reduce((sum, exp) => sum + (Number(exp.AMOUNT) || 0), 0);
@@ -447,7 +593,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Pending expenses (tracked separately, does not deduct yet)
       const pendingExpenses = expenses
         .filter(exp => 
-          exp.SUPERVISOR?.trim().toUpperCase() === supName && 
+          isExpenseForSupervisor(exp, sup) && 
           exp.PAYMENT_STATUS === 'Pending'
         )
         .reduce((sum, exp) => sum + (Number(exp.AMOUNT) || 0), 0);
@@ -917,7 +1063,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // 2. Incomes / Top-ups
     income
-      .filter(inc => inc.SUPERVISOR.trim().toUpperCase() === supName)
+      .filter(inc => sup ? isIncomeForSupervisor(inc, sup) : inc.SUPERVISOR.trim().toUpperCase() === supName)
       .forEach(inc => {
         items.push({
           date: inc.DATE,
@@ -936,7 +1082,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // 3. Expenses
     expenses
-      .filter(exp => exp.SUPERVISOR.trim().toUpperCase() === supName)
+      .filter(exp => sup ? isExpenseForSupervisor(exp, sup) : exp.SUPERVISOR.trim().toUpperCase() === supName)
       .forEach(exp => {
         items.push({
           date: exp.DATE,
@@ -955,7 +1101,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // 4. Transfers In
     transfers
-      .filter(trf => trf.TO_SUPERVISOR.trim().toUpperCase() === supName && trf.STATUS === 'Completed')
+      .filter(trf => (trf.TO_SUPERVISOR.trim().toUpperCase() === supName || (sup && (trf.TO_SUPERVISOR === sup.SUPERVISOR_ID || trf.TO_SUPERVISOR === sup.employeeCode))) && trf.STATUS === 'Completed')
       .forEach(trf => {
         items.push({
           date: trf.DATE,
@@ -973,7 +1119,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // 5. Transfers Out
     transfers
-      .filter(trf => trf.FROM_SUPERVISOR.trim().toUpperCase() === supName && trf.STATUS === 'Completed')
+      .filter(trf => (trf.FROM_SUPERVISOR.trim().toUpperCase() === supName || (sup && (trf.FROM_SUPERVISOR === sup.SUPERVISOR_ID || trf.FROM_SUPERVISOR === sup.employeeCode))) && trf.STATUS === 'Completed')
       .forEach(trf => {
         items.push({
           date: trf.DATE,
@@ -1022,8 +1168,27 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const seq = String(expenses.length + 1).padStart(4, '0');
     const generatedId = `EXP-${yyyy}${mm}-${seq}`;
 
+    // Step B: For NEW records, store BOTH SUPERVISOR_ID and SUPERVISOR
+    let supId = newExpData.SUPERVISOR_ID;
+    let supName = newExpData.SUPERVISOR;
+
+    if (!supId && supName) {
+      const matchedSup = supervisors.find(s =>
+        s.SUPERVISOR_NAME.trim().toUpperCase() === supName.trim().toUpperCase() ||
+        (s.FULL_NAME && s.FULL_NAME.trim().toUpperCase() === supName.trim().toUpperCase()) ||
+        s.employeeCode === supName ||
+        s.SUPERVISOR_ID === supName
+      );
+      if (matchedSup) {
+        supId = matchedSup.staffId || matchedSup.id || matchedSup.employeeCode;
+        supName = matchedSup.SUPERVISOR_NAME;
+      }
+    }
+
     const newExpense: Expense = {
       ...newExpData,
+      SUPERVISOR: supName,
+      SUPERVISOR_ID: supId,
       id: `exp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       EXPENSES_ID: generatedId,
       CREATED_DATE: new Date().toLocaleString('en-GB')
@@ -1069,8 +1234,27 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const seq = String(income.length + 1).padStart(3, '0');
     const generatedId = `INC-${yyyy}${mm}-${seq}`;
 
+    // Step B: For NEW records, store BOTH SUPERVISOR_ID and SUPERVISOR
+    let supId = newIncData.SUPERVISOR_ID;
+    let supName = newIncData.SUPERVISOR;
+
+    if (!supId && supName) {
+      const matchedSup = supervisors.find(s =>
+        s.SUPERVISOR_NAME.trim().toUpperCase() === supName.trim().toUpperCase() ||
+        (s.FULL_NAME && s.FULL_NAME.trim().toUpperCase() === supName.trim().toUpperCase()) ||
+        s.employeeCode === supName ||
+        s.SUPERVISOR_ID === supName
+      );
+      if (matchedSup) {
+        supId = matchedSup.staffId || matchedSup.id || matchedSup.employeeCode;
+        supName = matchedSup.SUPERVISOR_NAME;
+      }
+    }
+
     const newInc: Income = {
       ...newIncData,
+      SUPERVISOR: supName,
+      SUPERVISOR_ID: supId,
       id: `inc-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       INCOME_ID: generatedId,
       CREATED_DATE: new Date().toLocaleString('en-GB')
@@ -1113,22 +1297,46 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const addSupervisor = (sup: Omit<Supervisor, 'id' | 'SUPERVISOR_ID' | 'CURRENT_BALANCE'>): Supervisor => {
     const newId = `sup-${Date.now().toString(36)}`;
     const seq = String(supervisors.length + 1).padStart(3, '0');
+    const opening = Number(sup.OPENING_PETTY_CASH) || 0;
     const newSupervisor: Supervisor = {
       ...sup,
       id: newId,
       SUPERVISOR_ID: `SUP-${seq}`,
-      CURRENT_BALANCE: sup.OPENING_PETTY_CASH || 0
+      CURRENT_BALANCE: opening
     };
-    setSupervisors(prev => [...prev, newSupervisor]);
+    if (opening > 0) {
+      setAllocations(prev => ({
+        ...prev,
+        [newId]: opening,
+        [sup.SUPERVISOR_NAME.toUpperCase()]: opening
+      }));
+    }
     return newSupervisor;
   };
 
   const updateSupervisor = (id: string, updates: Partial<Supervisor>) => {
-    setSupervisors(prev => prev.map(s => (s.id === id ? { ...s, ...updates } : s)));
+    if (updates.OPENING_PETTY_CASH !== undefined) {
+      const newOpening = Number(updates.OPENING_PETTY_CASH) || 0;
+      setAllocations(prev => {
+        const next = { ...prev, [id]: newOpening };
+        const found = supervisors.find(s => s.id === id || s.SUPERVISOR_ID === id || s.staffId === id);
+        if (found) {
+          next[found.SUPERVISOR_NAME.toUpperCase()] = newOpening;
+          if (found.employeeCode) next[found.employeeCode] = newOpening;
+          if (found.staffId) next[found.staffId] = newOpening;
+          if (found.id) next[found.id] = newOpening;
+        }
+        return next;
+      });
+    }
   };
 
   const deleteSupervisor = (id: string) => {
-    setSupervisors(prev => prev.filter(s => s.id !== id));
+    setAllocations(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const addProject = (prj: Omit<Project, 'id' | 'PROJECT_ID'>): Project => {
@@ -1303,7 +1511,12 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const resetPettyCashData = () => {
     setExpenses(initialExpenses);
     setIncome(initialIncome);
-    setSupervisors(initialSupervisors);
+    setAllocations(initialSupervisors.map(s => ({
+      employeeId: s.id,
+      supervisorName: s.SUPERVISOR_NAME,
+      openingBalance: s.OPENING_PETTY_CASH || 0,
+      currentBalance: s.OPENING_PETTY_CASH || 0
+    })));
     setProjects(initialProjects);
     setCategories(initialCategories);
     setTransfers(initialTransfers);
@@ -1338,7 +1551,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const clearSupervisorsDirectory = () => {
-    setSupervisors([]);
+    setAllocations([]);
   };
 
   const clearProjectsHistory = (projectCode?: string) => {
@@ -1383,7 +1596,25 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setExpenses(result.updatedExpenses);
     setProjects(result.updatedProjects);
-    setSupervisors(result.updatedSupervisors);
+    if (result.updatedSupervisors) {
+      setAllocations(prev => {
+        const next = [...prev];
+        result.updatedSupervisors.forEach(s => {
+          const idx = next.findIndex(a => a.employeeId === s.id || a.supervisorName.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase());
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], openingBalance: s.OPENING_PETTY_CASH };
+          } else {
+            next.push({
+              employeeId: s.id,
+              supervisorName: s.SUPERVISOR_NAME,
+              openingBalance: s.OPENING_PETTY_CASH,
+              currentBalance: s.OPENING_PETTY_CASH
+            });
+          }
+        });
+        return next;
+      });
+    }
 
     setImportBatches(prev => [result.batchRecord, ...prev]);
 
@@ -1420,7 +1651,25 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setExpenses(result.updatedExpenses);
     setProjects(result.updatedProjects);
-    setSupervisors(result.updatedSupervisors);
+    if (result.updatedSupervisors) {
+      setAllocations(prev => {
+        const next = [...prev];
+        result.updatedSupervisors.forEach(s => {
+          const idx = next.findIndex(a => a.employeeId === s.id || a.supervisorName.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase());
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], openingBalance: s.OPENING_PETTY_CASH };
+          } else {
+            next.push({
+              employeeId: s.id,
+              supervisorName: s.SUPERVISOR_NAME,
+              openingBalance: s.OPENING_PETTY_CASH,
+              currentBalance: s.OPENING_PETTY_CASH
+            });
+          }
+        });
+        return next;
+      });
+    }
     setImportBatches(prev => [result.batchRecord, ...prev]);
 
     return {
@@ -1454,7 +1703,25 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     );
 
-    setSupervisors(result.updatedSupervisors);
+    if (result.updatedSupervisors) {
+      setAllocations(prev => {
+        const next = [...prev];
+        result.updatedSupervisors.forEach(s => {
+          const idx = next.findIndex(a => a.employeeId === s.id || a.supervisorName.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase());
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], openingBalance: s.OPENING_PETTY_CASH };
+          } else {
+            next.push({
+              employeeId: s.id,
+              supervisorName: s.SUPERVISOR_NAME,
+              openingBalance: s.OPENING_PETTY_CASH,
+              currentBalance: s.OPENING_PETTY_CASH
+            });
+          }
+        });
+        return next;
+      });
+    }
     setImportBatches(prev => [result.batchRecord, ...prev]);
 
     return {
@@ -1524,7 +1791,25 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
 
     setIncome(result.updatedIncome);
-    setSupervisors(result.updatedSupervisors);
+    if (result.updatedSupervisors) {
+      setAllocations(prev => {
+        const next = [...prev];
+        result.updatedSupervisors.forEach(s => {
+          const idx = next.findIndex(a => a.employeeId === s.id || a.supervisorName.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase());
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], openingBalance: s.OPENING_PETTY_CASH };
+          } else {
+            next.push({
+              employeeId: s.id,
+              supervisorName: s.SUPERVISOR_NAME,
+              openingBalance: s.OPENING_PETTY_CASH,
+              currentBalance: s.OPENING_PETTY_CASH
+            });
+          }
+        });
+        return next;
+      });
+    }
     setProjects(result.updatedProjects);
     setImportBatches(prev => [result.batchRecord, ...prev]);
 
@@ -1616,7 +1901,18 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setExpenses(result.updatedExpenses);
     setProjects(result.updatedProjects);
-    setSupervisors(result.updatedSupervisors);
+    if (result.updatedSupervisors) {
+      setAllocations(prev => {
+        const next = [...prev];
+        result.updatedSupervisors.forEach(s => {
+          const idx = next.findIndex(a => a.employeeId === s.id || a.supervisorName.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase());
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], openingBalance: s.OPENING_PETTY_CASH };
+          }
+        });
+        return next;
+      });
+    }
     if (result.updatedIncome) {
       setIncome(result.updatedIncome);
     }

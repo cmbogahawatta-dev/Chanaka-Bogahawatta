@@ -81,7 +81,7 @@ export const EnterpriseModal: React.FC<EnterpriseModalProps> = ({
   const [newIndustry, setNewIndustry] = useState('Logistics & Cargo Distribution');
   const [newAdminName, setNewAdminName] = useState(currentUser.name || 'Fleet Administrator');
   const [newAdminEmail, setNewAdminEmail] = useState(currentUser.email || 'admin@mycompany.com');
-  const [newAdminPin, setNewAdminPin] = useState('1234');
+  const [newAdminPin, setNewAdminPin] = useState('');
   const [newPlan, setNewPlan] = useState<'Enterprise Fleet' | 'Professional Fleet' | 'Standard Logistics'>('Enterprise Fleet');
   const [newCity, setNewCity] = useState('');
   const [newCountry, setNewCountry] = useState('Sri Lanka');
@@ -619,7 +619,7 @@ export const EnterpriseModal: React.FC<EnterpriseModalProps> = ({
               </label>
               <input
                 type="password"
-                placeholder="Admin PIN (e.g. 1234) or your member email"
+                placeholder="Workspace Admin PIN or member email"
                 value={loginCredential}
                 onChange={e => setLoginCredential(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"

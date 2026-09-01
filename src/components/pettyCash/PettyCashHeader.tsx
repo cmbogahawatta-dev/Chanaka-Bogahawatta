@@ -183,7 +183,7 @@ export const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
               >
                 {supervisors.map(s => (
                   <option key={s.id} value={s.SUPERVISOR_NAME} className="bg-slate-900 text-slate-100">
-                    {s.SUPERVISOR_NAME}
+                    {s.employeeCode || s.SUPERVISOR_ID} — {s.FULL_NAME || s.SUPERVISOR_NAME}
                   </option>
                 ))}
               </select>
