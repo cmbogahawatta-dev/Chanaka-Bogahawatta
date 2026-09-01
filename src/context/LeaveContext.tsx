@@ -54,6 +54,7 @@ interface LeaveContextType {
   withdrawLeaveRequest: (leaveRequestId: string) => void;
   clearLeaveHistory: () => void;
   resetLeaveData: () => void;
+  bulkImportLeaves: (records: Partial<LeaveRequest>[]) => { count: number; batchId: string };
 }
 
 const LeaveContext = createContext<LeaveContextType | undefined>(undefined);
@@ -494,6 +495,37 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setCoverUpRequests([]);
   };
 
+  const bulkImportLeaves = (imported: Partial<LeaveRequest>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-LV-${Date.now().toString().slice(-6)}`;
+    const nowIso = new Date().toISOString();
+    const newItems: LeaveRequest[] = imported.map((l, i) => ({
+      id: l.id || `lv-imp-${Date.now()}-${i}`,
+      employeeId: l.employeeId || `EMP-${String(i + 1).padStart(3, '0')}`,
+      employeeName: l.employeeName || 'Employee',
+      leaveTypeId: l.leaveTypeId || 'ANNUAL',
+      leaveTypeName: l.leaveTypeName || 'Annual Leave',
+      startDate: l.startDate || new Date().toISOString().slice(0, 10),
+      endDate: l.endDate || new Date().toISOString().slice(0, 10),
+      workingDays: Number(l.workingDays) || 1,
+      isHalfDay: l.isHalfDay || false,
+      halfDayPeriod: l.halfDayPeriod,
+      reason: l.reason || 'Personal / Family commitments',
+      status: (l.status as any) || 'APPROVED',
+      coverUpRequired: false,
+      approvalChain: [],
+      createdAt: nowIso,
+      updatedAt: nowIso
+    }));
+
+    setLeaveRequests(prev => {
+      const merged = [...newItems, ...prev];
+      localStorage.setItem(LEAVE_REQUESTS_KEY, JSON.stringify(merged));
+      return merged;
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
   return (
     <LeaveContext.Provider
       value={{
@@ -507,7 +539,8 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         processApprovalStep,
         withdrawLeaveRequest,
         clearLeaveHistory,
-        resetLeaveData
+        resetLeaveData,
+        bulkImportLeaves
       }}
     >
       {children}

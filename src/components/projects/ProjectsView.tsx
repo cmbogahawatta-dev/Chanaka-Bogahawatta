@@ -42,6 +42,7 @@ import { useEnterprise } from '../../context/EnterpriseContext';
 import { Project } from '../../types/pettyCashTypes';
 import { ProjectModal } from './ProjectModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { BulkImportProjectsModal } from '../pettyCash/BulkImportProjectsModal';
 
 export const ProjectsView: React.FC = () => {
   const { projects, expenses, income, userRole, deleteProject, clearProjectsHistory } = usePettyCash();
@@ -53,6 +54,7 @@ export const ProjectsView: React.FC = () => {
   const [selectedProjectCode, setSelectedProjectCode] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
 
   const handleOpenAddProject = () => {

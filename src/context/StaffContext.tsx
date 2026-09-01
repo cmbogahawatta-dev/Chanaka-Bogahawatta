@@ -186,6 +186,7 @@ interface StaffContextType {
   // Master Maintenance
   resetStaffDirectory: () => void;
   clearStaffDirectory: () => void;
+  bulkImportStaffMembers: (imported: Partial<StaffMember>[]) => { count: number; batchId: string };
 }
 
 const initialFilterState: StaffFilterState = {
@@ -453,6 +454,81 @@ export const StaffProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
+  // Bulk Import Staff Members
+  const bulkImportStaffMembers = (imported: Partial<StaffMember>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-STAFF-${Date.now().toString().slice(-6)}`;
+    const newItems: StaffMember[] = imported.map((m, i) => ({
+      id: m.id || `staff-imp-${Date.now()}-${i}`,
+      employeeCode: m.employeeCode || `EMA-EMP-${String(staffMembers.length + i + 1).padStart(3, '0')}`,
+      nicNumber: m.nicNumber || '199000000000',
+      fullName: m.fullName || 'Employee Name',
+      preferredName: m.preferredName || m.fullName?.split(' ')[0] || 'Employee',
+      email: m.email || `${(m.preferredName || 'emp').toLowerCase().replace(/\s+/g, '')}@emaconstruction.lk`,
+      phone: m.phone || '+94 77 000 0000',
+      role: m.role || 'SITE_ENGINEER',
+      designation: m.designation || 'Site Executive',
+      department: m.department || 'Project Operations',
+      employmentType: m.employmentType || 'Permanent',
+      status: m.status || 'Active',
+      joinedDate: m.joinedDate || new Date().toISOString().slice(0, 10),
+      assignedProjectCode: m.assignedProjectCode || 'PIDM 26',
+      assignedProjectName: m.assignedProjectName || 'Primary Project Site',
+      assignedProjectCodes: m.assignedProjectCodes || (m.assignedProjectCode ? [m.assignedProjectCode] : ['PIDM 26']),
+      reportsToId: m.reportsToId,
+      reportsToName: m.reportsToName,
+      isSupervisor: m.isSupervisor || m.role === 'SUPERVISOR',
+      supervisorId: m.supervisorId,
+      legacySupervisorId: m.legacySupervisorId,
+      residentialAddress: m.residentialAddress || 'Sri Lanka',
+      emergencyContact: m.emergencyContact || {
+        name: 'Emergency Contact',
+        relationship: 'Family',
+        phone: m.phone || '+94 77 000 0000'
+      },
+      salaryStructure: m.salaryStructure || {
+        basicSalary: 120000,
+        budgetaryReliefAllowance: 5000,
+        siteAllowance: 25000,
+        transportAllowance: 20000,
+        phoneAllowance: 5000,
+        epfEmployeeRate: 8,
+        epfEmployerRate: 12,
+        etfEmployerRate: 3,
+        bankName: 'Bank of Ceylon',
+        bankBranch: 'Main Branch',
+        accountNumber: '0000000000',
+        paymentMode: 'Bank Transfer',
+        effectiveDate: '2026-01-01'
+      },
+      notes: m.notes ? `[BULK IMPORT] ${m.notes}` : `Bulk imported via batch ${batchId}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }));
+
+    setStaffMembers(prev => {
+      const merged = [...prev];
+      newItems.forEach(newItem => {
+        const existingIdx = merged.findIndex(
+          x => (newItem.employeeCode && x.employeeCode.toUpperCase() === newItem.employeeCode.toUpperCase()) ||
+               (newItem.nicNumber && x.nicNumber.toUpperCase() === newItem.nicNumber.toUpperCase())
+        );
+        if (existingIdx >= 0) {
+          merged[existingIdx] = { ...merged[existingIdx], ...newItem };
+        } else {
+          merged.unshift(newItem);
+        }
+      });
+      try {
+        localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(merged));
+      } catch (e) {
+        console.error('Error persisting bulk staff import:', e);
+      }
+      return merged;
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
   // Filtered staff list computation
   const filteredStaff = useMemo(() => {
     return staffMembers.filter(member => {
@@ -614,7 +690,8 @@ export const StaffProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         allocateStaffToProject,
         reassignStaffSupervisor,
         resetStaffDirectory,
-        clearStaffDirectory
+        clearStaffDirectory,
+        bulkImportStaffMembers
       }}
     >
       {children}

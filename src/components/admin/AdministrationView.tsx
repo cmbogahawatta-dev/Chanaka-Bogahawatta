@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   FolderKanban,
   Truck,
+  Car,
   KeyRound,
   Trash2,
   HardDrive,
@@ -95,6 +96,7 @@ export const AdministrationView: React.FC = () => {
     fuelRecords,
     maintenanceLogs,
     transfers: fleetTransfers,
+    clearVehiclesHistory,
     clearRunningChartHistory,
     clearFuelHistory,
     clearMaintenanceHistory,
@@ -653,6 +655,35 @@ export const AdministrationView: React.FC = () => {
 
           {/* Module-by-Module Granular Clear Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Card 0: Vehicle Fleet Registry */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
+                    <Car className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Vehicle Fleet Registry</h4>
+                    <span className="text-[11px] font-mono text-blue-400 font-bold">{vehicles.length} registered vehicles</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Wipes vehicle asset registry while archiving trip logs and unlinking active driver assignments.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-vehicles-tab"
+                  moduleName="Vehicle Registry & Fleet Assets"
+                  itemCount={vehicles.length}
+                  itemDescription="registered vehicles in enterprise fleet inventory"
+                  preservedItemsDescription="Drivers, trip logs, fuel slips, and service histories remain archived."
+                  buttonText="Clear Vehicle Registry"
+                  onClear={() => clearVehiclesHistory()}
+                />
+              </div>
+            </div>
+
             {/* Card 1: Fleet Running Charts */}
             <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
               <div className="flex items-start justify-between gap-2">

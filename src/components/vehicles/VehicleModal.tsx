@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   FileCheck,
   Layers,
-  Radio
+  Radio,
+  Trash2
 } from 'lucide-react';
 import { useFleet } from '../../context/FleetContext';
 import { Vehicle, FuelType, GPSProvider } from '../../types';
@@ -23,12 +24,14 @@ interface VehicleModalProps {
   isOpen: boolean;
   onClose: () => void;
   vehicleToEdit?: Vehicle | null;
+  onDeleteRequest?: (vehicle: Vehicle) => void;
 }
 
 export const VehicleModal: React.FC<VehicleModalProps> = ({
   isOpen,
   onClose,
-  vehicleToEdit
+  vehicleToEdit,
+  onDeleteRequest
 }) => {
   const { drivers, addVehicle, updateVehicle, gpsConfig } = useFleet();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -569,21 +572,39 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({
           </div>
 
           {/* Footer Action Buttons */}
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md transition-colors flex items-center gap-1.5"
-            >
-              <Car className="w-4 h-4" />
-              {vehicleToEdit ? 'Save Vehicle Info' : 'Register Vehicle'}
-            </button>
+          <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+            {vehicleToEdit && onDeleteRequest ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDeleteRequest(vehicleToEdit);
+                }}
+                className="px-3 py-2 rounded-xl bg-red-950/40 hover:bg-red-900/50 text-red-400 border border-red-500/30 hover:border-red-500/60 font-semibold text-xs transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Vehicle</span>
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md transition-colors flex items-center gap-1.5 text-xs"
+              >
+                <Car className="w-4 h-4" />
+                {vehicleToEdit ? 'Save Vehicle Info' : 'Register Vehicle'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

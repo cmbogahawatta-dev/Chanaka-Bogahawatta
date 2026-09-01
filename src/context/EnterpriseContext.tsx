@@ -50,10 +50,17 @@ interface EnterpriseContextType {
 
   // History Clearing & Reset (Admin Only)
   clearProcurementHistory: () => void;
+  clearPaymentsHistory: () => void;
   clearDocumentsHistory: () => void;
   clearNotificationsHistory: () => void;
   resetProcurementData: () => void;
+  resetPaymentsData: () => void;
   resetDocumentsData: () => void;
+  
+  // Bulk Import Actions
+  bulkImportProcurementOrders: (imported: Partial<ProcurementOrder>[]) => { count: number; batchId: string };
+  bulkImportPaymentVouchers: (imported: Partial<PaymentVoucher>[]) => { count: number; batchId: string };
+  bulkImportDocuments: (imported: Partial<EnterpriseDocument>[]) => { count: number; batchId: string };
   
   // Navigation helper
   navigateToModule: (module: EnterpriseModule, subTab?: string) => void;
@@ -465,6 +472,10 @@ export const EnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setProcurementOrders([]);
   };
 
+  const clearPaymentsHistory = () => {
+    setPaymentVouchers([]);
+  };
+
   const clearDocumentsHistory = () => {
     setDocuments([]);
   };
@@ -477,8 +488,110 @@ export const EnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setProcurementOrders(INITIAL_PROCUREMENT);
   };
 
+  const resetPaymentsData = () => {
+    setPaymentVouchers(INITIAL_PAYMENTS);
+  };
+
   const resetDocumentsData = () => {
     setDocuments(INITIAL_DOCUMENTS);
+  };
+
+  // Bulk Import Methods
+  const bulkImportProcurementOrders = (imported: Partial<ProcurementOrder>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-PO-${Date.now().toString().slice(-6)}`;
+    const newItems: ProcurementOrder[] = imported.map((p, i) => ({
+      id: p.id || `po-imp-${Date.now()}-${i}`,
+      PO_NUMBER: p.PO_NUMBER || `PO-2026-${String(procurementOrders.length + i + 1).padStart(4, '0')}`,
+      DATE: p.DATE || new Date().toISOString().slice(0, 10),
+      PROJECT_CODE: p.PROJECT_CODE || 'PIDM 26',
+      REQUESTED_BY: p.REQUESTED_BY || currentUser,
+      SUPPLIER_NAME: p.SUPPLIER_NAME || 'Supplier',
+      ITEM_DESCRIPTION: p.ITEM_DESCRIPTION || 'Materials / Equipment Requisition',
+      QUANTITY: Number(p.QUANTITY) || 1,
+      UNIT: p.UNIT || 'Units',
+      UNIT_PRICE: Number(p.UNIT_PRICE) || 1000,
+      TOTAL_AMOUNT: Number(p.TOTAL_AMOUNT) || ((Number(p.QUANTITY) || 1) * (Number(p.UNIT_PRICE) || 1000)),
+      STATUS: (p.STATUS as any) || 'Pending Approval',
+      PRIORITY: (p.PRIORITY as any) || 'Medium',
+      DELIVERY_LOCATION: p.DELIVERY_LOCATION || 'Main Construction Yard',
+      REMARKS: p.REMARKS ? `[BULK IMPORT] ${p.REMARKS}` : `Imported via batch ${batchId}`
+    }));
+
+    setProcurementOrders(prev => {
+      const merged = [...prev];
+      newItems.forEach(newItem => {
+        const existingIdx = merged.findIndex(
+          x => x.PO_NUMBER.toUpperCase() === newItem.PO_NUMBER.toUpperCase()
+        );
+        if (existingIdx >= 0) {
+          merged[existingIdx] = { ...merged[existingIdx], ...newItem };
+        } else {
+          merged.unshift(newItem);
+        }
+      });
+      return merged;
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
+  const bulkImportPaymentVouchers = (imported: Partial<PaymentVoucher>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-PAY-${Date.now().toString().slice(-6)}`;
+    const newItems: PaymentVoucher[] = imported.map((p, i) => ({
+      id: p.id || `pay-imp-${Date.now()}-${i}`,
+      PAYMENT_ID: p.PAYMENT_ID || `PAY-2026-${String(paymentVouchers.length + i + 1).padStart(4, '0')}`,
+      DATE: p.DATE || new Date().toISOString().slice(0, 10),
+      PROJECT_CODE: p.PROJECT_CODE || 'PIDM 26',
+      BENEFICIARY: p.BENEFICIARY || 'Vendor / Contractor',
+      CATEGORY: p.CATEGORY || 'Procurement Settlement',
+      AMOUNT: Number(p.AMOUNT) || 50000,
+      PAYMENT_METHOD: p.PAYMENT_METHOD || 'Direct Bank Transfer',
+      CHEQUE_OR_REF_NO: p.CHEQUE_OR_REF_NO || `REF-${Date.now().toString().slice(-6)}`,
+      STATUS: (p.STATUS as any) || 'Pending Approval',
+      REQUESTED_BY: p.REQUESTED_BY || currentUser,
+      APPROVED_BY: p.APPROVED_BY,
+      REMARKS: p.REMARKS ? `[BULK IMPORT] ${p.REMARKS}` : `Imported via batch ${batchId}`
+    }));
+
+    setPaymentVouchers(prev => {
+      const merged = [...prev];
+      newItems.forEach(newItem => {
+        const existingIdx = merged.findIndex(
+          x => x.PAYMENT_ID.toUpperCase() === newItem.PAYMENT_ID.toUpperCase()
+        );
+        if (existingIdx >= 0) {
+          merged[existingIdx] = { ...merged[existingIdx], ...newItem };
+        } else {
+          merged.unshift(newItem);
+        }
+      });
+      return merged;
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
+  const bulkImportDocuments = (imported: Partial<EnterpriseDocument>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-DOC-${Date.now().toString().slice(-6)}`;
+    const newItems: EnterpriseDocument[] = imported.map((d, i) => ({
+      id: d.id || `doc-imp-${Date.now()}-${i}`,
+      DOC_REF: d.DOC_REF || `DOC-2026-${String(documents.length + i + 1).padStart(4, '0')}`,
+      TITLE: d.TITLE || 'Uploaded Document',
+      MODULE: d.MODULE || 'Petty Cash',
+      CATEGORY: (d.CATEGORY as any) || 'Invoice',
+      LINKED_ENTITY_TYPE: d.LINKED_ENTITY_TYPE || 'PROJECT',
+      LINKED_ENTITY_ID: d.LINKED_ENTITY_ID || 'PIDM 26',
+      FILE_NAME: d.FILE_NAME || `Document_${Date.now()}.pdf`,
+      FILE_TYPE: d.FILE_TYPE || 'application/pdf',
+      FILE_DATA: d.FILE_DATA || '',
+      UPLOADED_BY: d.UPLOADED_BY || currentUser,
+      UPLOADED_DATE: d.UPLOADED_DATE || new Date().toISOString().slice(0, 10),
+      FILE_SIZE_KB: Number(d.FILE_SIZE_KB) || 250,
+      REMARKS: d.REMARKS ? `[BULK IMPORT] ${d.REMARKS}` : `Batch import ${batchId}`
+    }));
+
+    setDocuments(prev => [...newItems, ...prev]);
+    return { count: newItems.length, batchId };
   };
 
   const navigateToModule = (module: EnterpriseModule, subTab?: string) => {
@@ -521,10 +634,15 @@ export const EnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         markAllNotificationsAsRead,
         unreadNotificationsCount,
         clearProcurementHistory,
+        clearPaymentsHistory,
         clearDocumentsHistory,
         clearNotificationsHistory,
         resetProcurementData,
+        resetPaymentsData,
         resetDocumentsData,
+        bulkImportProcurementOrders,
+        bulkImportPaymentVouchers,
+        bulkImportDocuments,
         navigateToModule
       }}
     >

@@ -84,6 +84,8 @@ interface AttendanceContextType {
   clearAttendanceHistory: () => void;
   clearOvertimeHistory: () => void;
   resetAttendanceData: () => void;
+  bulkImportAttendance: (records: Partial<AttendanceRecord>[]) => { count: number; batchId: string };
+  bulkImportOvertime: (records: Partial<OvertimeRecord>[]) => { count: number; batchId: string };
 }
 
 const AttendanceContext = createContext<AttendanceContextType | undefined>(undefined);
@@ -712,6 +714,82 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     setOvertimeRecords([]);
   };
 
+  const bulkImportAttendance = (imported: Partial<AttendanceRecord>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-ATT-${Date.now().toString().slice(-6)}`;
+    const nowIso = new Date().toISOString();
+    const newItems: AttendanceRecord[] = imported.map((a, i) => {
+      const punchIn = a.punchIn || '08:00';
+      const punchOut = a.punchOut || '17:00';
+      const hours = calculateHours(punchIn, punchOut);
+      return {
+        id: a.id || `att-imp-${Date.now()}-${i}`,
+        employeeId: a.employeeId || `EMP-${String(i + 1).padStart(3, '0')}`,
+        employeeName: a.employeeName || 'Employee',
+        projectId: a.projectId || 'PIDM 26',
+        projectName: a.projectName || 'Site Project',
+        date: a.date || new Date().toISOString().slice(0, 10),
+        punchIn,
+        punchOut,
+        workingHours: a.workingHours || hours.workingHours,
+        regularHours: a.regularHours || hours.regularHours,
+        otHours: a.otHours || hours.otHours,
+        source: (a.source as any) || 'MANUAL',
+        status: (a.status as any) || 'APPROVED',
+        supervisorApprovalStatus: (a.supervisorApprovalStatus as any) || 'APPROVED',
+        hrApprovalStatus: (a.hrApprovalStatus as any) || 'APPROVED',
+        remarks: a.remarks ? `[BULK IMPORT] ${a.remarks}` : `Batch import ${batchId}`,
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+    });
+
+    setAttendanceRecords(prev => {
+      const merged = [...newItems, ...prev];
+      localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(merged));
+      return merged;
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
+  const bulkImportOvertime = (imported: Partial<OvertimeRecord>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-OT-${Date.now().toString().slice(-6)}`;
+    const nowIso = new Date().toISOString();
+    const newItems: OvertimeRecord[] = imported.map((o, i) => ({
+      id: o.id || `ot-imp-${Date.now()}-${i}`,
+      employeeId: o.employeeId || `EMP-${String(i + 1).padStart(3, '0')}`,
+      employeeName: o.employeeName || 'Employee',
+      projectId: o.projectId || 'PIDM 26',
+      date: o.date || new Date().toISOString().slice(0, 10),
+      hours: Number(o.hours) || 2,
+      approvedHours: Number(o.approvedHours) || Number(o.hours) || 2,
+      multiplier: Number(o.multiplier) || 1.5,
+      reason: o.reason || 'Concrete casting overtime support',
+      status: (o.status as any) || 'APPROVED',
+      supervisorApproval: o.supervisorApproval || {
+        status: 'APPROVED',
+        approverId: 'SUPERVISOR',
+        timestamp: nowIso
+      },
+      hrApproval: o.hrApproval || {
+        status: 'APPROVED',
+        approverId: 'HR_ADMIN',
+        timestamp: nowIso,
+        approvedHours: Number(o.hours) || 2
+      },
+      createdAt: nowIso,
+      updatedAt: nowIso
+    }));
+
+    setOvertimeRecords(prev => {
+      const merged = [...newItems, ...prev];
+      localStorage.setItem(OVERTIME_STORAGE_KEY, JSON.stringify(merged));
+      return merged;
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
   return (
     <AttendanceContext.Provider
       value={{
@@ -734,7 +812,9 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
         getApprovedOvertimeForEmployee,
         clearAttendanceHistory,
         clearOvertimeHistory,
-        resetAttendanceData
+        resetAttendanceData,
+        bulkImportAttendance,
+        bulkImportOvertime
       }}
     >
       {children}

@@ -94,6 +94,7 @@ interface PRVContextType {
   // Clear / Reset History
   clearAllPRVHistory: () => void;
   resetPRVsToDefault: () => void;
+  bulkImportPRVs: (imported: Partial<PaymentRequestVoucher>[]) => { count: number; batchId: string };
 
   // Computed metrics
   metrics: {
@@ -1500,6 +1501,81 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedPRV(null);
   };
 
+  const bulkImportPRVs = (imported: Partial<PaymentRequestVoucher>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-PRV-${Date.now().toString().slice(-6)}`;
+    const newItems: PaymentRequestVoucher[] = imported.map((p, i) => ({
+      id: p.id || `prv-imp-${Date.now()}-${i}`,
+      prvNumber: p.prvNumber || `PRV-2026-${String(paymentRequests.length + i + 1).padStart(4, '0')}`,
+      requestDate: p.requestDate || new Date().toISOString().slice(0, 10),
+      dueDate: p.dueDate || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+      requestedBy: p.requestedBy || currentUser,
+      requestedByRole: p.requestedByRole || currentRole,
+      department: p.department || 'Project Operations',
+      projectCode: p.projectCode || 'PIDM 26',
+      projectName: p.projectName || 'Site Project',
+      supervisorId: p.supervisorId,
+      supervisorName: p.supervisorName,
+      payeeType: p.payeeType || 'SUPPLIER',
+      payeeName: p.payeeName || 'Vendor/Payee',
+      payeePhone: p.payeePhone,
+      payeeAccountDetails: p.payeeAccountDetails || {
+        bankName: 'Commercial Bank',
+        branchName: 'Main',
+        accountNumber: '0000000000',
+        accountHolderName: p.payeeName || 'Vendor/Payee'
+      },
+      expenseCategory: p.expenseCategory || 'Building Materials',
+      purpose: p.purpose || 'Site Procurement & Material Supply',
+      description: p.description || 'Bulk imported voucher request',
+      priority: p.priority || 'MEDIUM',
+      currency: p.currency || 'LKR',
+      items: p.items && p.items.length > 0 ? p.items : [{
+        id: `item-${Date.now()}-${i}-1`,
+        description: p.description || 'Material / Service Purchase',
+        quantity: 1,
+        unit: 'nos',
+        unitPrice: Number(p.totalAmount) || 10000,
+        totalAmount: Number(p.totalAmount) || 10000,
+        category: p.expenseCategory || 'Building Materials'
+      }],
+      subTotal: Number(p.totalAmount) || 10000,
+      taxAmount: 0,
+      discountAmount: 0,
+      totalAmount: Number(p.totalAmount) || 10000,
+      status: p.status || 'SUBMITTED',
+      supportingDocuments: [],
+      approvals: [],
+      auditTrail: [{
+        id: `aud-imp-${Date.now()}-${i}`,
+        timestamp: new Date().toLocaleString('en-GB'),
+        user: currentUser,
+        role: currentRole,
+        action: 'Bulk Imported',
+        newStatus: p.status || 'SUBMITTED',
+        comment: `Imported via batch ${batchId}`
+      }],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }));
+
+    setPaymentRequests(prev => {
+      const merged = [...prev];
+      newItems.forEach(newItem => {
+        const existingIdx = merged.findIndex(
+          x => x.prvNumber.toUpperCase() === newItem.prvNumber.toUpperCase()
+        );
+        if (existingIdx >= 0) {
+          merged[existingIdx] = { ...merged[existingIdx], ...newItem };
+        } else {
+          merged.unshift(newItem);
+        }
+      });
+      return merged;
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
   return (
     <PRVContext.Provider
       value={{
@@ -1543,6 +1619,7 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openOwnerApprovalForPRV,
         clearAllPRVHistory,
         resetPRVsToDefault,
+        bulkImportPRVs,
         metrics,
         filteredRequests
       }}

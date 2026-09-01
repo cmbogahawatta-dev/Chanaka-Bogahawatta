@@ -150,12 +150,22 @@ interface FleetContextType {
   // System & Security actions
   resetToSampleData: () => void;
   clearAllData: () => void;
+  clearVehiclesHistory: () => void;
+  clearDriversHistory: () => void;
   clearRunningChartHistory: (vehicleId?: string) => void;
   clearFuelHistory: (vehicleId?: string) => void;
   clearMaintenanceHistory: (vehicleId?: string) => void;
   clearTransfersHistory: (vehicleId?: string) => void;
   clearAllFleetHistory: () => void;
   getAlertsCount: () => { overdue: number; dueSoon: number; expiredLicenses: number; totalAlerts: number };
+
+  // Bulk Import Actions
+  bulkImportVehicles: (imported: Partial<Vehicle>[]) => { count: number; batchId: string };
+  bulkImportDrivers: (imported: Partial<Driver>[]) => { count: number; batchId: string };
+  bulkImportRunningCharts: (imported: Partial<RunningChart>[]) => { count: number; batchId: string };
+  bulkImportFuelRecords: (imported: Partial<FuelRecord>[]) => { count: number; batchId: string };
+  bulkImportMaintenanceLogs: (imported: Partial<MaintenanceLog>[]) => { count: number; batchId: string };
+  bulkImportTransfers: (imported: Partial<VehicleTransfer>[]) => { count: number; batchId: string };
 
   // Phase 1: RBAC, Audit Logging & Database Architecture
   userRole: UserRole;
@@ -1294,9 +1304,22 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteVehicle = (id: string) => {
     const existing = rawVehicles.find(item => item.id === id);
-    setRawVehicles(prev => prev.filter(item => item.id !== id));
+    setRawVehicles(prev => {
+      const next = prev.filter(item => item.id !== id);
+      localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify(next));
+      return next;
+    });
+
+    // Safely unassign this vehicle from any driver assigned to it
+    setRawDrivers(prev => {
+      const next = prev.map(d => (d.assignedVehicleId === id ? { ...d, assignedVehicleId: undefined } : d));
+      localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify(next));
+      return next;
+    });
+
     if (selectedVehicleId === id) {
       setSelectedVehicleId('all');
+      localStorage.setItem(STORAGE_KEYS.SELECTED_VEHICLE, 'all');
     }
 
     logAuditAction({
@@ -1307,6 +1330,272 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       details: `Deleted vehicle asset ${existing?.registrationNumber || id} from enterprise fleet.`,
       oldValue: existing
     });
+  };
+
+  // Clear Vehicle Registry History (Purges vehicle assets, unassigns drivers safely)
+  const clearVehiclesHistory = () => {
+    localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify([]));
+    setRawVehicles([]);
+
+    // Safely unassign all drivers from vehicles
+    setRawDrivers(prev => {
+      const next = prev.map(d => ({ ...d, assignedVehicleId: undefined }));
+      localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify(next));
+      return next;
+    });
+
+    setSelectedVehicleId('all');
+    localStorage.setItem(STORAGE_KEYS.SELECTED_VEHICLE, 'all');
+
+    logAuditAction({
+      action: 'DELETE',
+      module: 'VEHICLES',
+      recordId: 'all-vehicles-registry',
+      recordTitle: 'Vehicle Fleet Registry Purged',
+      details: 'Administrator cleared all registered vehicle assets from company fleet inventory.'
+    });
+  };
+
+  // Clear Driver Registry History (Purges drivers, unassigns from vehicles safely)
+  const clearDriversHistory = () => {
+    localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify([]));
+    setRawDrivers([]);
+
+    // Safely unassign currentDriverId from all vehicles
+    setRawVehicles(prev => {
+      const next = prev.map(v => ({ ...v, currentDriverId: undefined }));
+      localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify(next));
+      return next;
+    });
+
+    logAuditAction({
+      action: 'DELETE',
+      module: 'DRIVERS',
+      recordId: 'all-drivers-registry',
+      recordTitle: 'Driver Fleet Registry Purged',
+      details: 'Administrator cleared all registered driver profiles from enterprise registry.'
+    });
+  };
+
+  // --- Bulk Import Methods for Fleet Modules ---
+  const bulkImportVehicles = (imported: Partial<Vehicle>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-VEH-${Date.now().toString().slice(-6)}`;
+    const newItems: Vehicle[] = imported.map((v, i) => ({
+      id: v.id || `veh-imp-${Date.now()}-${i}`,
+      registrationNumber: (v.registrationNumber || `VEH-${Date.now()}-${i}`).toUpperCase().trim(),
+      make: v.make || 'Toyota',
+      model: v.model || 'Hilux',
+      year: v.year || new Date().getFullYear(),
+      type: v.type || 'pickup',
+      fuelType: v.fuelType || 'diesel',
+      tankCapacityLiters: Number(v.tankCapacityLiters) || 75,
+      currentOdometer: Number(v.currentOdometer) || 0,
+      department: v.department || 'Operations',
+      status: v.status || 'active',
+      insuranceExpiryDate: v.insuranceExpiryDate || new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
+      revenueLicenseExpiryDate: v.revenueLicenseExpiryDate || new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
+      currentDriverId: v.currentDriverId
+    }));
+
+    setRawVehicles(prev => {
+      const merged = [...prev];
+      newItems.forEach(newItem => {
+        const existingIdx = merged.findIndex(
+          x => x.registrationNumber.toUpperCase() === newItem.registrationNumber.toUpperCase()
+        );
+        if (existingIdx >= 0) {
+          merged[existingIdx] = { ...merged[existingIdx], ...newItem };
+        } else {
+          merged.unshift(newItem);
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify(merged));
+      return merged;
+    });
+
+    logAuditAction({
+      action: 'CREATE',
+      module: 'VEHICLES',
+      recordId: batchId,
+      recordTitle: `Bulk Import Vehicles (${newItems.length} records)`,
+      details: `Imported ${newItems.length} vehicles via bulk import batch ${batchId}.`
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
+  const bulkImportDrivers = (imported: Partial<Driver>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-DRV-${Date.now().toString().slice(-6)}`;
+    const newItems: Driver[] = imported.map((d, i) => ({
+      id: d.id || `drv-imp-${Date.now()}-${i}`,
+      employeeId: d.employeeId || `DRV-${String(i + 1).padStart(3, '0')}`,
+      name: d.name || 'Driver',
+      phone: d.phone || '+94 77 000 0000',
+      email: d.email || `${(d.name || 'driver').toLowerCase().replace(/\s+/g, '')}@emagroup.lk`,
+      licenseNumber: d.licenseNumber || `B${Date.now().toString().slice(-7)}`,
+      licenseExpiryDate: d.licenseExpiryDate || new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
+      medicalExpiryDate: d.medicalExpiryDate || new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10),
+      department: d.department || 'Operations',
+      status: d.status || 'active',
+      assignedVehicleId: d.assignedVehicleId
+    }));
+
+    setRawDrivers(prev => {
+      const merged = [...prev];
+      newItems.forEach(newItem => {
+        const existingIdx = merged.findIndex(
+          x => x.employeeId.toUpperCase() === newItem.employeeId.toUpperCase() ||
+               (x.licenseNumber && x.licenseNumber.toUpperCase() === (newItem.licenseNumber || '').toUpperCase())
+        );
+        if (existingIdx >= 0) {
+          merged[existingIdx] = { ...merged[existingIdx], ...newItem };
+        } else {
+          merged.unshift(newItem);
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify(merged));
+      return merged;
+    });
+
+    logAuditAction({
+      action: 'CREATE',
+      module: 'DRIVERS',
+      recordId: batchId,
+      recordTitle: `Bulk Import Drivers (${newItems.length} records)`,
+      details: `Imported ${newItems.length} drivers via bulk import batch ${batchId}.`
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
+  const bulkImportRunningCharts = (imported: Partial<RunningChart>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-RC-${Date.now().toString().slice(-6)}`;
+    const newItems: RunningChart[] = imported.map((r, i) => ({
+      id: r.id || `rc-imp-${Date.now()}-${i}`,
+      vehicleId: r.vehicleId || vehicles[0]?.id || 'veh-1',
+      driverId: r.driverId || drivers[0]?.id || 'drv-1',
+      date: r.date || new Date().toISOString().slice(0, 10),
+      startKm: Number(r.startKm) || 0,
+      endKm: Number(r.endKm) || Number(r.startKm || 0) + 10,
+      distanceKm: Number(r.distanceKm) || Math.max(0, (Number(r.endKm) || 0) - (Number(r.startKm) || 0)),
+      purpose: r.purpose || 'Site Inspection & Transport',
+      route: r.route || 'Head Office to Site',
+      projectCode: r.projectCode || 'PIDM 26',
+      supervisorName: r.supervisorName || 'BUDDIKA',
+      status: r.status || 'completed'
+    }));
+
+    setRawRunningCharts(prev => {
+      const merged = [...newItems, ...prev];
+      localStorage.setItem(STORAGE_KEYS.RUNNING_CHARTS, JSON.stringify(merged));
+      return merged;
+    });
+
+    logAuditAction({
+      action: 'CREATE',
+      module: 'RUNNING_CHART',
+      recordId: batchId,
+      recordTitle: `Bulk Import Trips (${newItems.length} records)`,
+      details: `Imported ${newItems.length} running chart trips via batch ${batchId}.`
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
+  const bulkImportFuelRecords = (imported: Partial<FuelRecord>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-FUEL-${Date.now().toString().slice(-6)}`;
+    const newItems: FuelRecord[] = imported.map((f, i) => ({
+      id: f.id || `fuel-imp-${Date.now()}-${i}`,
+      vehicleId: f.vehicleId || vehicles[0]?.id || 'veh-1',
+      driverId: f.driverId || drivers[0]?.id || 'drv-1',
+      date: f.date || new Date().toISOString().slice(0, 10),
+      liters: Number(f.liters) || 30,
+      cost: Number(f.cost) || 12000,
+      fuelStation: f.fuelStation || 'Ceypetco Fuel Station',
+      receiptNumber: f.receiptNumber || `RCP-${Date.now().toString().slice(-6)}-${i}`,
+      odometerReading: Number(f.odometerReading) || 0,
+      fullTank: f.fullTank !== false,
+      fuelType: f.fuelType || 'diesel'
+    }));
+
+    setRawFuelRecords(prev => {
+      const merged = [...newItems, ...prev];
+      localStorage.setItem(STORAGE_KEYS.FUEL_RECORDS, JSON.stringify(merged));
+      return merged;
+    });
+
+    logAuditAction({
+      action: 'CREATE',
+      module: 'FUEL',
+      recordId: batchId,
+      recordTitle: `Bulk Import Fuel Logs (${newItems.length} records)`,
+      details: `Imported ${newItems.length} fuel logs via batch ${batchId}.`
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
+  const bulkImportMaintenanceLogs = (imported: Partial<MaintenanceLog>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-MAINT-${Date.now().toString().slice(-6)}`;
+    const newItems: MaintenanceLog[] = imported.map((m, i) => ({
+      id: m.id || `maint-imp-${Date.now()}-${i}`,
+      vehicleId: m.vehicleId || vehicles[0]?.id || 'veh-1',
+      date: m.date || new Date().toISOString().slice(0, 10),
+      serviceType: m.serviceType || 'Engine Oil & Filter Service',
+      serviceCenter: m.serviceCenter || 'Toyota Lanka Authorized Center',
+      cost: Number(m.cost) || 28500,
+      odometerAtService: Number(m.odometerAtService) || 0,
+      invoiceNumber: m.invoiceNumber || `INV-SRV-${Date.now().toString().slice(-5)}-${i}`,
+      description: m.description || 'Routine 5,000km periodic maintenance service',
+      nextServiceKm: Number(m.nextServiceKm) || (Number(m.odometerAtService) || 0) + 5000
+    }));
+
+    setRawMaintenanceLogs(prev => {
+      const merged = [...newItems, ...prev];
+      localStorage.setItem(STORAGE_KEYS.MAINTENANCE_LOGS, JSON.stringify(merged));
+      return merged;
+    });
+
+    logAuditAction({
+      action: 'CREATE',
+      module: 'MAINTENANCE',
+      recordId: batchId,
+      recordTitle: `Bulk Import Maintenance (${newItems.length} records)`,
+      details: `Imported ${newItems.length} maintenance logs via batch ${batchId}.`
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
+  const bulkImportTransfers = (imported: Partial<VehicleTransfer>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-TRF-${Date.now().toString().slice(-6)}`;
+    const newItems: VehicleTransfer[] = imported.map((t, i) => ({
+      id: t.id || `trf-imp-${Date.now()}-${i}`,
+      vehicleId: t.vehicleId || vehicles[0]?.id || 'veh-1',
+      fromDriverId: t.fromDriverId || drivers[0]?.id || 'drv-1',
+      toDriverId: t.toDriverId || drivers[1]?.id || 'drv-2',
+      transferDate: t.transferDate || new Date().toISOString().slice(0, 10),
+      odometerAtTransfer: Number(t.odometerAtTransfer) || 0,
+      reason: t.reason || 'Project Site Re-allocation & Driver Handover',
+      fuelLevel: (t.fuelLevel as any) || '3/4',
+      status: (t.status as any) || 'accepted'
+    }));
+
+    setRawTransfers(prev => {
+      const merged = [...newItems, ...prev];
+      localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(merged));
+      return merged;
+    });
+
+    logAuditAction({
+      action: 'CREATE',
+      module: 'TRANSFERS',
+      recordId: batchId,
+      recordTitle: `Bulk Import Transfers (${newItems.length} records)`,
+      details: `Imported ${newItems.length} vehicle transfers via batch ${batchId}.`
+    });
+
+    return { count: newItems.length, batchId };
   };
 
   // Reset to sample data
@@ -1766,11 +2055,19 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteVehicle,
         resetToSampleData,
         clearAllData,
+        clearVehiclesHistory,
+        clearDriversHistory,
         clearRunningChartHistory,
         clearFuelHistory,
         clearMaintenanceHistory,
         clearTransfersHistory,
         clearAllFleetHistory,
+        bulkImportVehicles,
+        bulkImportDrivers,
+        bulkImportRunningCharts,
+        bulkImportFuelRecords,
+        bulkImportMaintenanceLogs,
+        bulkImportTransfers,
         getAlertsCount,
         userRole,
         setUserRole,

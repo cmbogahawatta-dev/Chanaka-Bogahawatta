@@ -14,13 +14,17 @@ import {
   AlertTriangle,
   FileText,
   Building,
-  Radio
+  Radio,
+  X,
+  ShieldAlert,
+  Info
 } from 'lucide-react';
 import { useFleet } from '../../context/FleetContext';
 import { Vehicle } from '../../types';
 import { formatDate } from '../../utils/helpers';
 import { VehicleModal } from './VehicleModal';
 import { PairGPSTrackerModal } from '../gps/PairGPSTrackerModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 
 interface VehiclesViewProps {
   onOpenTransfer: (vehicleId: string) => void;
@@ -37,6 +41,7 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
     runningCharts,
     serviceSchedules,
     deleteVehicle,
+    clearVehiclesHistory,
     setSelectedVehicleId,
     getVehicleTelemetry
   } = useFleet();
@@ -45,6 +50,7 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
   const [showModal, setShowModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [pairingVehicle, setPairingVehicle] = useState<Vehicle | null>(null);
+  const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
 
   const filteredVehicles = vehicles.filter(v => {
     if (!searchQuery.trim()) return true;
@@ -59,11 +65,20 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
     return drivers.find(d => d.id === driverId);
   };
 
+  const handleConfirmDelete = () => {
+    if (!vehicleToDelete) return;
+    deleteVehicle(vehicleToDelete.id);
+    setVehicleToDelete(null);
+  };
+
+  const activeDriverForDeleting = vehicleToDelete ? getDriver(vehicleToDelete.currentDriverId) : undefined;
+  const tripsCountForDeleting = vehicleToDelete ? runningCharts.filter(rc => rc.vehicleId === vehicleToDelete.id).length : 0;
+
   return (
     <div className="space-y-4 pb-20 pt-1">
       {/* Header Banner */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center">
               <Car className="w-5 h-5" />
@@ -74,16 +89,30 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              setEditingVehicle(null);
-              setShowModal(true);
-            }}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Vehicle</span>
-          </button>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {/* Clear Vehicle Registry History */}
+            <AdminClearHistoryButton
+              id="btn-admin-clear-vehicles-registry"
+              moduleName="Vehicle Registry & Fleet Assets"
+              itemCount={vehicles.length}
+              itemDescription="registered vehicles in the enterprise fleet inventory"
+              preservedItemsDescription="Drivers, trip logs, and historical fuel/maintenance records will remain safely archived; driver assignments will be unlinked."
+              buttonText="Clear Registry"
+              onClear={() => clearVehiclesHistory()}
+            />
+
+            <button
+              id="btn-add-vehicle-top"
+              onClick={() => {
+                setEditingVehicle(null);
+                setShowModal(true);
+              }}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Vehicle</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-800 text-center text-xs">
@@ -111,6 +140,7 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
+            id="input-search-vehicles"
             type="text"
             placeholder="Search license plate, make, model, category, driver..."
             value={searchQuery}
@@ -134,6 +164,7 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
           </div>
           {!searchQuery && (
             <button
+              id="btn-register-first-vehicle"
               onClick={() => {
                 setEditingVehicle(null);
                 setShowModal(true);
@@ -154,6 +185,7 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
             return (
               <div
                 key={vehicle.id}
+                id={`vehicle-card-${vehicle.id}`}
                 className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm hover:border-slate-700 transition-colors text-xs space-y-3"
               >
                 {/* Header: Reg Number, Make Model & Status */}
@@ -278,30 +310,115 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
 
                   <div className="flex items-center gap-2">
                     <button
+                      id={`btn-edit-vehicle-${vehicle.id}`}
                       onClick={() => {
                         setEditingVehicle(vehicle);
                         setShowModal(true);
                       }}
-                      className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1"
+                      className="px-2.5 py-1 text-slate-300 hover:text-blue-400 bg-slate-800/80 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 font-semibold"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                       <span>Edit</span>
                     </button>
                     <button
-                      onClick={() => {
-                        if (window.confirm(`Remove vehicle ${vehicle.registrationNumber} from fleet?`)) {
-                          deleteVehicle(vehicle.id);
-                        }
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                      id={`btn-delete-vehicle-${vehicle.id}`}
+                      onClick={() => setVehicleToDelete(vehicle)}
+                      className="px-2.5 py-1 text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition-colors flex items-center gap-1 font-semibold"
+                      title={`Delete vehicle ${vehicle.registrationNumber}`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
                     </button>
                   </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Individual Vehicle Delete Confirmation Modal */}
+      {vehicleToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-5">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Remove Vehicle Asset</h3>
+                  <p className="text-xs text-slate-400">Delete vehicle from active registry</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setVehicleToDelete(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Vehicle Details Card */}
+            <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-white text-sm">{vehicleToDelete.registrationNumber}</span>
+                <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
+                  {vehicleToDelete.type}
+                </span>
+              </div>
+              <p className="text-slate-300">
+                {vehicleToDelete.make} {vehicleToDelete.model} ({vehicleToDelete.year}) • {vehicleToDelete.department}
+              </p>
+              <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono pt-1">
+                <span>Odometer: {vehicleToDelete.currentOdometerKm.toLocaleString()} km</span>
+                <span>Fuel: {vehicleToDelete.fuelType} ({vehicleToDelete.tankCapacityLiters}L)</span>
+              </div>
+            </div>
+
+            {/* Impact Warnings */}
+            <div className="space-y-2 text-xs">
+              {activeDriverForDeleting && (
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" />
+                  <div>
+                    <span className="font-bold block">Assigned Driver: {activeDriverForDeleting.name}</span>
+                    <span className="text-[11px] text-amber-400/80">
+                      Deleting this vehicle will automatically unassign driver {activeDriverForDeleting.name} ({activeDriverForDeleting.employeeId}).
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-300 flex items-start gap-2 text-[11px]">
+                <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-400" />
+                <span>
+                  Historical trip logs ({tripsCountForDeleting} trips) and maintenance logs remain archived for audit compliance.
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setVehicleToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-delete-vehicle"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Confirm Delete</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -314,6 +431,11 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
             setEditingVehicle(null);
           }}
           vehicleToEdit={editingVehicle}
+          onDeleteRequest={(v) => {
+            setShowModal(false);
+            setEditingVehicle(null);
+            setVehicleToDelete(v);
+          }}
         />
       )}
 

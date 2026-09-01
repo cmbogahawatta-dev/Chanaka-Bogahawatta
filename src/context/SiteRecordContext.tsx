@@ -39,6 +39,7 @@ interface SiteRecordContextType {
   // Reset & Clear
   resetToDefaultRecords: () => void;
   clearAllRecords: () => void;
+  bulkImportSiteRecords: (imported: Partial<DailySiteRecord>[]) => { count: number; batchId: string };
 }
 
 const defaultFilter: SiteRecordFilter = {
@@ -321,6 +322,79 @@ export const SiteRecordProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     localStorage.removeItem(SITE_RECORDS_STORAGE_KEY);
   };
 
+  const bulkImportSiteRecords = (imported: Partial<DailySiteRecord>[]): { count: number; batchId: string } => {
+    const batchId = `BATCH-DSR-${Date.now().toString().slice(-6)}`;
+    const nowIso = new Date().toISOString();
+    const newItems: DailySiteRecord[] = imported.map((r, i) => ({
+      id: r.id || `dsr-imp-${Date.now()}-${i}`,
+      dsrNumber: r.dsrNumber || `DSR-${(r.projectCode || 'PIDM 26').replace(/\s+/g, '')}-${(r.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '')}-${String(i + 1).padStart(2, '0')}`,
+      projectCode: r.projectCode || 'PIDM 26',
+      projectName: r.projectName || 'Site Project',
+      date: r.date || new Date().toISOString().slice(0, 10),
+      weather: r.weather || {
+        condition: 'Sunny',
+        morningCondition: 'Sunny',
+        afternoonCondition: 'Clear',
+        rainfallMm: 0,
+        temperatureC: 30,
+        humidityPercent: 70,
+        workDisrupted: false,
+        hoursLost: 0,
+        impactSummary: 'Normal working conditions'
+      },
+      workShifts: r.workShifts || [{
+        id: `shift-${Date.now()}-${i}`,
+        shiftType: 'Day',
+        startTime: '08:00',
+        endTime: '17:00',
+        activeSupervisorsCount: 1,
+        totalHeadcount: 10
+      }],
+      manpower: r.manpower || {
+        directLabour: [],
+        subcontractorLabour: [],
+        agencyLabour: [],
+        totalDirectWorkers: 8,
+        totalSubcontractorWorkers: 2,
+        totalSiteStrength: 10,
+        totalManHours: 80
+      },
+      plantEquipment: r.plantEquipment || [],
+      materialDeliveries: r.materialDeliveries || [],
+      progressActivities: r.progressActivities || [{
+        id: `act-${Date.now()}-${i}`,
+        locationSection: 'Section 1',
+        activityDescription: 'General site structural & masonry work',
+        tradesInvolved: ['Civil'],
+        outputQuantity: 100,
+        unit: '%',
+        percentCompletedToday: 5,
+        cumulativePercent: 50,
+        delayFlag: false
+      }],
+      safetyEvents: r.safetyEvents || [],
+      qualityInspections: r.qualityInspections || [],
+      siteVisitors: r.siteVisitors || [],
+      dailyNotes: r.dailyNotes || `Bulk imported site log via batch ${batchId}`,
+      signOff: r.signOff || {
+        preparedByName: 'Site Supervisor',
+        preparedByRole: 'Site Supervisor',
+        preparedDate: `${r.date || new Date().toISOString().slice(0, 10)} 17:00`,
+        status: 'Verified'
+      },
+      createdAt: nowIso,
+      updatedAt: nowIso
+    }));
+
+    setRecords(prev => {
+      const merged = [...newItems, ...prev];
+      localStorage.setItem(SITE_RECORDS_STORAGE_KEY, JSON.stringify(merged));
+      return merged;
+    });
+
+    return { count: newItems.length, batchId };
+  };
+
   return (
     <SiteRecordContext.Provider
       value={{
@@ -341,7 +415,8 @@ export const SiteRecordProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         downloadRecordPDF,
         downloadAllExcel,
         resetToDefaultRecords,
-        clearAllRecords
+        clearAllRecords,
+        bulkImportSiteRecords
       }}
     >
       {children}
