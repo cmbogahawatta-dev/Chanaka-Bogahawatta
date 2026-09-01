@@ -3,31 +3,39 @@
  * EMA Enterprise Suite / FleetTrack Platform
  * 
  * IMPORTANT ARCHITECTURAL SECURITY NOTICE:
- * Client-side authentication is not sufficient for high-security production authorization.
- * A backend authentication and authorization service is required for tamper-resistant security.
+ * Client-side credential protection is not tamper-resistant production authentication.
+ * For true production security:
+ * - Authentication should move to a backend
+ * - Authorization should be server-enforced
+ * - Security secrets should not be stored in the client bundle
+ * - Audit records should be stored server-side
+ * - Credential reset should use authenticated account recovery
  * 
  * This service implements:
  * 1. SHA-256 salted cryptographic one-way hashing using Web Crypto API
  * 2. Zero hardcoded master passwords or bypass PINs (no 1234, no hardcoded admin hashes)
- * 3. Owner/Admin initial setup with strong key enforcement
+ * 3. Owner/Admin initial setup with strength evaluation
  * 4. Controlled failed-attempt tracking & progressive temporary lockout (5 attempts -> 5 min lockout)
- * 5. Comprehensive security audit logging with sanitization (never logs raw keys or hashes)
+ * 5. Comprehensive security audit logging with strict sanitization (never logs raw keys or hashes)
  * 6. Fail-closed verification behavior
  */
 
 export type SecurityActionType =
   | 'SECURITY_KEY_CREATED'
   | 'SECURITY_KEY_CHANGED'
-  | 'SECURITY_KEY_RESET_REQUESTED'
+  | 'SECURITY_KEY_RESET'
   | 'SECURITY_AUTH_SUCCESS'
   | 'SECURITY_AUTH_FAILED'
   | 'SECURITY_ACTION_BLOCKED'
+  | 'PROTECTED_ACTION_AUTHORIZED'
+  | 'PROTECTED_ACTION_REJECTED'
+  | 'HISTORY_CLEAR_AUTHORIZED'
+  | 'HISTORY_CLEAR_EXECUTED'
   | 'ADMIN_OVERRIDE'
   | 'PAYROLL_OVERRIDE'
   | 'ATTENDANCE_OVERRIDE'
   | 'GEOFENCE_CHANGED'
-  | 'STAFF_MASTER_DATA_RESET'
-  | 'HISTORY_CLEARED';
+  | 'STAFF_MASTER_DATA_RESET';
 
 export interface SecurityAuditEvent {
   id: string;
@@ -41,18 +49,27 @@ export interface SecurityAuditEvent {
   reason?: string;
 }
 
-interface StoredSecurityCredential {
+export interface StoredSecurityCredential {
   salt: string;
   hash: string;
   createdAt: string;
   lastChangedAt: string;
+  configuredBy: string;
   configured: boolean;
 }
 
-interface FailedAttemptTracker {
+export interface FailedAttemptTracker {
   attempts: number;
   lastAttemptTime: number;
   lockoutUntil: number;
+}
+
+export type KeyStrengthLevel = 'Weak' | 'Medium' | 'Strong';
+
+export interface KeyStrengthResult {
+  score: KeyStrengthLevel;
+  valid: boolean;
+  message?: string;
 }
 
 const STORAGE_KEY_CREDENTIAL = 'ema_enterprise_admin_security_cred_v2';
@@ -74,6 +91,8 @@ const WEAK_KEYS_BLACKLIST = new Set<string>([
   '000000',
   '1111',
   '111111',
+  '222222',
+  '333333',
   'password',
   'admin',
   'admin123',
@@ -81,7 +100,10 @@ const WEAK_KEYS_BLACKLIST = new Set<string>([
   '123123',
   '654321',
   '012345',
-  '112233'
+  '112233',
+  'admin2026',
+  'ema2026',
+  'ema9988'
 ]);
 
 /**
@@ -93,7 +115,6 @@ function generateSalt(): string {
     crypto.getRandomValues(arr);
     return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
   }
-  // Fallback pseudorandom hex for non-standard environments
   return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
 }
 
@@ -132,30 +153,51 @@ export class AdminSecurityService {
   }
 
   /**
-   * Validates key strength:
-   * - 6 to 20 characters
-   * - Not in weak/common keys list
-   * - Not all identical characters
+   * Evaluates key strength:
+   * Returns score: 'Weak' | 'Medium' | 'Strong' along with validation status.
    */
-  static validateKeyStrength(key: string): { valid: boolean; message?: string } {
+  static calculateKeyStrength(key: string): KeyStrengthResult {
     const trimmed = (key || '').trim();
     if (!trimmed) {
-      return { valid: false, message: 'Security key is required.' };
+      return { score: 'Weak', valid: false, message: 'Security key is required.' };
     }
     if (trimmed.length < 6) {
-      return { valid: false, message: 'Security key must be at least 6 characters or digits in length.' };
+      return { score: 'Weak', valid: false, message: 'Security key must be at least 6 characters or digits in length.' };
     }
-    if (trimmed.length > 20) {
-      return { valid: false, message: 'Security key cannot exceed 20 characters.' };
+    if (trimmed.length > 32) {
+      return { score: 'Weak', valid: false, message: 'Security key cannot exceed 32 characters.' };
     }
     if (WEAK_KEYS_BLACKLIST.has(trimmed.toLowerCase())) {
-      return { valid: false, message: 'Weak security key rejected. Please choose a stronger combination.' };
+      return { score: 'Weak', valid: false, message: 'Common or weak security key rejected. Please choose a stronger combination.' };
     }
-    // Check if all characters are the same
     if (/^(.)\1+$/.test(trimmed)) {
-      return { valid: false, message: 'Repeated single-character keys (e.g. 111111) are not permitted.' };
+      return { score: 'Weak', valid: false, message: 'Repeated single-character keys (e.g. 111111) are not permitted.' };
     }
-    return { valid: true };
+
+    const hasNumbers = /\d/.test(trimmed);
+    const hasLetters = /[a-zA-Z]/.test(trimmed);
+    const hasSpecial = /[^a-zA-Z0-9]/.test(trimmed);
+    const hasUpperAndLower = /[a-z]/.test(trimmed) && /[A-Z]/.test(trimmed);
+
+    if (trimmed.length >= 10 && ((hasNumbers && hasLetters && hasSpecial) || (hasUpperAndLower && hasNumbers))) {
+      return { score: 'Strong', valid: true };
+    }
+    if (trimmed.length >= 8 && (hasNumbers && hasLetters)) {
+      return { score: 'Strong', valid: true };
+    }
+    if (trimmed.length >= 6) {
+      return { score: 'Medium', valid: true };
+    }
+
+    return { score: 'Weak', valid: false, message: 'Please provide a stronger key.' };
+  }
+
+  /**
+   * Validates key strength wrapper
+   */
+  static validateKeyStrength(key: string): { valid: boolean; message?: string } {
+    const result = this.calculateKeyStrength(key);
+    return { valid: result.valid, message: result.message };
   }
 
   /**
@@ -165,7 +207,7 @@ export class AdminSecurityService {
     key: string,
     user?: { id?: string; name?: string; role?: string }
   ): Promise<{ success: boolean; message: string }> {
-    const strengthCheck = this.validateKeyStrength(key);
+    const strengthCheck = this.calculateKeyStrength(key);
     if (!strengthCheck.valid) {
       return { success: false, message: strengthCheck.message || 'Invalid security key.' };
     }
@@ -180,11 +222,13 @@ export class AdminSecurityService {
     }
 
     const now = new Date().toISOString();
+    const userName = user?.name || 'BUDDIKA';
     const cred: StoredSecurityCredential = {
       salt,
       hash,
       createdAt: now,
       lastChangedAt: now,
+      configuredBy: userName,
       configured: true
     };
 
@@ -199,7 +243,7 @@ export class AdminSecurityService {
     // Audit Log
     this.recordAuditEvent({
       userId: user?.id || 'admin-usr',
-      userName: user?.name || 'Enterprise Administrator',
+      userName,
       userRole: user?.role || 'ADMIN',
       action: 'SECURITY_KEY_CREATED',
       targetRecord: 'AdminSecurityCredential',
@@ -209,7 +253,7 @@ export class AdminSecurityService {
 
     return {
       success: true,
-      message: 'Security Key Created Successfully.'
+      message: 'Your Admin Security Key has been configured successfully.'
     };
   }
 
@@ -236,7 +280,7 @@ export class AdminSecurityService {
       const remainingSec = Math.ceil((tracker.lockoutUntil - now) / 1000);
       this.recordAuditEvent({
         userId: user?.id || 'unknown-usr',
-        userName: user?.name || 'User',
+        userName: user?.name || 'BUDDIKA',
         userRole: user?.role || 'UNKNOWN',
         action: 'SECURITY_ACTION_BLOCKED',
         targetRecord: actionName,
@@ -260,7 +304,7 @@ export class AdminSecurityService {
     if (!raw) {
       return {
         success: false,
-        message: 'Security Key has not been established. An Administrator must create the initial Security Key.'
+        message: 'An Admin Security Key has not yet been configured for this enterprise.'
       };
     }
 
@@ -272,7 +316,7 @@ export class AdminSecurityService {
     }
 
     if (!cred.configured || !cred.salt || !cred.hash) {
-      return { success: false, message: 'Security Key is not configured.' };
+      return { success: false, message: 'Admin Security Key is not configured.' };
     }
 
     // Compute hash with stored salt
@@ -291,7 +335,7 @@ export class AdminSecurityService {
 
       this.recordAuditEvent({
         userId: user?.id || 'admin-usr',
-        userName: user?.name || 'Administrator',
+        userName: user?.name || 'BUDDIKA',
         userRole: user?.role || 'ADMIN',
         action: 'SECURITY_AUTH_SUCCESS',
         targetRecord: actionName,
@@ -299,9 +343,19 @@ export class AdminSecurityService {
         reason: `Authorized action: ${actionName}`
       });
 
+      this.recordAuditEvent({
+        userId: user?.id || 'admin-usr',
+        userName: user?.name || 'BUDDIKA',
+        userRole: user?.role || 'ADMIN',
+        action: 'PROTECTED_ACTION_AUTHORIZED',
+        targetRecord: actionName,
+        result: 'SUCCESS',
+        reason: `Protected execution authorized: ${actionName}`
+      });
+
       return {
         success: true,
-        message: 'Admin security verification successful.',
+        message: 'Authorization successful.',
         sessionToken: token
       };
     }
@@ -321,7 +375,7 @@ export class AdminSecurityService {
 
     this.recordAuditEvent({
       userId: user?.id || 'unknown-usr',
-      userName: user?.name || 'User',
+      userName: user?.name || 'BUDDIKA',
       userRole: user?.role || 'UNKNOWN',
       action: newAttempts >= MAX_FAILED_ATTEMPTS ? 'SECURITY_ACTION_BLOCKED' : 'SECURITY_AUTH_FAILED',
       targetRecord: actionName,
@@ -342,7 +396,7 @@ export class AdminSecurityService {
 
     return {
       success: false,
-      message: `Invalid Admin Security Key. (${MAX_FAILED_ATTEMPTS - newAttempts} attempt(s) remaining before temporary lockout).`
+      message: `Incorrect Admin Security Key. (${MAX_FAILED_ATTEMPTS - newAttempts} attempt(s) remaining before temporary lockout).`
     };
   }
 
@@ -363,9 +417,19 @@ export class AdminSecurityService {
   static async changeSecurityKey(
     currentKey: string,
     newKey: string,
-    confirmNewKey: string,
-    user?: { id?: string; name?: string; role?: string }
-  ): Promise<{ success: boolean; message: string }> {
+    confirmOrUser?: string | { id?: string; name?: string; role?: string },
+    maybeUser?: { id?: string; name?: string; role?: string }
+  ): Promise<{ success: boolean; message: string; isLockedOut?: boolean; lockoutRemainingSeconds?: number }> {
+    let confirmNewKey = newKey;
+    let user: { id?: string; name?: string; role?: string } | undefined;
+
+    if (typeof confirmOrUser === 'string') {
+      confirmNewKey = confirmOrUser;
+      user = maybeUser;
+    } else if (confirmOrUser && typeof confirmOrUser === 'object') {
+      user = confirmOrUser;
+    }
+
     if (!currentKey || !currentKey.trim()) {
       return { success: false, message: 'Current Security Key is required.' };
     }
@@ -373,7 +437,7 @@ export class AdminSecurityService {
       return { success: false, message: 'New Security Key and Confirmation Key do not match.' };
     }
 
-    const strengthCheck = this.validateKeyStrength(newKey);
+    const strengthCheck = this.calculateKeyStrength(newKey);
     if (!strengthCheck.valid) {
       return { success: false, message: strengthCheck.message || 'Invalid new security key.' };
     }
@@ -381,7 +445,12 @@ export class AdminSecurityService {
     // Verify current key
     const currentVerification = await this.verifySecurityKey(currentKey, 'Change Security Key', user);
     if (!currentVerification.success) {
-      return { success: false, message: 'Current Security Key verification failed. Access denied.' };
+      return {
+        success: false,
+        message: currentVerification.message || 'Current Security Key verification failed. Access denied.',
+        isLockedOut: currentVerification.isLockedOut,
+        lockoutRemainingSeconds: currentVerification.lockoutRemainingSeconds
+      };
     }
 
     // Create new salt and hash
@@ -394,12 +463,14 @@ export class AdminSecurityService {
     const raw = localStorage.getItem(STORAGE_KEY_CREDENTIAL);
     const existing = raw ? JSON.parse(raw) : {};
     const now = new Date().toISOString();
+    const userName = user?.name || 'BUDDIKA';
 
     const updatedCred: StoredSecurityCredential = {
       salt: newSalt,
       hash: newHash,
       createdAt: existing.createdAt || now,
       lastChangedAt: now,
+      configuredBy: userName,
       configured: true
     };
 
@@ -411,7 +482,7 @@ export class AdminSecurityService {
 
     this.recordAuditEvent({
       userId: user?.id || 'admin-usr',
-      userName: user?.name || 'Administrator',
+      userName,
       userRole: user?.role || 'ADMIN',
       action: 'SECURITY_KEY_CHANGED',
       targetRecord: 'AdminSecurityCredential',
@@ -426,8 +497,98 @@ export class AdminSecurityService {
   }
 
   /**
-   * Request Security Key Reset (Authenticated Admin/Owner recovery)
-   * With clear notice that secure account recovery requires backend authentication.
+   * Reset Security Key (Authenticated Owner/Admin recovery)
+   */
+  static async resetSecurityKey(
+    newKey: string,
+    confirmOrUser?: string | { id?: string; name?: string; role?: string },
+    maybeUser?: { id?: string; name?: string; role?: string }
+  ): Promise<{ success: boolean; message: string }> {
+    let confirmNewKey = newKey;
+    let user: { id?: string; name?: string; role?: string } | undefined;
+
+    if (typeof confirmOrUser === 'string') {
+      confirmNewKey = confirmOrUser;
+      user = maybeUser;
+    } else if (confirmOrUser && typeof confirmOrUser === 'object') {
+      user = confirmOrUser;
+    }
+
+    return this.resetSecurityKeyWithAuth(newKey, confirmNewKey, user);
+  }
+
+  /**
+   * Reset / Recovery of Security Key (Authenticated Owner/Admin recovery)
+   */
+  static async resetSecurityKeyWithAuth(
+    newKey: string,
+    confirmNewKey: string,
+    user?: { id?: string; name?: string; role?: string }
+  ): Promise<{ success: boolean; message: string }> {
+    const role = (user?.role || '').toUpperCase();
+    if (role !== 'ADMIN' && role !== 'OWNER') {
+      this.recordAuditEvent({
+        userId: user?.id || 'unauthorized-usr',
+        userName: user?.name || 'Unknown',
+        userRole: user?.role || 'UNKNOWN',
+        action: 'SECURITY_KEY_RESET',
+        targetRecord: 'AdminSecurityCredential',
+        result: 'BLOCKED',
+        reason: 'ACCESS DENIED: Unauthorized role attempted security key reset.'
+      });
+      return { success: false, message: 'ACCESS DENIED. Only authenticated Owner or Administrator can reset the security key.' };
+    }
+
+    if (newKey !== confirmNewKey) {
+      return { success: false, message: 'New Security Key and Confirmation Key do not match.' };
+    }
+
+    const strengthCheck = this.calculateKeyStrength(newKey);
+    if (!strengthCheck.valid) {
+      return { success: false, message: strengthCheck.message || 'Invalid new security key.' };
+    }
+
+    const newSalt = generateSalt();
+    const newHash = await computeSha256(`${newSalt}:${newKey.trim()}`);
+    if (!newHash) {
+      return { success: false, message: 'Cryptographic hash calculation failed.' };
+    }
+
+    const now = new Date().toISOString();
+    const userName = user?.name || 'BUDDIKA';
+
+    const updatedCred: StoredSecurityCredential = {
+      salt: newSalt,
+      hash: newHash,
+      createdAt: now,
+      lastChangedAt: now,
+      configuredBy: userName,
+      configured: true
+    };
+
+    localStorage.setItem(STORAGE_KEY_CREDENTIAL, JSON.stringify(updatedCred));
+    this.clearSession();
+    this.resetFailedTracker();
+    this.setSessionVerified();
+
+    this.recordAuditEvent({
+      userId: user?.id || 'admin-usr',
+      userName,
+      userRole: user?.role || 'ADMIN',
+      action: 'SECURITY_KEY_RESET',
+      targetRecord: 'AdminSecurityCredential',
+      result: 'SUCCESS',
+      reason: 'Admin Security Key reset and recovered through authenticated Owner/Admin authorization.'
+    });
+
+    return {
+      success: true,
+      message: 'Admin Security Key has been reset and configured successfully.'
+    };
+  }
+
+  /**
+   * Request Security Key Reset (Invalidates old key)
    */
   static async requestSecurityKeyReset(
     user?: { id?: string; name?: string; role?: string }
@@ -436,19 +597,20 @@ export class AdminSecurityService {
     this.clearSession();
     this.resetFailedTracker();
 
+    const userName = user?.name || 'BUDDIKA';
     this.recordAuditEvent({
       userId: user?.id || 'owner-admin',
-      userName: user?.name || 'System Administrator',
+      userName,
       userRole: user?.role || 'ADMIN',
-      action: 'SECURITY_KEY_RESET_REQUESTED',
+      action: 'SECURITY_KEY_RESET',
       targetRecord: 'AdminSecurityCredential',
       result: 'SUCCESS',
-      reason: 'Security key reset requested. Secure account recovery requires backend authentication in multi-tenant environments.'
+      reason: 'Security key reset initiated by authenticated administrator.'
     });
 
     return {
       success: true,
-      message: 'Security Key reset successfully. Please configure a new Security Key immediately.'
+      message: 'Security Key invalidated successfully. Please configure a new Security Key immediately.'
     };
   }
 
@@ -459,6 +621,7 @@ export class AdminSecurityService {
     configured: boolean;
     createdAt?: string;
     lastChanged?: string;
+    configuredBy?: string;
     isLockedOut: boolean;
     lockoutRemainingSeconds: number;
     failedAttempts: number;
@@ -467,6 +630,7 @@ export class AdminSecurityService {
     const isConfigured = this.hasSecurityKey();
     let createdAt: string | undefined;
     let lastChanged: string | undefined;
+    let configuredBy: string | undefined;
 
     try {
       const raw = localStorage.getItem(STORAGE_KEY_CREDENTIAL);
@@ -474,6 +638,7 @@ export class AdminSecurityService {
         const cred: StoredSecurityCredential = JSON.parse(raw);
         createdAt = cred.createdAt;
         lastChanged = cred.lastChangedAt;
+        configuredBy = cred.configuredBy;
       }
     } catch {
       // ignore
@@ -488,6 +653,7 @@ export class AdminSecurityService {
       configured: isConfigured,
       createdAt,
       lastChanged,
+      configuredBy: configuredBy || 'BUDDIKA',
       isLockedOut,
       lockoutRemainingSeconds,
       failedAttempts: tracker.attempts || 0,
@@ -539,7 +705,6 @@ export class AdminSecurityService {
       const raw = localStorage.getItem(STORAGE_KEY_FAILED_TRACKER);
       if (!raw) return { attempts: 0, lastAttemptTime: 0, lockoutUntil: 0 };
       const data: FailedAttemptTracker = JSON.parse(raw);
-      // If last attempt was more than 10 minutes ago and not locked, reset
       if (Date.now() - data.lastAttemptTime > 10 * 60 * 1000 && data.lockoutUntil <= Date.now()) {
         return { attempts: 0, lastAttemptTime: 0, lockoutUntil: 0 };
       }
@@ -572,9 +737,9 @@ export class AdminSecurityService {
       const newEvent: SecurityAuditEvent = {
         id: `sec-evt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         timestamp: new Date().toISOString(),
-        userId: event.userId || 'system-usr',
-        userName: event.userName || 'System User',
-        userRole: event.userRole || 'UNKNOWN',
+        userId: event.userId || 'admin-usr',
+        userName: event.userName || 'BUDDIKA',
+        userRole: event.userRole || 'ADMIN',
         action: event.action,
         targetRecord: event.targetRecord || 'General Security',
         result: event.result,
@@ -607,11 +772,12 @@ export class AdminSecurityService {
    */
   static clearAuditLogs(user?: { id?: string; name?: string; role?: string }): void {
     localStorage.removeItem(STORAGE_KEY_AUDIT_LOGS);
+    const userName = user?.name || 'BUDDIKA';
     this.recordAuditEvent({
       userId: user?.id || 'admin-usr',
-      userName: user?.name || 'Administrator',
+      userName,
       userRole: user?.role || 'ADMIN',
-      action: 'HISTORY_CLEARED',
+      action: 'HISTORY_CLEARED' as any,
       targetRecord: 'SecurityAuditLogs',
       result: 'SUCCESS',
       reason: 'Security audit logs cleared by administrator.'
@@ -620,3 +786,4 @@ export class AdminSecurityService {
 }
 
 export const adminSecurityService = AdminSecurityService;
+

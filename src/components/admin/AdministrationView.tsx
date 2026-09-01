@@ -34,6 +34,10 @@ import { useFleet } from '../../context/FleetContext';
 import { usePRV } from '../../context/PRVContext';
 import { useSiteRecords } from '../../context/SiteRecordContext';
 import { useStaff } from '../../context/StaffContext';
+import { useStaffAllocation } from '../../context/StaffAllocationContext';
+import { useAttendance } from '../../context/AttendanceContext';
+import { useLeave } from '../../context/LeaveContext';
+import { usePayroll } from '../../context/PayrollContext';
 import { EnterpriseRole } from '../../types/enterpriseTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { SecurityStatusIndicator } from './SecurityStatusIndicator';
@@ -112,6 +116,34 @@ export const AdministrationView: React.FC = () => {
     clearStaffDirectory
   } = useStaff();
 
+  const {
+    allocations,
+    clearAllocationHistory,
+    resetAllocationsToDefault
+  } = useStaffAllocation();
+
+  const {
+    attendanceRecords,
+    correctionRequests,
+    overtimeRecords,
+    clearAttendanceHistory,
+    clearOvertimeHistory,
+    resetAttendanceData
+  } = useAttendance();
+
+  const {
+    leaveRequests,
+    coverUpRequests,
+    clearLeaveHistory,
+    resetLeaveData
+  } = useLeave();
+
+  const {
+    payrollBatches,
+    clearPayrollHistory,
+    resetPayrollData
+  } = usePayroll();
+
   const [activeAdminTab, setActiveAdminTab] = useState<'ROLES' | 'SECURITY' | 'SHEETS' | 'MASTER' | 'CACHE'>('ROLES');
   const [sheetIdInput, setSheetIdInput] = useState(sheetsConfig.spreadsheetId || '1XyZ_SAMPLE_EMA_CONSTRUCTION_PETTY_CASH_FLEET_2026');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -175,7 +207,7 @@ export const AdministrationView: React.FC = () => {
   };
 
   const handleFullDatabaseReset = () => {
-    if (confirm('Are you sure you want to reset demo data for all modules (Petty Cash, FleetTrack, Staff Directory, Daily Site Records, Projects, Procurement, Payments)?')) {
+    if (confirm('Are you sure you want to reset demo data for all modules (Petty Cash, FleetTrack, Staff Directory, Daily Site Records, Projects, Procurement, Payments, Allocations, Attendance, Leave, Payroll)?')) {
       resetToDefaultMasterData();
       resetFleetSampleData();
       resetStaffDirectory();
@@ -183,6 +215,10 @@ export const AdministrationView: React.FC = () => {
       resetProcurementData();
       resetDocumentsData();
       resetPRVsToDefault();
+      resetAllocationsToDefault();
+      resetAttendanceData();
+      resetLeaveData();
+      resetPayrollData();
       alert('Enterprise master database reset to defaults successfully.');
     }
   };
@@ -195,6 +231,11 @@ export const AdministrationView: React.FC = () => {
     clearProcurementHistory();
     clearDocumentsHistory();
     clearNotificationsHistory();
+    clearAllocationHistory();
+    clearAttendanceHistory();
+    clearOvertimeHistory();
+    clearLeaveHistory();
+    clearPayrollHistory();
   };
 
   const totalOperationalRecords =
@@ -209,7 +250,14 @@ export const AdministrationView: React.FC = () => {
     paymentRequests.length +
     procurementOrders.length +
     documents.length +
-    notifications.length;
+    notifications.length +
+    allocations.length +
+    attendanceRecords.length +
+    correctionRequests.length +
+    overtimeRecords.length +
+    leaveRequests.length +
+    coverUpRequests.length +
+    payrollBatches.length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -978,6 +1026,151 @@ export const AdministrationView: React.FC = () => {
                   preservedItemsDescription="Underlying transaction vouchers and project assignments will remain intact."
                   buttonText="Clear Staff Records"
                   onClear={() => clearStaffDirectory()}
+                />
+              </div>
+            </div>
+
+            {/* Card 14: Project Staff Allocations */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
+                    <FolderKanban className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Project Staff Allocations</h4>
+                    <span className="text-[11px] font-mono text-blue-400 font-bold">{allocations.length} active allocations</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Wipes project assignments, site staffing rosters, and approval hierarchy links. Preserves staff directory.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-allocations-cache-tab"
+                  moduleName="Project Staff Allocations"
+                  itemCount={allocations.length}
+                  itemDescription="project allocations, site assignments, and hierarchy workflows"
+                  preservedItemsDescription="Staff directory and master project codes will remain intact."
+                  buttonText="Clear Allocations"
+                  onClear={() => clearAllocationHistory()}
+                />
+              </div>
+            </div>
+
+            {/* Card 15: Time & Daily Attendance */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    <Gauge className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Time & Daily Attendance</h4>
+                    <span className="text-[11px] font-mono text-emerald-400 font-bold">{attendanceRecords.length + correctionRequests.length} punch logs</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Clears biometric punches, geofence validations, and missed-punch correction requests.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-attendance-cache-tab"
+                  moduleName="Time & Daily Attendance"
+                  itemCount={attendanceRecords.length + correctionRequests.length}
+                  itemDescription="biometric punch logs, manual entries, and missed punch correction requests"
+                  preservedItemsDescription="Staff members, project allocations, and leave configurations remain intact."
+                  buttonText="Clear Attendance"
+                  onClear={() => clearAttendanceHistory()}
+                />
+              </div>
+            </div>
+
+            {/* Card 16: Overtime Register */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Overtime Register</h4>
+                    <span className="text-[11px] font-mono text-amber-400 font-bold">{overtimeRecords.length} OT records</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Purges calculated overtime logs, dual supervisor/HR approvals, and holiday multipliers.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-overtime-cache-tab"
+                  moduleName="Overtime Register"
+                  itemCount={overtimeRecords.length}
+                  itemDescription="overtime logs, supervisor/HR approvals, and calculated OT amounts"
+                  preservedItemsDescription="Daily punch attendance records and base hourly wage structures remain intact."
+                  buttonText="Clear Overtime"
+                  onClear={() => clearOvertimeHistory()}
+                />
+              </div>
+            </div>
+
+            {/* Card 17: Leave Applications & Management */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Leave Applications & Approvals</h4>
+                    <span className="text-[11px] font-mono text-indigo-400 font-bold">{leaveRequests.length + coverUpRequests.length} requests</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Clears employee leave applications, cover-up nominations, and approval audit history.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-leave-cache-tab"
+                  moduleName="Leave Applications & Approvals"
+                  itemCount={leaveRequests.length + coverUpRequests.length}
+                  itemDescription="leave requests, cover-up nominations, and approval audit logs"
+                  preservedItemsDescription="Configured leave types, entitlement structures, and staff accounts remain intact."
+                  buttonText="Clear Leave History"
+                  onClear={() => clearLeaveHistory()}
+                />
+              </div>
+            </div>
+
+            {/* Card 18: Monthly Payroll Processing Batches */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold">
+                    <FileSpreadsheet className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Monthly Payroll Batches</h4>
+                    <span className="text-[11px] font-mono text-purple-400 font-bold">{payrollBatches.length} cycles</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Wipes computed monthly payroll batches, employee wage calculation lines, and owner sign-offs.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-payroll-cache-tab"
+                  moduleName="Monthly Payroll Batches"
+                  itemCount={payrollBatches.length}
+                  itemDescription="payroll cycle batches, computed employee wage lines, and owner approvals"
+                  preservedItemsDescription="Staff profiles, base salaries, and statutory EPF/ETF rate settings remain intact."
+                  buttonText="Clear Payroll Batches"
+                  onClear={() => clearPayrollHistory()}
                 />
               </div>
             </div>

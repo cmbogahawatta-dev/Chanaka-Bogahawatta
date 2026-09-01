@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Lock, AlertCircle, Eye, EyeOff, X, CheckCircle2, ShieldAlert, KeyRound } from 'lucide-react';
 import { adminSecurityService } from '../../services/adminSecurityService';
+import { useEnterprise } from '../../context/EnterpriseContext';
 
 export interface AdminSecurityConfirmationModalProps {
   isOpen: boolean;
@@ -21,6 +22,9 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
   severity = 'critical',
   user
 }) => {
+  const { currentUser, currentRole } = useEnterprise();
+  const activeUser = user || { id: 'admin-usr', name: currentUser || 'BUDDIKA', role: currentRole || 'ADMIN' };
+
   const [hasKey, setHasKey] = useState<boolean>(true);
   const [securityKey, setSecurityKey] = useState<string>('');
   const [confirmKey, setConfirmKey] = useState<string>('');
@@ -43,6 +47,8 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
       setConfirmKey('');
       setErrorMsg('');
       setSuccessMsg('');
+      setShowKey(false);
+      setIsProcessing(false);
     }
   }, [isOpen]);
 
@@ -63,6 +69,8 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
 
   if (!isOpen) return null;
 
+  const strengthCheck = adminSecurityService.calculateKeyStrength(securityKey);
+
   const handleAuthorize = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!securityKey.trim()) {
@@ -74,10 +82,10 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
     setErrorMsg('');
 
     try {
-      const res = await adminSecurityService.verifySecurityKey(securityKey, actionTitle, user);
+      const res = await adminSecurityService.verifySecurityKey(securityKey, actionTitle, activeUser);
       if (res.success) {
         setSecurityKey('');
-        setSuccessMsg('Authorization granted.');
+        setSuccessMsg('Authorization successful.');
         setTimeout(() => {
           onAuthorized();
           onClose();
@@ -86,7 +94,7 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
         if (res.isLockedOut && res.lockoutRemainingSeconds) {
           setLockoutSec(res.lockoutRemainingSeconds);
         }
-        setErrorMsg(res.message || 'Authorization failed. Incorrect Security Key.');
+        setErrorMsg(res.message || 'Incorrect Admin Security Key.');
       }
     } catch {
       setErrorMsg('An unexpected error occurred during security authorization.');
@@ -105,15 +113,20 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
       return;
     }
 
+    if (!strengthCheck.valid) {
+      setErrorMsg(strengthCheck.message || 'Please choose a stronger security key.');
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      const res = await adminSecurityService.initializeSecurityKey(securityKey, user);
+      const res = await adminSecurityService.initializeSecurityKey(securityKey, activeUser);
       if (res.success) {
         setSuccessMsg(res.message);
         setTimeout(() => {
           onAuthorized();
           onClose();
-        }, 800);
+        }, 600);
       } else {
         setErrorMsg(res.message);
       }
@@ -162,7 +175,7 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
                 Elevated Authorization
               </span>
               <h3 className="text-base font-bold text-slate-100 tracking-tight mt-0.5">
-                {hasKey ? 'SECURITY AUTHORIZATION REQUIRED' : 'ESTABLISH SECURITY KEY'}
+                {hasKey ? 'ADMIN SECURITY AUTHORIZATION' : 'SET ADMIN SECURITY KEY'}
               </h3>
             </div>
           </div>
@@ -199,7 +212,7 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
 
             <div>
               <label className="block text-xs font-bold text-slate-200 uppercase tracking-wider mb-2">
-                Enter Security Key
+                Enter Admin Security Key
               </label>
               <div className="relative">
                 <input
@@ -213,7 +226,7 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
                   }}
                   disabled={lockoutSec > 0}
                   autoFocus
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 font-mono tracking-widest placeholder:tracking-normal placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all pr-12 disabled:opacity-50"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 font-mono tracking-widest placeholder:tracking-normal placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all pr-12 disabled:opacity-50 text-center"
                 />
                 <button
                   type="button"
@@ -239,6 +252,15 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
                 <span>{successMsg}</span>
               </div>
             )}
+
+            {/* Authorized user bar */}
+            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1 border-t border-slate-800">
+              <span>Authorized User: <strong className="text-slate-200">{activeUser.name || 'BUDDIKA'}</strong></span>
+              <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Admin Session Active</span>
+              </span>
+            </div>
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
@@ -271,25 +293,41 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
             <div className="p-3.5 bg-blue-950/50 rounded-xl border border-blue-800/60 text-xs text-blue-200 leading-relaxed space-y-1">
               <div className="flex items-center gap-2 font-bold text-blue-300">
                 <KeyRound className="w-4 h-4" />
-                <span>Initial Owner Security Setup</span>
+                <span>ADMIN SECURITY KEY SETUP REQUIRED</span>
               </div>
               <p className="text-[11px] text-blue-300/80">
-                Establish an encrypted Admin Security Key (6-20 characters) to protect high-impact organizational operations.
+                An Admin Security Key has not yet been configured for this enterprise. Create a cryptographic key (minimum 6 characters/digits) to protect sensitive administrative actions.
               </p>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-200 mb-1">
-                Create Security Key (min 6 characters)
+                New Security Key
               </label>
               <input
                 type={showKey ? 'text' : 'password'}
-                placeholder="Enter new strong security key"
+                placeholder="Enter new strong security key (min 6 chars)"
                 value={securityKey}
                 onChange={(e) => setSecurityKey(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none"
                 autoFocus
               />
+              {securityKey.length > 0 && (
+                <div className="flex items-center justify-between text-[11px] mt-1.5 px-1">
+                  <span className="text-slate-400">Security strength:</span>
+                  <span
+                    className={`font-bold ${
+                      strengthCheck.score === 'Strong'
+                        ? 'text-emerald-400'
+                        : strengthCheck.score === 'Medium'
+                        ? 'text-amber-400'
+                        : 'text-rose-400'
+                    }`}
+                  >
+                    {strengthCheck.score}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -305,26 +343,27 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
               />
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
               <button
                 type="button"
                 onClick={() => setShowKey(!showKey)}
-                className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
+                className="hover:text-slate-200 flex items-center gap-1"
               >
                 {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 <span>{showKey ? 'Hide Keys' : 'Show Keys'}</span>
               </button>
+              <span>Min 6 characters/digits</span>
             </div>
 
             {errorMsg && (
-              <div className="p-3 bg-rose-950/60 border border-rose-800 rounded-xl flex items-center gap-2 text-rose-300 text-xs">
+              <div className="p-3 bg-rose-950/60 border border-rose-800 rounded-xl flex items-center gap-2 text-rose-300 text-xs animate-in fade-in">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
             {successMsg && (
-              <div className="p-3 bg-emerald-950/60 border border-emerald-800 rounded-xl flex items-center gap-2 text-emerald-300 text-xs">
+              <div className="p-3 bg-emerald-950/60 border border-emerald-800 rounded-xl flex items-center gap-2 text-emerald-300 text-xs animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
                 <span>{successMsg}</span>
               </div>
@@ -344,7 +383,7 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
                 className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-blue-950/50 flex items-center gap-2"
               >
                 <ShieldCheck className="w-4 h-4" />
-                <span>Save Security Key & Authorize</span>
+                <span>Create Security Key</span>
               </button>
             </div>
           </form>
@@ -353,3 +392,4 @@ export const AdminSecurityConfirmationModal: React.FC<AdminSecurityConfirmationM
     </div>
   );
 };
+

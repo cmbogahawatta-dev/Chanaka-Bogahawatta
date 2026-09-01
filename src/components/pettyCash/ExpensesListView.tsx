@@ -108,11 +108,10 @@ export const ExpensesListView: React.FC<ExpensesListViewProps> = ({
 
   const handleToggleSelectOne = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (selectedExpenseIds.includes(id)) {
-      setSelectedExpenseIds(prev => prev.filter(item => item !== id));
-    } else {
-      setSelectedExpenseIds(prev => [...prev, id]);
-    }
+    setSelectedExpenseIds(prev => {
+      const arr = Array.isArray(prev) ? prev : [];
+      return arr.includes(id) ? arr.filter(item => item !== id) : [...arr, id];
+    });
   };
 
   const handleBulkApproveSelected = () => {

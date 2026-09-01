@@ -141,8 +141,13 @@ const migrateLegacySupervisorsToStaff = (currentStaff: StaffMember[]): StaffMemb
     }
   });
 
-  // 6. Do NOT delete old Supervisor localStorage data (ema_petty_supervisors_v1).
-  return updatedStaff;
+  // 6. Deduplicate by unique id and do NOT delete old Supervisor localStorage data (ema_petty_supervisors_v1).
+  const seenStaffIds = new Set<string>();
+  return updatedStaff.filter(m => {
+    if (!m.id || seenStaffIds.has(m.id)) return false;
+    seenStaffIds.add(m.id);
+    return true;
+  });
 };
 
 interface StaffContextType {

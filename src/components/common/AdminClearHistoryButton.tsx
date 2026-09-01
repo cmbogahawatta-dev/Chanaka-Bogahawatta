@@ -7,6 +7,7 @@ import { AdminClearHistoryModal } from './AdminClearHistoryModal';
 export interface AdminClearHistoryButtonProps {
   id?: string;
   label?: string;
+  buttonText?: string;
   moduleName: string;
   itemCount: number;
   itemDescription?: string;
@@ -14,19 +15,24 @@ export interface AdminClearHistoryButtonProps {
   onClear: () => void;
   variant?: 'danger' | 'ghost' | 'outline' | 'compact';
   className?: string;
+  buttonClassName?: string;
 }
 
 export const AdminClearHistoryButton: React.FC<AdminClearHistoryButtonProps> = ({
   id = 'btn-admin-clear-history',
-  label = 'Clear History',
+  label,
+  buttonText,
   moduleName,
   itemCount,
   itemDescription,
   preservedItemsDescription,
   onClear,
   variant = 'outline',
-  className = ''
+  className = '',
+  buttonClassName = ''
 }) => {
+  const displayLabel = label || buttonText || 'Clear History';
+  const customClass = className || buttonClassName;
   const { currentRole } = useEnterprise();
   const { isAdmin } = useFleet();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -57,10 +63,10 @@ export const AdminClearHistoryButton: React.FC<AdminClearHistoryButtonProps> = (
         onClick={() => setIsModalOpen(true)}
         disabled={itemCount === 0}
         title={itemCount === 0 ? 'No records to clear' : `Admin: Clear ${itemCount} ${moduleName} history records`}
-        className={`${buttonStyles} disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
+        className={`${buttonStyles} disabled:opacity-40 disabled:cursor-not-allowed ${customClass}`}
       >
         <Trash2 className="w-3.5 h-3.5 text-red-400" />
-        <span>{label}</span>
+        <span>{displayLabel}</span>
         <span className="ml-0.5 px-1.5 py-0.2 text-[9px] font-bold tracking-wider uppercase bg-red-500/20 text-red-300 border border-red-500/40 rounded">
           Admin
         </span>

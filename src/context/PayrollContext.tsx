@@ -50,6 +50,7 @@ interface PayrollContextType {
   lockBatch: (batchId: string, lockedBy: string) => void;
   
   getLabourCostReport: (payrollMonth: string) => ProjectLabourCostReport[];
+  clearPayrollHistory: () => void;
   resetPayrollData: () => void;
 }
 
@@ -471,6 +472,24 @@ export const PayrollProvider: React.FC<{ children: ReactNode }> = ({ children })
     }));
   };
 
+  const clearPayrollHistory = () => {
+    localStorage.removeItem(PAYROLL_BATCHES_KEY);
+    localStorage.removeItem(PAYROLL_APPROVALS_KEY);
+    setPayrollBatches([]);
+    setApprovalRecords([]);
+
+    AuditService.log({
+      enterpriseId: 'ema-constructions-lk',
+      userId: 'admin',
+      userName: 'Administrator',
+      userRole: 'admin',
+      action: 'DELETE',
+      module: 'PAYROLL',
+      recordId: 'ALL_PAYROLL_BATCHES',
+      details: 'Cleared all monthly payroll processing batches, computed wage lines, and owner approval records with Admin Security approval'
+    });
+  };
+
   const resetPayrollData = () => {
     localStorage.removeItem(PAYROLL_BATCHES_KEY);
     localStorage.removeItem(PAYROLL_APPROVALS_KEY);
@@ -492,6 +511,7 @@ export const PayrollProvider: React.FC<{ children: ReactNode }> = ({ children })
         transitionBatchStatus,
         lockBatch,
         getLabourCostReport,
+        clearPayrollHistory,
         resetPayrollData
       }}
     >

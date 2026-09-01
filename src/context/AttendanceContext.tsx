@@ -81,6 +81,8 @@ interface AttendanceContextType {
   // Query helpers
   getRecordsForEmployee: (employeeId: string, monthPrefix?: string) => AttendanceRecord[];
   getApprovedOvertimeForEmployee: (employeeId: string, monthPrefix: string) => OvertimeRecord[];
+  clearAttendanceHistory: () => void;
+  clearOvertimeHistory: () => void;
   resetAttendanceData: () => void;
 }
 
@@ -667,6 +669,40 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     approveOvertime(otId, 'HR', approverId, remarks);
   };
 
+  const clearAttendanceHistory = () => {
+    localStorage.removeItem(ATTENDANCE_STORAGE_KEY);
+    localStorage.removeItem(CORRECTIONS_STORAGE_KEY);
+    setAttendanceRecords([]);
+    setCorrectionRequests([]);
+
+    AuditService.log({
+      enterpriseId: 'ema-constructions-lk',
+      userId: 'admin',
+      userName: 'Administrator',
+      userRole: 'admin',
+      action: 'DELETE',
+      module: 'ATTENDANCE',
+      recordId: 'ALL_ATTENDANCE',
+      details: 'Cleared all daily attendance punch logs and missed-punch correction requests with Admin Security approval'
+    });
+  };
+
+  const clearOvertimeHistory = () => {
+    localStorage.removeItem(OVERTIME_STORAGE_KEY);
+    setOvertimeRecords([]);
+
+    AuditService.log({
+      enterpriseId: 'ema-constructions-lk',
+      userId: 'admin',
+      userName: 'Administrator',
+      userRole: 'admin',
+      action: 'DELETE',
+      module: 'OVERTIME',
+      recordId: 'ALL_OVERTIME',
+      details: 'Cleared all overtime register records and approval records with Admin Security approval'
+    });
+  };
+
   const resetAttendanceData = () => {
     localStorage.removeItem(ATTENDANCE_STORAGE_KEY);
     localStorage.removeItem(CORRECTIONS_STORAGE_KEY);
@@ -696,6 +732,8 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
         rejectOvertime,
         getRecordsForEmployee,
         getApprovedOvertimeForEmployee,
+        clearAttendanceHistory,
+        clearOvertimeHistory,
         resetAttendanceData
       }}
     >

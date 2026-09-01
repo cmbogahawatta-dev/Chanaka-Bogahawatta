@@ -19,6 +19,7 @@ import { useLeave } from '../../context/LeaveContext';
 import { useStaff } from '../../context/StaffContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { LeaveRequest, LeaveType, LeaveStatus } from '../../types/leaveTypes';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 
 export const LeaveManagementView: React.FC = () => {
   const {
@@ -29,6 +30,7 @@ export const LeaveManagementView: React.FC = () => {
     respondCoverUp,
     processApprovalStep,
     withdrawLeaveRequest,
+    clearLeaveHistory,
     getLeaveBalances,
     getLeaveType
   } = useLeave();
@@ -134,13 +136,24 @@ export const LeaveManagementView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleOpenApplyModal}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow-sm transition-all self-start md:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          Apply for Leave
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <AdminClearHistoryButton
+            id="btn-admin-clear-leave-view"
+            moduleName="Leave Applications & Approvals"
+            itemCount={leaveRequests.length + coverUpRequests.length}
+            itemDescription="leave requests, cover-up nominations, and approval audit logs"
+            preservedItemsDescription="Configured leave types, entitlement structures, and staff accounts remain intact."
+            onClear={clearLeaveHistory}
+          />
+
+          <button
+            onClick={handleOpenApplyModal}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow-sm transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Apply for Leave
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}

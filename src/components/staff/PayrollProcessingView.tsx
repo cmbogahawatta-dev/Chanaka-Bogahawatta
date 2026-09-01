@@ -24,6 +24,7 @@ import { useStaff } from '../../context/StaffContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { PayrollEmployeeLine } from '../../types/payrollTypes';
 import { SalarySlipExporter } from '../../services/export/salarySlipExporter';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 
 export const PayrollProcessingView: React.FC = () => {
   const {
@@ -36,7 +37,8 @@ export const PayrollProcessingView: React.FC = () => {
     approveIndividualEmployee,
     bulkApproveEligibleEmployees,
     transitionBatchStatus,
-    lockBatch
+    lockBatch,
+    clearPayrollHistory
   } = usePayroll();
 
   const { staffMembers } = useStaff();
@@ -129,6 +131,15 @@ export const PayrollProcessingView: React.FC = () => {
             value={activeMonth}
             onChange={(e) => setActiveMonth(e.target.value)}
             className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 font-mono focus:outline-none"
+          />
+
+          <AdminClearHistoryButton
+            id="btn-admin-clear-payroll-view"
+            moduleName="Monthly Payroll Batches"
+            itemCount={payrollBatches.length}
+            itemDescription="payroll cycle batches, computed employee wage lines, and owner approvals"
+            preservedItemsDescription="Staff directory, basic salary structures, and statutory EPF/ETF rate settings remain intact."
+            onClear={clearPayrollHistory}
           />
 
           <button

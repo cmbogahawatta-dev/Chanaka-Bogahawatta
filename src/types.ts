@@ -312,6 +312,7 @@ export type AuditLogModule =
   | 'STAFF'
   | 'HR'
   | 'ATTENDANCE'
+  | 'OVERTIME'
   | 'LEAVE'
   | 'PAYROLL'
   | 'JIBBLE_SYNC'

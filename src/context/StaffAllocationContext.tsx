@@ -16,6 +16,7 @@ interface StaffAllocationContextType {
   endAllocation: (allocationId: string, endDate: string) => void;
   filterAllocations: (filter: Partial<StaffAllocationFilter>) => StaffAllocation[];
   resetAllocationsToDefault: () => void;
+  clearAllocationHistory: () => void;
 }
 
 const StaffAllocationContext = createContext<StaffAllocationContextType | undefined>(undefined);
@@ -209,6 +210,22 @@ export const StaffAllocationProvider: React.FC<{ children: ReactNode }> = ({ chi
     });
   };
 
+  const clearAllocationHistory = () => {
+    localStorage.removeItem(ALLOCATION_STORAGE_KEY);
+    setAllocations([]);
+
+    AuditService.log({
+      enterpriseId: 'ema-constructions-lk',
+      userId: 'admin',
+      userName: 'Administrator',
+      userRole: 'admin',
+      action: 'DELETE',
+      module: 'ALLOCATION',
+      recordId: 'ALL_ALLOCATIONS',
+      details: 'Cleared all staff project allocation history records with Admin Security approval'
+    });
+  };
+
   const resetAllocationsToDefault = () => {
     localStorage.removeItem(ALLOCATION_STORAGE_KEY);
     setAllocations([]);
@@ -224,7 +241,8 @@ export const StaffAllocationProvider: React.FC<{ children: ReactNode }> = ({ chi
         createAllocation,
         endAllocation,
         filterAllocations,
-        resetAllocationsToDefault
+        resetAllocationsToDefault,
+        clearAllocationHistory
       }}
     >
       {children}

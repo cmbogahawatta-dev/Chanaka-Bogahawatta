@@ -354,8 +354,15 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Preserving historical compatibility with existing petty cash float allocations
   const supervisors: Supervisor[] = useMemo(() => {
     const activeStaff = staffMembers.filter(m => m.status === 'Active');
+    const seenIds = new Set<string>();
 
-    return activeStaff.map(m => {
+    const uniqueStaff = activeStaff.filter(m => {
+      if (seenIds.has(m.id)) return false;
+      seenIds.add(m.id);
+      return true;
+    });
+
+    return uniqueStaff.map(m => {
       const assignedProjects = m.assignedProjectCodes && m.assignedProjectCodes.length > 0
         ? m.assignedProjectCodes
         : m.assignedProjectCode && m.assignedProjectCode !== 'HEAD_OFFICE'
@@ -370,7 +377,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       );
 
       return {
-        id: m.supervisorId || m.id,
+        id: m.id,
         staffId: m.id,
         employeeCode: m.employeeCode,
         SUPERVISOR_ID: m.supervisorId || m.employeeCode,
@@ -939,16 +946,25 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [projectBudgetSummaries]);
 
   const acknowledgeBudgetAlert = (alertId: string, supervisorName?: string) => {
-    setAcknowledgedAlertIds(prev => prev.includes(alertId) ? prev : [...prev, alertId]);
+    setAcknowledgedAlertIds(prev => {
+      const arr = Array.isArray(prev) ? prev : [];
+      return arr.includes(alertId) ? arr : [...arr, alertId];
+    });
   };
 
   const unacknowledgeBudgetAlert = (alertId: string) => {
-    setAcknowledgedAlertIds(prev => prev.filter(id => id !== alertId));
+    setAcknowledgedAlertIds(prev => {
+      const arr = Array.isArray(prev) ? prev : [];
+      return arr.filter(id => id !== alertId);
+    });
   };
 
   const clearAllBudgetAlerts = () => {
     const allAlertIds = budgetAlerts.map(a => a.id);
-    setAcknowledgedAlertIds(prev => Array.from(new Set([...prev, ...allAlertIds])));
+    setAcknowledgedAlertIds(prev => {
+      const arr = Array.isArray(prev) ? prev : [];
+      return Array.from(new Set([...arr, ...allAlertIds]));
+    });
   };
 
   const updateProjectBudget = (projectIdOrCode: string, newBudget: number) => {
@@ -1598,25 +1614,20 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setProjects(result.updatedProjects);
     if (result.updatedSupervisors) {
       setAllocations(prev => {
-        const next = [...prev];
+        const next = { ...(prev || {}) };
         result.updatedSupervisors.forEach(s => {
-          const idx = next.findIndex(a => a.employeeId === s.id || a.supervisorName.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase());
-          if (idx >= 0) {
-            next[idx] = { ...next[idx], openingBalance: s.OPENING_PETTY_CASH };
-          } else {
-            next.push({
-              employeeId: s.id,
-              supervisorName: s.SUPERVISOR_NAME,
-              openingBalance: s.OPENING_PETTY_CASH,
-              currentBalance: s.OPENING_PETTY_CASH
-            });
-          }
+          const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 0;
+          if (s.id) next[s.id] = opening;
+          if (s.SUPERVISOR_ID) next[s.SUPERVISOR_ID] = opening;
+          if (s.staffId) next[s.staffId] = opening;
+          if (s.employeeCode) next[s.employeeCode] = opening;
+          if (s.SUPERVISOR_NAME) next[s.SUPERVISOR_NAME.trim().toUpperCase()] = opening;
         });
         return next;
       });
     }
 
-    setImportBatches(prev => [result.batchRecord, ...prev]);
+    setImportBatches(prev => [result.batchRecord, ...(prev || [])]);
 
     return result.batchRecord;
   };
@@ -1653,24 +1664,19 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setProjects(result.updatedProjects);
     if (result.updatedSupervisors) {
       setAllocations(prev => {
-        const next = [...prev];
+        const next = { ...(prev || {}) };
         result.updatedSupervisors.forEach(s => {
-          const idx = next.findIndex(a => a.employeeId === s.id || a.supervisorName.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase());
-          if (idx >= 0) {
-            next[idx] = { ...next[idx], openingBalance: s.OPENING_PETTY_CASH };
-          } else {
-            next.push({
-              employeeId: s.id,
-              supervisorName: s.SUPERVISOR_NAME,
-              openingBalance: s.OPENING_PETTY_CASH,
-              currentBalance: s.OPENING_PETTY_CASH
-            });
-          }
+          const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 0;
+          if (s.id) next[s.id] = opening;
+          if (s.SUPERVISOR_ID) next[s.SUPERVISOR_ID] = opening;
+          if (s.staffId) next[s.staffId] = opening;
+          if (s.employeeCode) next[s.employeeCode] = opening;
+          if (s.SUPERVISOR_NAME) next[s.SUPERVISOR_NAME.trim().toUpperCase()] = opening;
         });
         return next;
       });
     }
-    setImportBatches(prev => [result.batchRecord, ...prev]);
+    setImportBatches(prev => [result.batchRecord, ...(prev || [])]);
 
     return {
       batchRecord: result.batchRecord,
@@ -1705,24 +1711,19 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     if (result.updatedSupervisors) {
       setAllocations(prev => {
-        const next = [...prev];
+        const next = { ...(prev || {}) };
         result.updatedSupervisors.forEach(s => {
-          const idx = next.findIndex(a => a.employeeId === s.id || a.supervisorName.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase());
-          if (idx >= 0) {
-            next[idx] = { ...next[idx], openingBalance: s.OPENING_PETTY_CASH };
-          } else {
-            next.push({
-              employeeId: s.id,
-              supervisorName: s.SUPERVISOR_NAME,
-              openingBalance: s.OPENING_PETTY_CASH,
-              currentBalance: s.OPENING_PETTY_CASH
-            });
-          }
+          const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 0;
+          if (s.id) next[s.id] = opening;
+          if (s.SUPERVISOR_ID) next[s.SUPERVISOR_ID] = opening;
+          if (s.staffId) next[s.staffId] = opening;
+          if (s.employeeCode) next[s.employeeCode] = opening;
+          if (s.SUPERVISOR_NAME) next[s.SUPERVISOR_NAME.trim().toUpperCase()] = opening;
         });
         return next;
       });
     }
-    setImportBatches(prev => [result.batchRecord, ...prev]);
+    setImportBatches(prev => [result.batchRecord, ...(prev || [])]);
 
     return {
       batchRecord: result.batchRecord,
@@ -1793,25 +1794,20 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIncome(result.updatedIncome);
     if (result.updatedSupervisors) {
       setAllocations(prev => {
-        const next = [...prev];
+        const next = { ...(prev || {}) };
         result.updatedSupervisors.forEach(s => {
-          const idx = next.findIndex(a => a.employeeId === s.id || a.supervisorName.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase());
-          if (idx >= 0) {
-            next[idx] = { ...next[idx], openingBalance: s.OPENING_PETTY_CASH };
-          } else {
-            next.push({
-              employeeId: s.id,
-              supervisorName: s.SUPERVISOR_NAME,
-              openingBalance: s.OPENING_PETTY_CASH,
-              currentBalance: s.OPENING_PETTY_CASH
-            });
-          }
+          const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 0;
+          if (s.id) next[s.id] = opening;
+          if (s.SUPERVISOR_ID) next[s.SUPERVISOR_ID] = opening;
+          if (s.staffId) next[s.staffId] = opening;
+          if (s.employeeCode) next[s.employeeCode] = opening;
+          if (s.SUPERVISOR_NAME) next[s.SUPERVISOR_NAME.trim().toUpperCase()] = opening;
         });
         return next;
       });
     }
     setProjects(result.updatedProjects);
-    setImportBatches(prev => [result.batchRecord, ...prev]);
+    setImportBatches(prev => [result.batchRecord, ...(prev || [])]);
 
     return {
       batchRecord: result.batchRecord,
@@ -1903,12 +1899,14 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setProjects(result.updatedProjects);
     if (result.updatedSupervisors) {
       setAllocations(prev => {
-        const next = [...prev];
+        const next = { ...(prev || {}) };
         result.updatedSupervisors.forEach(s => {
-          const idx = next.findIndex(a => a.employeeId === s.id || a.supervisorName.toUpperCase() === s.SUPERVISOR_NAME.toUpperCase());
-          if (idx >= 0) {
-            next[idx] = { ...next[idx], openingBalance: s.OPENING_PETTY_CASH };
-          }
+          const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 0;
+          if (s.id) next[s.id] = opening;
+          if (s.SUPERVISOR_ID) next[s.SUPERVISOR_ID] = opening;
+          if (s.staffId) next[s.staffId] = opening;
+          if (s.employeeCode) next[s.employeeCode] = opening;
+          if (s.SUPERVISOR_NAME) next[s.SUPERVISOR_NAME.trim().toUpperCase()] = opening;
         });
         return next;
       });

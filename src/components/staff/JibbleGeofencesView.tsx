@@ -396,9 +396,13 @@ export const JibbleGeofencesView: React.FC = () => {
                   onChange={(e) => setSimProject(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
                 >
-                  {projects.map(p => (
-                    <option key={p.code} value={p.code}>{p.code}</option>
-                  ))}
+                  {projects.map(p => {
+                    const code = p.PROJECT_CODE || (p as any).code || (p as any).project_code || p.id;
+                    const name = p.PROJECT_NAME || (p as any).name || code;
+                    return (
+                      <option key={p.id || code} value={code}>{code} - {name}</option>
+                    );
+                  })}
                   <option value="HEAD_OFFICE">HEAD_OFFICE</option>
                 </select>
               </div>
@@ -530,9 +534,13 @@ export const JibbleGeofencesView: React.FC = () => {
                     onChange={(e) => setNewGeofence({ ...newGeofence, projectId: e.target.value })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-200"
                   >
-                    {projects.map(p => (
-                      <option key={p.code} value={p.code}>{p.code}</option>
-                    ))}
+                    {projects.map(p => {
+                      const code = p.PROJECT_CODE || (p as any).code || (p as any).project_code || p.id;
+                      const name = p.PROJECT_NAME || (p as any).name || code;
+                      return (
+                        <option key={p.id || code} value={code}>{code} - {name}</option>
+                      );
+                    })}
                     <option value="HEAD_OFFICE">HEAD_OFFICE</option>
                   </select>
                 </div>

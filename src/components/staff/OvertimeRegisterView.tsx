@@ -15,13 +15,15 @@ import { useStaff } from '../../context/StaffContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { OvertimeRecord } from '../../types/overtimeTypes';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 
 export const OvertimeRegisterView: React.FC = () => {
   const {
     overtimeRecords,
     approveOvertimeBySupervisor,
     approveOvertimeByHr,
-    rejectOvertime
+    rejectOvertime,
+    clearOvertimeHistory
   } = useAttendance();
 
   const { staffMembers } = useStaff();
@@ -76,7 +78,15 @@ export const OvertimeRegisterView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <AdminClearHistoryButton
+            id="btn-admin-clear-overtime-view"
+            moduleName="Overtime Register"
+            itemCount={overtimeRecords.length}
+            itemDescription="overtime logs, supervisor/HR approvals, and calculated OT amounts"
+            preservedItemsDescription="Daily punch attendance records, base hourly rates, and staff profiles remain intact."
+            onClear={clearOvertimeHistory}
+          />
           <div className="px-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-lg text-xs">
             <span className="text-slate-400 mr-2">Total OT Hours:</span>
             <span className="font-bold text-amber-400">{totalOtHours.toFixed(1)} hrs</span>
@@ -131,9 +141,13 @@ export const OvertimeRegisterView: React.FC = () => {
           className="bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-3 py-1.5 focus:outline-none"
         >
           <option value="ALL">All Project Sites</option>
-          {projects.map(p => (
-            <option key={p.id} value={p.project_code || p.id}>{p.name} ({p.project_code || p.id})</option>
-          ))}
+          {projects.map(p => {
+            const code = p.PROJECT_CODE || (p as any).code || (p as any).project_code || p.id;
+            const name = p.PROJECT_NAME || (p as any).name || code;
+            return (
+              <option key={p.id || code} value={code}>{name} ({code})</option>
+            );
+          })}
         </select>
 
         <select

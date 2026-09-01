@@ -22,6 +22,7 @@ import { useStaff } from '../../context/StaffContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { AttendanceRecord, AttendanceStatus } from '../../types/attendanceTypes';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 
 export const AttendanceManagementView: React.FC = () => {
   const {
@@ -32,7 +33,8 @@ export const AttendanceManagementView: React.FC = () => {
     approveCorrection,
     rejectCorrection,
     approveAttendanceBySupervisor,
-    approveAttendanceByHr
+    approveAttendanceByHr,
+    clearAttendanceHistory
   } = useAttendance();
 
   const { staffMembers } = useStaff();
@@ -182,15 +184,26 @@ export const AttendanceManagementView: React.FC = () => {
           </p>
         </div>
 
-        {isSupervisorOrAbove && (
-          <button
-            onClick={handleOpenManualModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-sm transition-all self-start md:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            Manual Attendance Entry
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <AdminClearHistoryButton
+            id="btn-admin-clear-attendance-view"
+            moduleName="Time & Daily Attendance"
+            itemCount={attendanceRecords.length + correctionRequests.length}
+            itemDescription="biometric punch logs, manual entries, and missed punch correction requests"
+            preservedItemsDescription="Staff directory, project allocations, and leave configurations remain intact."
+            onClear={clearAttendanceHistory}
+          />
+
+          {isSupervisorOrAbove && (
+            <button
+              onClick={handleOpenManualModal}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-sm transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              Manual Attendance Entry
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Summary KPI Cards */}
@@ -272,9 +285,13 @@ export const AttendanceManagementView: React.FC = () => {
           className="bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-3 py-1.5 focus:outline-none"
         >
           <option value="ALL">All Projects</option>
-          {projects.map(p => (
-            <option key={p.code} value={p.code}>{p.code}</option>
-          ))}
+          {projects.map(p => {
+            const code = p.PROJECT_CODE || (p as any).code || (p as any).project_code || p.id;
+            const name = p.PROJECT_NAME || (p as any).name || code;
+            return (
+              <option key={p.id || code} value={code}>{code} - {name}</option>
+            );
+          })}
           <option value="HEAD_OFFICE">HEAD_OFFICE</option>
         </select>
 
@@ -528,9 +545,13 @@ export const AttendanceManagementView: React.FC = () => {
                     onChange={(e) => setManualForm({ ...manualForm, projectId: e.target.value })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-200"
                   >
-                    {projects.map(p => (
-                      <option key={p.code} value={p.code}>{p.code}</option>
-                    ))}
+                    {projects.map(p => {
+                      const code = p.PROJECT_CODE || (p as any).code || (p as any).project_code || p.id;
+                      const name = p.PROJECT_NAME || (p as any).name || code;
+                      return (
+                        <option key={p.id || code} value={code}>{code} - {name}</option>
+                      );
+                    })}
                     <option value="HEAD_OFFICE">HEAD_OFFICE</option>
                   </select>
                 </div>

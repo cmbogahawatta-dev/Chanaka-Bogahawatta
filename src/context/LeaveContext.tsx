@@ -52,6 +52,7 @@ interface LeaveContextType {
   ) => void;
 
   withdrawLeaveRequest: (leaveRequestId: string) => void;
+  clearLeaveHistory: () => void;
   resetLeaveData: () => void;
 }
 
@@ -466,6 +467,24 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     saveRequests(updated);
   };
 
+  const clearLeaveHistory = () => {
+    localStorage.removeItem(LEAVE_REQUESTS_KEY);
+    localStorage.removeItem(COVER_UP_KEY);
+    setLeaveRequests([]);
+    setCoverUpRequests([]);
+
+    AuditService.log({
+      enterpriseId: 'ema-constructions-lk',
+      userId: 'admin',
+      userName: 'Administrator',
+      userRole: 'admin',
+      action: 'DELETE',
+      module: 'LEAVE',
+      recordId: 'ALL_LEAVE',
+      details: 'Cleared all employee leave applications, cover-up requests, and approval histories with Admin Security approval'
+    });
+  };
+
   const resetLeaveData = () => {
     localStorage.removeItem(LEAVE_TYPES_KEY);
     localStorage.removeItem(LEAVE_REQUESTS_KEY);
@@ -487,6 +506,7 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         respondCoverUp,
         processApprovalStep,
         withdrawLeaveRequest,
+        clearLeaveHistory,
         resetLeaveData
       }}
     >
