@@ -287,37 +287,65 @@ export const EnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [procurementOrders, setProcurementOrders] = useState<ProcurementOrder[]>(() => {
     try {
       const saved = localStorage.getItem('ema_enterprise_procurement_v1');
-      return saved ? JSON.parse(saved) : INITIAL_PROCUREMENT;
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch {
-      return INITIAL_PROCUREMENT;
+      // fallback to initial
     }
+    try {
+      localStorage.setItem('ema_enterprise_procurement_v1', JSON.stringify(INITIAL_PROCUREMENT));
+    } catch {}
+    return INITIAL_PROCUREMENT;
   });
 
   const [paymentVouchers, setPaymentVouchers] = useState<PaymentVoucher[]>(() => {
     try {
       const saved = localStorage.getItem('ema_enterprise_payments_v1');
-      return saved ? JSON.parse(saved) : INITIAL_PAYMENTS;
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch {
-      return INITIAL_PAYMENTS;
+      // fallback to initial
     }
+    try {
+      localStorage.setItem('ema_enterprise_payments_v1', JSON.stringify(INITIAL_PAYMENTS));
+    } catch {}
+    return INITIAL_PAYMENTS;
   });
 
   const [documents, setDocuments] = useState<EnterpriseDocument[]>(() => {
     try {
       const saved = localStorage.getItem('ema_enterprise_documents_v1');
-      return saved ? JSON.parse(saved) : INITIAL_DOCUMENTS;
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch {
-      return INITIAL_DOCUMENTS;
+      // fallback to initial
     }
+    try {
+      localStorage.setItem('ema_enterprise_documents_v1', JSON.stringify(INITIAL_DOCUMENTS));
+    } catch {}
+    return INITIAL_DOCUMENTS;
   });
 
   const [notifications, setNotifications] = useState<EnterpriseNotification[]>(() => {
     try {
       const saved = localStorage.getItem('ema_enterprise_notifications_v1');
-      return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch {
-      return INITIAL_NOTIFICATIONS;
+      // fallback to initial
     }
+    try {
+      localStorage.setItem('ema_enterprise_notifications_v1', JSON.stringify(INITIAL_NOTIFICATIONS));
+    } catch {}
+    return INITIAL_NOTIFICATIONS;
   });
 
   // Save to localStorage
@@ -469,30 +497,37 @@ export const EnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Admin Clear and Reset operations
   const clearProcurementHistory = () => {
+    localStorage.setItem('ema_enterprise_procurement_v1', JSON.stringify([]));
     setProcurementOrders([]);
   };
 
   const clearPaymentsHistory = () => {
+    localStorage.setItem('ema_enterprise_payments_v1', JSON.stringify([]));
     setPaymentVouchers([]);
   };
 
   const clearDocumentsHistory = () => {
+    localStorage.setItem('ema_enterprise_documents_v1', JSON.stringify([]));
     setDocuments([]);
   };
 
   const clearNotificationsHistory = () => {
+    localStorage.setItem('ema_enterprise_notifications_v1', JSON.stringify([]));
     setNotifications([]);
   };
 
   const resetProcurementData = () => {
+    localStorage.setItem('ema_enterprise_procurement_v1', JSON.stringify(INITIAL_PROCUREMENT));
     setProcurementOrders(INITIAL_PROCUREMENT);
   };
 
   const resetPaymentsData = () => {
+    localStorage.setItem('ema_enterprise_payments_v1', JSON.stringify(INITIAL_PAYMENTS));
     setPaymentVouchers(INITIAL_PAYMENTS);
   };
 
   const resetDocumentsData = () => {
+    localStorage.setItem('ema_enterprise_documents_v1', JSON.stringify(INITIAL_DOCUMENTS));
     setDocuments(INITIAL_DOCUMENTS);
   };
 

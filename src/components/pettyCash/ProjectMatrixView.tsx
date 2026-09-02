@@ -48,8 +48,9 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
   // Bulk Import Project Modal State
   const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
 
-  // Add Project Modal State
+  // Add / Edit Project Modal State
   const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState<boolean>(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [newProjectCode, setNewProjectCode] = useState<string>('');
   const [newProjectName, setNewProjectName] = useState<string>('');
   const [newProjectClient, setNewProjectClient] = useState<string>('');
@@ -64,19 +65,60 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
     }).format(amount).replace('LKR', 'LKR ');
   };
 
+  const handleOpenAddProject = () => {
+    setEditingProjectId(null);
+    setNewProjectCode('');
+    setNewProjectName('');
+    setNewProjectClient('');
+    setNewProjectBudget('');
+    setNewProjectLocation('');
+    setIsAddProjectModalOpen(true);
+  };
+
+  const handleOpenEditProject = (p: Project) => {
+    setEditingProjectId(p.id);
+    setNewProjectCode(p.PROJECT_CODE);
+    setNewProjectName(p.PROJECT_NAME);
+    setNewProjectClient(p.CLIENT_NAME || p.CLIENT || '');
+    setNewProjectBudget(p.BUDGET?.toString() || p.budget?.toString() || '');
+    setNewProjectLocation(p.LOCATION || '');
+    setIsAddProjectModalOpen(true);
+  };
+
+  const handleDeleteProjectEntry = (p: Project) => {
+    if (window.confirm(`Are you sure you want to permanently delete Project "${p.PROJECT_CODE} - ${p.PROJECT_NAME}"?\n\nThis action will remove it from the directory.`)) {
+      deleteProject(p.id);
+    }
+  };
+
   const handleAddProjectSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectCode.trim() || !newProjectName.trim()) return;
 
-    addProject({
-      PROJECT_CODE: newProjectCode.trim().toUpperCase(),
-      PROJECT_NAME: newProjectName.trim(),
-      CLIENT_NAME: newProjectClient.trim() || 'RDA / Provincial Road Authority',
-      BUDGET: parseFloat(newProjectBudget) || 0,
-      LOCATION: newProjectLocation.trim() || 'Sri Lanka',
-      STATUS: 'Active'
-    });
+    if (editingProjectId) {
+      updateProject(editingProjectId, {
+        PROJECT_CODE: newProjectCode.trim().toUpperCase(),
+        PROJECT_NAME: newProjectName.trim(),
+        CLIENT_NAME: newProjectClient.trim() || 'RDA / Provincial Road Authority',
+        CLIENT: newProjectClient.trim() || 'RDA / Provincial Road Authority',
+        BUDGET: parseFloat(newProjectBudget) || 0,
+        budget: parseFloat(newProjectBudget) || 0,
+        LOCATION: newProjectLocation.trim() || 'Sri Lanka',
+      });
+    } else {
+      addProject({
+        PROJECT_CODE: newProjectCode.trim().toUpperCase(),
+        PROJECT_NAME: newProjectName.trim(),
+        CLIENT_NAME: newProjectClient.trim() || 'RDA / Provincial Road Authority',
+        CLIENT: newProjectClient.trim() || 'RDA / Provincial Road Authority',
+        BUDGET: parseFloat(newProjectBudget) || 0,
+        budget: parseFloat(newProjectBudget) || 0,
+        LOCATION: newProjectLocation.trim() || 'Sri Lanka',
+        STATUS: 'Active'
+      });
+    }
 
+    setEditingProjectId(null);
     setNewProjectCode('');
     setNewProjectName('');
     setNewProjectClient('');
@@ -393,7 +435,7 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
 
             {(userRole === 'ADMIN' || userRole === 'FINANCE') && (
               <button
-                onClick={() => setIsAddProjectModalOpen(true)}
+                onClick={handleOpenAddProject}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all active:scale-95"
               >
                 <PlusCircle className="w-4 h-4" />
@@ -414,12 +456,13 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
                 <th className="py-2.5 px-3 text-right">Budget (LKR)</th>
                 <th className="py-2.5 px-3 text-right">Actual Spent</th>
                 <th className="py-2.5 px-3 text-center">Status</th>
+                <th className="py-2.5 px-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
               {projects.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                  <td colSpan={8} className="py-12 text-center text-slate-500">
                     <Building className="w-10 h-10 mx-auto mb-2 opacity-30 text-slate-400" />
                     <p className="font-semibold text-slate-400 text-sm">Project Directory is Empty</p>
                     <p className="text-[11px] text-slate-600 mt-1 mb-4">Click "Add Project" to register projects manually, or import bulk records from Excel / CSV.</p>
@@ -432,7 +475,7 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
                         Bulk Import Projects
                       </button>
                       <button
-                        onClick={() => setIsAddProjectModalOpen(true)}
+                        onClick={handleOpenAddProject}
                         className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-md"
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
@@ -448,10 +491,10 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
                     <tr key={p.id} className="hover:bg-slate-800/40">
                       <td className="py-2.5 px-3 font-mono font-bold text-emerald-400">{p.PROJECT_CODE}</td>
                       <td className="py-2.5 px-3 font-semibold text-slate-100">{p.PROJECT_NAME}</td>
-                      <td className="py-2.5 px-3 text-slate-300">{p.CLIENT_NAME || 'RDA'}</td>
+                      <td className="py-2.5 px-3 text-slate-300">{p.CLIENT_NAME || p.CLIENT || 'RDA'}</td>
                       <td className="py-2.5 px-3 text-slate-400">{p.LOCATION || 'Sri Lanka'}</td>
                       <td className="py-2.5 px-3 text-right font-mono text-slate-300">
-                        {p.BUDGET ? formatLKR(p.BUDGET) : 'Open'}
+                        {p.BUDGET || p.budget ? formatLKR(p.BUDGET || p.budget || 0) : 'Open'}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-100">
                         {formatLKR(spent)}
@@ -460,6 +503,24 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
                           {p.STATUS}
                         </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => handleOpenEditProject(p)}
+                            title="Edit Project Details"
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-purple-300 transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProjectEntry(p)}
+                            title="Delete Project Entry"
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/80 text-slate-400 hover:text-rose-400 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -470,11 +531,13 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
         </div>
       </div>
 
-      {/* Add Project Modal */}
+      {/* Add / Edit Project Modal */}
       {isAddProjectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
-            <h4 className="text-base font-bold text-slate-100">Add New Project Master</h4>
+            <h4 className="text-base font-bold text-slate-100">
+              {editingProjectId ? 'Edit Project Details' : 'Add New Project Master'}
+            </h4>
             <form onSubmit={handleAddProjectSubmit} className="space-y-3 text-xs">
               <div>
                 <label className="block text-slate-300 font-bold mb-1">Project Code *</label>
@@ -530,7 +593,7 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
                   type="submit"
                   className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
                 >
-                  Save Project
+                  {editingProjectId ? 'Update Project' : 'Save Project'}
                 </button>
               </div>
             </form>

@@ -162,7 +162,7 @@ interface FleetContextType {
   // Bulk Import Actions
   bulkImportVehicles: (imported: Partial<Vehicle>[]) => { count: number; batchId: string };
   bulkImportDrivers: (imported: Partial<Driver>[]) => { count: number; batchId: string };
-  bulkImportRunningCharts: (imported: Partial<RunningChart>[]) => { count: number; batchId: string };
+  bulkImportRunningCharts: (imported: Partial<RunningChartEntry>[]) => { count: number; batchId: string };
   bulkImportFuelRecords: (imported: Partial<FuelRecord>[]) => { count: number; batchId: string };
   bulkImportMaintenanceLogs: (imported: Partial<MaintenanceLog>[]) => { count: number; batchId: string };
   bulkImportTransfers: (imported: Partial<VehicleTransfer>[]) => { count: number; batchId: string };
@@ -249,38 +249,101 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Fleet Assets & Records (Raw storage arrays across all enterprises)
   const [rawVehicles, setRawVehicles] = useState<Vehicle[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.VEHICLES);
-    return saved ? JSON.parse(saved) : initialVehicles;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.VEHICLES);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify(initialVehicles));
+    } catch {}
+    return initialVehicles;
   });
 
   const [rawDrivers, setRawDrivers] = useState<Driver[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.DRIVERS);
-    return saved ? JSON.parse(saved) : initialDrivers;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.DRIVERS);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify(initialDrivers));
+    } catch {}
+    return initialDrivers;
   });
 
   const [rawRunningCharts, setRawRunningCharts] = useState<RunningChartEntry[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.RUNNING_CHARTS);
-    return saved ? JSON.parse(saved) : initialRunningCharts;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.RUNNING_CHARTS);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEYS.RUNNING_CHARTS, JSON.stringify(initialRunningCharts));
+    } catch {}
+    return initialRunningCharts;
   });
 
   const [rawFuelRecords, setRawFuelRecords] = useState<FuelRecord[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.FUEL_RECORDS);
-    return saved ? JSON.parse(saved) : initialFuelRecords;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.FUEL_RECORDS);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEYS.FUEL_RECORDS, JSON.stringify(initialFuelRecords));
+    } catch {}
+    return initialFuelRecords;
   });
 
   const [rawServiceSchedules, setRawServiceSchedules] = useState<ServiceSchedule[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.SERVICE_SCHEDULES);
-    return saved ? JSON.parse(saved) : initialServiceSchedules;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.SERVICE_SCHEDULES);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEYS.SERVICE_SCHEDULES, JSON.stringify(initialServiceSchedules));
+    } catch {}
+    return initialServiceSchedules;
   });
 
   const [rawMaintenanceLogs, setRawMaintenanceLogs] = useState<MaintenanceLog[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.MAINTENANCE_LOGS);
-    return saved ? JSON.parse(saved) : initialMaintenanceLogs;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.MAINTENANCE_LOGS);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEYS.MAINTENANCE_LOGS, JSON.stringify(initialMaintenanceLogs));
+    } catch {}
+    return initialMaintenanceLogs;
   });
 
   const [rawTransfers, setRawTransfers] = useState<VehicleTransfer[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.TRANSFERS);
-    return saved ? JSON.parse(saved) : initialTransfers;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.TRANSFERS);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(initialTransfers));
+    } catch {}
+    return initialTransfers;
   });
 
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | 'all'>(() => {
@@ -1386,15 +1449,15 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       make: v.make || 'Toyota',
       model: v.model || 'Hilux',
       year: v.year || new Date().getFullYear(),
-      type: v.type || 'pickup',
-      fuelType: v.fuelType || 'diesel',
+      type: v.type || 'Pickup',
+      fuelType: v.fuelType || 'Diesel',
       tankCapacityLiters: Number(v.tankCapacityLiters) || 75,
-      currentOdometer: Number(v.currentOdometer) || 0,
+      currentOdometerKm: Number(v.currentOdometerKm || (v as any).currentOdometer) || 0,
+      currentDriverId: v.currentDriverId || '',
       department: v.department || 'Operations',
       status: v.status || 'active',
       insuranceExpiryDate: v.insuranceExpiryDate || new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
-      revenueLicenseExpiryDate: v.revenueLicenseExpiryDate || new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
-      currentDriverId: v.currentDriverId
+      revenueLicenseExpiryDate: v.revenueLicenseExpiryDate || new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10)
     }));
 
     setRawVehicles(prev => {
@@ -1433,8 +1496,10 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       phone: d.phone || '+94 77 000 0000',
       email: d.email || `${(d.name || 'driver').toLowerCase().replace(/\s+/g, '')}@emagroup.lk`,
       licenseNumber: d.licenseNumber || `B${Date.now().toString().slice(-7)}`,
+      licenseClasses: d.licenseClasses || 'Light Vehicles, Heavy, Auto',
       licenseExpiryDate: d.licenseExpiryDate || new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
-      medicalExpiryDate: d.medicalExpiryDate || new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10),
+      emergencyContact: d.emergencyContact || '+94 77 111 2222',
+      joinedDate: d.joinedDate || new Date().toISOString().slice(0, 10),
       department: d.department || 'Operations',
       status: d.status || 'active',
       assignedVehicleId: d.assignedVehicleId
@@ -1468,22 +1533,29 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { count: newItems.length, batchId };
   };
 
-  const bulkImportRunningCharts = (imported: Partial<RunningChart>[]): { count: number; batchId: string } => {
+  const bulkImportRunningCharts = (imported: Partial<RunningChartEntry>[]): { count: number; batchId: string } => {
     const batchId = `BATCH-RC-${Date.now().toString().slice(-6)}`;
-    const newItems: RunningChart[] = imported.map((r, i) => ({
-      id: r.id || `rc-imp-${Date.now()}-${i}`,
-      vehicleId: r.vehicleId || vehicles[0]?.id || 'veh-1',
-      driverId: r.driverId || drivers[0]?.id || 'drv-1',
-      date: r.date || new Date().toISOString().slice(0, 10),
-      startKm: Number(r.startKm) || 0,
-      endKm: Number(r.endKm) || Number(r.startKm || 0) + 10,
-      distanceKm: Number(r.distanceKm) || Math.max(0, (Number(r.endKm) || 0) - (Number(r.startKm) || 0)),
-      purpose: r.purpose || 'Site Inspection & Transport',
-      route: r.route || 'Head Office to Site',
-      projectCode: r.projectCode || 'PIDM 26',
-      supervisorName: r.supervisorName || 'BUDDIKA',
-      status: r.status || 'completed'
-    }));
+    const newItems: RunningChartEntry[] = imported.map((r, i) => {
+      const startKm = Number(r.startOdometerKm || (r as any).startKm) || 0;
+      const endKm = Number(r.endOdometerKm || (r as any).endKm) || startKm + 10;
+      return {
+        id: r.id || `rc-imp-${Date.now()}-${i}`,
+        vehicleId: r.vehicleId || vehicles[0]?.id || 'veh-1',
+        driverId: r.driverId || drivers[0]?.id || 'drv-1',
+        date: r.date || new Date().toISOString().slice(0, 10),
+        startTime: r.startTime || '08:00',
+        endTime: r.endTime || '17:00',
+        purpose: r.purpose || 'Site Visit to Factory',
+        startLocation: r.startLocation || 'Head Office',
+        endLocation: r.endLocation || 'Project Site',
+        startOdometerKm: startKm,
+        endOdometerKm: endKm,
+        distanceKm: Number(r.distanceKm) || Math.max(0, endKm - startKm),
+        status: r.status || 'completed',
+        remarks: r.remarks,
+        createdAt: new Date().toISOString()
+      };
+    });
 
     setRawRunningCharts(prev => {
       const merged = [...newItems, ...prev];
@@ -1493,7 +1565,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     logAuditAction({
       action: 'CREATE',
-      module: 'RUNNING_CHART',
+      module: 'RUNNING_CHARTS',
       recordId: batchId,
       recordTitle: `Bulk Import Trips (${newItems.length} records)`,
       details: `Imported ${newItems.length} running chart trips via batch ${batchId}.`
@@ -1504,19 +1576,27 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const bulkImportFuelRecords = (imported: Partial<FuelRecord>[]): { count: number; batchId: string } => {
     const batchId = `BATCH-FUEL-${Date.now().toString().slice(-6)}`;
-    const newItems: FuelRecord[] = imported.map((f, i) => ({
-      id: f.id || `fuel-imp-${Date.now()}-${i}`,
-      vehicleId: f.vehicleId || vehicles[0]?.id || 'veh-1',
-      driverId: f.driverId || drivers[0]?.id || 'drv-1',
-      date: f.date || new Date().toISOString().slice(0, 10),
-      liters: Number(f.liters) || 30,
-      cost: Number(f.cost) || 12000,
-      fuelStation: f.fuelStation || 'Ceypetco Fuel Station',
-      receiptNumber: f.receiptNumber || `RCP-${Date.now().toString().slice(-6)}-${i}`,
-      odometerReading: Number(f.odometerReading) || 0,
-      fullTank: f.fullTank !== false,
-      fuelType: f.fuelType || 'diesel'
-    }));
+    const newItems: FuelRecord[] = imported.map((f, i) => {
+      const liters = Number(f.liters) || 30;
+      const totalCost = Number(f.totalCost || (f as any).cost) || 12000;
+      const pricePerLiter = Number(f.pricePerLiter) || (liters > 0 ? totalCost / liters : 400);
+      return {
+        id: f.id || `fuel-imp-${Date.now()}-${i}`,
+        vehicleId: f.vehicleId || vehicles[0]?.id || 'veh-1',
+        driverId: f.driverId || drivers[0]?.id || 'drv-1',
+        date: f.date || new Date().toISOString().slice(0, 10),
+        time: f.time || '09:00',
+        odometerKm: Number(f.odometerKm || (f as any).odometerReading) || 0,
+        fuelType: f.fuelType || 'Diesel',
+        liters,
+        pricePerLiter,
+        totalCost,
+        stationName: f.stationName || (f as any).fuelStation || 'Ceypetco Fuel Station',
+        isFullTank: f.isFullTank !== undefined ? f.isFullTank : (f as any).fullTank !== false,
+        invoiceNumber: f.invoiceNumber || (f as any).receiptNumber || `RCP-${Date.now().toString().slice(-6)}-${i}`,
+        createdAt: new Date().toISOString()
+      };
+    });
 
     setRawFuelRecords(prev => {
       const merged = [...newItems, ...prev];
@@ -1540,14 +1620,14 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newItems: MaintenanceLog[] = imported.map((m, i) => ({
       id: m.id || `maint-imp-${Date.now()}-${i}`,
       vehicleId: m.vehicleId || vehicles[0]?.id || 'veh-1',
-      date: m.date || new Date().toISOString().slice(0, 10),
       serviceType: m.serviceType || 'Engine Oil & Filter Service',
-      serviceCenter: m.serviceCenter || 'Toyota Lanka Authorized Center',
+      completedDate: m.completedDate || (m as any).date || new Date().toISOString().slice(0, 10),
+      odometerKm: Number(m.odometerKm || (m as any).odometerAtService) || 0,
+      performedBy: m.performedBy || (m as any).serviceCenter || 'Toyota Lanka Authorized Center',
       cost: Number(m.cost) || 28500,
-      odometerAtService: Number(m.odometerAtService) || 0,
       invoiceNumber: m.invoiceNumber || `INV-SRV-${Date.now().toString().slice(-5)}-${i}`,
-      description: m.description || 'Routine 5,000km periodic maintenance service',
-      nextServiceKm: Number(m.nextServiceKm) || (Number(m.odometerAtService) || 0) + 5000
+      notes: m.notes || (m as any).description || 'Routine periodic maintenance service',
+      createdAt: new Date().toISOString()
     }));
 
     setRawMaintenanceLogs(prev => {
@@ -1575,10 +1655,33 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       fromDriverId: t.fromDriverId || drivers[0]?.id || 'drv-1',
       toDriverId: t.toDriverId || drivers[1]?.id || 'drv-2',
       transferDate: t.transferDate || new Date().toISOString().slice(0, 10),
-      odometerAtTransfer: Number(t.odometerAtTransfer) || 0,
-      reason: t.reason || 'Project Site Re-allocation & Driver Handover',
-      fuelLevel: (t.fuelLevel as any) || '3/4',
-      status: (t.status as any) || 'accepted'
+      transferTime: t.transferTime || '10:00',
+      handoverLocation: t.handoverLocation || 'Head Office Depot',
+      odometerAtTransferKm: Number(t.odometerAtTransferKm || (t as any).odometerAtTransfer) || 0,
+      fuelLevelPercent: Number(t.fuelLevelPercent) || 75,
+      conditionChecklist: t.conditionChecklist || {
+        exteriorBody: 'Good',
+        windshieldAndMirrors: 'Good',
+        tiresAndTread: 'Good (Healthy)',
+        interiorCleanliness: 'Clean',
+        acAndElectronics: 'Working',
+        warningLightsOnDashboard: false,
+        spareWheelAndJack: true,
+        toolKitPresent: true,
+        fireExtinguisher: true,
+        firstAidKit: true,
+        vehicleRegistrationBookPresent: true,
+        insuranceCardPresent: true,
+        companyFuelCardPresent: true
+      },
+      inspectionNotes: t.inspectionNotes || 'Transfer inspection completed without issues',
+      releasingDriverSigned: t.releasingDriverSigned !== false,
+      receivingDriverSigned: t.receivingDriverSigned !== false,
+      releasingDriverSignName: t.releasingDriverSignName || 'Releasing Driver',
+      receivingDriverSignName: t.receivingDriverSignName || 'Receiving Driver',
+      transferReason: t.transferReason || (t as any).reason || 'Project Site Re-allocation & Driver Handover',
+      status: t.status || 'completed',
+      createdAt: new Date().toISOString()
     }));
 
     setRawTransfers(prev => {

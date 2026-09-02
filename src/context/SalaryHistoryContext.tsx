@@ -1,15 +1,53 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import {
   SalaryHistoryEntry,
   PayrollRateSettings,
   SalaryComponent
 } from '../types/salaryHistoryTypes';
 import { initialPayrollRateSettings } from '../data/hrInitialData';
+import { initialStaffMembers } from '../data/staffData';
 import { useStaff } from './StaffContext';
 import { AuditService } from '../services/audit/auditService';
 
 const SALARY_HISTORY_KEY = 'ema_salary_history_v1';
 const PAYROLL_RATES_KEY = 'ema_payroll_rates_v1';
+
+const generateInitialSalaryHistory = (staff: any[], rates: PayrollRateSettings): SalaryHistoryEntry[] => {
+  return staff.map((member, idx) => {
+    const basic = member.salaryStructure?.basicSalary || (member.role === 'PROJECT_MANAGER' ? 175000 : member.role === 'SITE_ENGINEER' ? 120000 : 75000);
+    const allowances = (member.salaryStructure?.siteAllowance || 0) + (member.salaryStructure?.transportAllowance || 0) + (member.salaryStructure?.phoneAllowance || 0) || (member.role === 'PROJECT_MANAGER' ? 35000 : 15000);
+
+    const earnings: SalaryComponent[] = [
+      { id: `comp-b-${idx}`, label: 'Basic Salary', amount: basic, type: 'EARNING', code: 'BASIC', isStatutory: true },
+      { id: `comp-a-${idx}`, label: 'Site & Travel Allowance', amount: allowances, type: 'EARNING', code: 'SITE_ALLOWANCE' }
+    ];
+
+    const epfEe = Math.round(basic * rates.epfEmployeeRate);
+    const deductions: SalaryComponent[] = [
+      { id: `comp-d-${idx}`, label: 'EPF Employee (8%)', amount: epfEe, type: 'DEDUCTION', code: 'EPF_EE', isStatutory: true }
+    ];
+
+    return {
+      id: `sal-init-${member.id}`,
+      employeeId: member.id,
+      effectiveFrom: member.joinedDate || '2026-01-01',
+      effectiveTo: undefined,
+      basicSalary: basic,
+      earnings,
+      deductions,
+      epfEligible: member.epfEligible ?? true,
+      etfEligible: member.etfEligible ?? true,
+      otEligible: member.otEligible ?? (member.role === 'SUPERVISOR' || member.role === 'FOREMAN' || member.role === 'STOREKEEPER' || member.role === 'SITE_ENGINEER'),
+      bankName: member.salaryStructure?.bankName || member.bankName || 'Commercial Bank of Ceylon',
+      bankBranch: member.salaryStructure?.bankBranch || 'Kollupitiya',
+      bankAccountNo: member.salaryStructure?.accountNumber || member.bankAccountNo || '8004592014',
+      paymentMode: member.salaryStructure?.paymentMode || 'Bank Transfer',
+      remarks: 'Initial employment salary baseline',
+      createdAt: '2026-01-01T00:00:00Z',
+      createdBy: 'HR_SYSTEM'
+    };
+  });
+};
 
 interface SalaryHistoryContextType {
   salaryHistory: SalaryHistoryEntry[];
@@ -32,9 +70,17 @@ export const SalaryHistoryProvider: React.FC<{ children: ReactNode }> = ({ child
   const [payrollRates, setPayrollRates] = useState<PayrollRateSettings>(() => {
     try {
       const saved = localStorage.getItem(PAYROLL_RATES_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
     } catch (e) {
       console.error('Error loading payroll rates:', e);
+    }
+    try {
+      localStorage.setItem(PAYROLL_RATES_KEY, JSON.stringify(initialPayrollRateSettings));
+    } catch (e) {
+      console.error('Failed to seed payroll rates:', e);
     }
     return initialPayrollRateSettings;
   });
@@ -42,62 +88,21 @@ export const SalaryHistoryProvider: React.FC<{ children: ReactNode }> = ({ child
   const [salaryHistory, setSalaryHistory] = useState<SalaryHistoryEntry[]>(() => {
     try {
       const saved = localStorage.getItem(SALARY_HISTORY_KEY);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.error('Error loading salary history:', e);
     }
-    return [];
-  });
-
-  // Seed baseline salary history from staff directory if empty
-  useEffect(() => {
-    if (salaryHistory.length === 0 && staffMembers.length > 0) {
-      const initial: SalaryHistoryEntry[] = staffMembers.map((member, idx) => {
-        const basic = member.salaryStructure?.basicSalary || (member.role === 'PROJECT_MANAGER' ? 175000 : member.role === 'SITE_ENGINEER' ? 120000 : 75000);
-        const allowances = (member.salaryStructure?.siteAllowance || 0) + (member.salaryStructure?.transportAllowance || 0) + (member.salaryStructure?.phoneAllowance || 0) || (member.role === 'PROJECT_MANAGER' ? 35000 : 15000);
-
-        const earnings: SalaryComponent[] = [
-          { id: `comp-b-${idx}`, label: 'Basic Salary', amount: basic, type: 'EARNING', code: 'BASIC', isStatutory: true },
-          { id: `comp-a-${idx}`, label: 'Site & Travel Allowance', amount: allowances, type: 'EARNING', code: 'SITE_ALLOWANCE' }
-        ];
-
-        const epfEe = Math.round(basic * payrollRates.epfEmployeeRate);
-        const deductions: SalaryComponent[] = [
-          { id: `comp-d-${idx}`, label: 'EPF Employee (8%)', amount: epfEe, type: 'DEDUCTION', code: 'EPF_EE', isStatutory: true }
-        ];
-
-        return {
-          id: `sal-init-${member.id}`,
-          employeeId: member.id,
-          effectiveFrom: member.joinedDate || '2026-01-01',
-          effectiveTo: undefined,
-          basicSalary: basic,
-          earnings,
-          deductions,
-          epfEligible: member.epfEligible ?? true,
-          etfEligible: member.etfEligible ?? true,
-          otEligible: member.otEligible ?? (member.role === 'SUPERVISOR' || member.role === 'FOREMAN' || member.role === 'STOREKEEPER' || member.role === 'SITE_ENGINEER'),
-          bankName: member.salaryStructure?.bankName || member.bankName || 'Commercial Bank of Ceylon',
-          bankBranch: member.salaryStructure?.bankBranch || 'Kollupitiya',
-          bankAccountNo: member.salaryStructure?.accountNumber || member.bankAccountNo || '8004592014',
-          paymentMode: member.salaryStructure?.paymentMode || 'Bank Transfer',
-          remarks: 'Initial employment salary baseline',
-          createdAt: new Date().toISOString(),
-          createdBy: 'HR_SYSTEM'
-        };
-      });
-
-      setSalaryHistory(initial);
-      try {
-        localStorage.setItem(SALARY_HISTORY_KEY, JSON.stringify(initial));
-      } catch (e) {
-        console.error('Failed to seed salary history:', e);
-      }
+    const initial = generateInitialSalaryHistory(initialStaffMembers, initialPayrollRateSettings);
+    try {
+      localStorage.setItem(SALARY_HISTORY_KEY, JSON.stringify(initial));
+    } catch (e) {
+      console.error('Failed to seed salary history:', e);
     }
-  }, [staffMembers, salaryHistory.length, payrollRates]);
+    return initial;
+  });
 
   const saveHistory = (newHistory: SalaryHistoryEntry[]) => {
     setSalaryHistory(newHistory);
@@ -201,9 +206,14 @@ export const SalaryHistoryProvider: React.FC<{ children: ReactNode }> = ({ child
   };
 
   const resetSalaryHistory = () => {
-    localStorage.removeItem(SALARY_HISTORY_KEY);
-    localStorage.removeItem(PAYROLL_RATES_KEY);
-    setSalaryHistory([]);
+    const initial = generateInitialSalaryHistory(staffMembers.length > 0 ? staffMembers : initialStaffMembers, initialPayrollRateSettings);
+    try {
+      localStorage.setItem(SALARY_HISTORY_KEY, JSON.stringify(initial));
+      localStorage.setItem(PAYROLL_RATES_KEY, JSON.stringify(initialPayrollRateSettings));
+    } catch (e) {
+      console.error('Failed to reset salary history:', e);
+    }
+    setSalaryHistory(initial);
     setPayrollRates(initialPayrollRateSettings);
   };
 

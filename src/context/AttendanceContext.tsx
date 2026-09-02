@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import {
   AttendanceRecord,
   AttendanceCorrectionRequest,
@@ -7,11 +7,122 @@ import {
 import { OvertimeRecord } from '../types/overtimeTypes';
 import { useStaff } from './StaffContext';
 import { useStaffAllocation } from './StaffAllocationContext';
+import { initialStaffMembers } from '../data/staffData';
 import { AuditService } from '../services/audit/auditService';
 
 const ATTENDANCE_STORAGE_KEY = 'ema_attendance_records_v1';
 const CORRECTIONS_STORAGE_KEY = 'ema_attendance_corrections_v1';
 const OVERTIME_STORAGE_KEY = 'ema_overtime_records_v1';
+
+// Helper to compute hours between two HH:mm strings
+function calculateHours(punchIn?: string, punchOut?: string): { workingHours: number; regularHours: number; otHours: number } {
+  if (!punchIn || !punchOut) return { workingHours: 0, regularHours: 0, otHours: 0 };
+  const [inH, inM] = punchIn.split(':').map(Number);
+  const [outH, outM] = punchOut.split(':').map(Number);
+  const totalMinutes = (outH * 60 + outM) - (inH * 60 + inM);
+  if (totalMinutes <= 0) return { workingHours: 0, regularHours: 0, otHours: 0 };
+  const workingHours = Math.round((totalMinutes / 60) * 10) / 10;
+  const regularHours = Math.min(8.0, workingHours);
+  const otHours = Math.max(0, Math.round((workingHours - 8.0) * 10) / 10);
+  return { workingHours, regularHours, otHours };
+}
+
+const generateInitialAttendanceData = (staff: any[]): { attendance: AttendanceRecord[]; overtime: OvertimeRecord[] } => {
+  const seededAttendance: AttendanceRecord[] = [];
+  const seededOt: OvertimeRecord[] = [];
+
+  const dates = [
+    '2026-08-17',
+    '2026-08-18',
+    '2026-08-19',
+    '2026-08-20',
+    '2026-08-21',
+    '2026-08-24',
+    '2026-08-25',
+    '2026-08-26',
+    '2026-08-27',
+    '2026-08-28'
+  ];
+
+  let recIdx = 1;
+  let otIdx = 1;
+
+  staff.slice(0, 10).forEach(emp => {
+    dates.forEach(date => {
+      const isLate = ((recIdx * 7) % 10) === 0;
+      const punchIn = isLate ? '08:45:00' : '08:00:00';
+      const hasOt = ((recIdx * 3) % 10) < 4;
+      const punchOut = hasOt ? '19:30:00' : '17:00:00';
+      const { workingHours, regularHours, otHours } = calculateHours(punchIn, punchOut);
+
+      const attId = `ATT-2026-${recIdx.toString().padStart(4, '0')}`;
+      const attRecordId = `att-seed-${recIdx}`;
+
+      const newAtt: AttendanceRecord = {
+        id: attRecordId,
+        attendanceId: attId,
+        employeeId: emp.id,
+        projectId: emp.assignedProjectCode || 'PIDM 26',
+        allocationId: `alloc-${emp.id}`,
+        recordSource: 'JIBBLE',
+        date,
+        punchIn,
+        punchOut,
+        checkInLat: 6.9271,
+        checkInLng: 79.8612,
+        checkOutLat: 6.9271,
+        checkOutLng: 79.8612,
+        gpsAccuracy: 6,
+        geofenceStatus: 'INSIDE',
+        faceVerificationStatus: 'PASSED',
+        jibbleMemberId: emp.jibbleMemberId || `jbl-${emp.employeeCode}`,
+        jibbleTimeEntryId: `jbl-time-${emp.id}-${date}`,
+        workingHours,
+        regularHours,
+        otHours,
+        status: isLate ? 'Late' : 'Present',
+        syncStatus: 'SYNCED',
+        supervisorApproval: 'APPROVED',
+        hrApproval: 'APPROVED',
+        createdAt: `${date}T17:05:00Z`,
+        updatedAt: `${date}T17:05:00Z`
+      };
+
+      seededAttendance.push(newAtt);
+
+      if (hasOt && otHours > 0) {
+        const otId = `OT-2026-${otIdx.toString().padStart(4, '0')}`;
+        const basic = emp.salaryStructure?.basicSalary || 85000;
+        const hourlyRate = Math.round((basic / 200) * 1.5);
+
+        seededOt.push({
+          id: `ot-seed-${otIdx}`,
+          otId,
+          employeeId: emp.id,
+          attendanceId: attRecordId,
+          date,
+          hours: otHours,
+          multiplier: 1.5,
+          hourlyRate,
+          totalAmount: Math.round(hourlyRate * otHours),
+          source: 'AUTO_CALCULATED',
+          reason: 'Concrete casting and road compaction overtime',
+          supervisorApproval: 'APPROVED',
+          hrApproval: 'APPROVED',
+          status: 'APPROVED',
+          createdAt: `${date}T19:35:00Z`,
+          updatedAt: `${date}T19:35:00Z`
+        });
+
+        otIdx++;
+      }
+
+      recIdx++;
+    });
+  });
+
+  return { attendance: seededAttendance, overtime: seededOt };
+};
 
 interface AttendanceContextType {
   attendanceRecords: AttendanceRecord[];
@@ -90,19 +201,6 @@ interface AttendanceContextType {
 
 const AttendanceContext = createContext<AttendanceContextType | undefined>(undefined);
 
-// Helper to compute hours between two HH:mm strings
-function calculateHours(punchIn?: string, punchOut?: string): { workingHours: number; regularHours: number; otHours: number } {
-  if (!punchIn || !punchOut) return { workingHours: 0, regularHours: 0, otHours: 0 };
-  const [inH, inM] = punchIn.split(':').map(Number);
-  const [outH, outM] = punchOut.split(':').map(Number);
-  const totalMinutes = (outH * 60 + outM) - (inH * 60 + inM);
-  if (totalMinutes <= 0) return { workingHours: 0, regularHours: 0, otHours: 0 };
-  const workingHours = Math.round((totalMinutes / 60) * 10) / 10;
-  const regularHours = Math.min(8.0, workingHours);
-  const otHours = Math.max(0, Math.round((workingHours - 8.0) * 10) / 10);
-  return { workingHours, regularHours, otHours };
-}
-
 export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { staffMembers } = useStaff();
   const { getCurrentAllocation } = useStaffAllocation();
@@ -110,20 +208,29 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
     try {
       const saved = localStorage.getItem(ATTENDANCE_STORAGE_KEY);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.error('Error loading attendance:', e);
     }
-    return [];
+    const initialData = generateInitialAttendanceData(initialStaffMembers);
+    try {
+      localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(initialData.attendance));
+    } catch (e) {
+      console.error('Failed to seed initial attendance:', e);
+    }
+    return initialData.attendance;
   });
 
   const [correctionRequests, setCorrectionRequests] = useState<AttendanceCorrectionRequest[]>(() => {
     try {
       const saved = localStorage.getItem(CORRECTIONS_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch (e) {
       console.error('Error loading corrections:', e);
     }
@@ -133,120 +240,21 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   const [overtimeRecords, setOvertimeRecords] = useState<OvertimeRecord[]>(() => {
     try {
       const saved = localStorage.getItem(OVERTIME_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch (e) {
       console.error('Error loading overtime:', e);
     }
-    return [];
-  });
-
-  // Seed sample attendance & overtime for current month if empty
-  useEffect(() => {
-    if (attendanceRecords.length === 0 && staffMembers.length > 0) {
-      const seededAttendance: AttendanceRecord[] = [];
-      const seededOt: OvertimeRecord[] = [];
-
-      // Seed past 10 working days of August 2026
-      const dates = [
-        '2026-08-17',
-        '2026-08-18',
-        '2026-08-19',
-        '2026-08-20',
-        '2026-08-21',
-        '2026-08-24',
-        '2026-08-25',
-        '2026-08-26',
-        '2026-08-27',
-        '2026-08-28'
-      ];
-
-      let recIdx = 1;
-      let otIdx = 1;
-
-      staffMembers.slice(0, 10).forEach(emp => {
-        dates.forEach(date => {
-          const isLate = Math.random() < 0.15;
-          const punchIn = isLate ? '08:45:00' : '08:00:00';
-          const hasOt = Math.random() < 0.35;
-          const punchOut = hasOt ? '19:30:00' : '17:00:00';
-          const { workingHours, regularHours, otHours } = calculateHours(punchIn, punchOut);
-
-          const attId = `ATT-2026-${recIdx.toString().padStart(4, '0')}`;
-          const attRecordId = `att-seed-${recIdx}`;
-
-          const newAtt: AttendanceRecord = {
-            id: attRecordId,
-            attendanceId: attId,
-            employeeId: emp.id,
-            projectId: emp.assignedProjectCode || 'PIDM 26',
-            allocationId: `alloc-${emp.id}`,
-            recordSource: 'JIBBLE',
-            date,
-            punchIn,
-            punchOut,
-            checkInLat: 6.9271,
-            checkInLng: 79.8612,
-            checkOutLat: 6.9271,
-            checkOutLng: 79.8612,
-            gpsAccuracy: 6,
-            geofenceStatus: 'INSIDE',
-            faceVerificationStatus: 'PASSED',
-            jibbleMemberId: emp.jibbleMemberId || `jbl-${emp.employeeCode}`,
-            jibbleTimeEntryId: `jbl-time-${emp.id}-${date}`,
-            workingHours,
-            regularHours,
-            otHours,
-            status: isLate ? 'Late' : 'Present',
-            syncStatus: 'SYNCED',
-            supervisorApproval: 'APPROVED',
-            hrApproval: 'APPROVED',
-            createdAt: `${date}T17:05:00Z`,
-            updatedAt: `${date}T17:05:00Z`
-          };
-
-          seededAttendance.push(newAtt);
-
-          if (hasOt && otHours > 0) {
-            const otId = `OT-2026-${otIdx.toString().padStart(4, '0')}`;
-            const basic = emp.salaryStructure?.basicSalary || 85000;
-            const hourlyRate = Math.round((basic / 200) * 1.5);
-
-            seededOt.push({
-              id: `ot-seed-${otIdx}`,
-              otId,
-              employeeId: emp.id,
-              attendanceId: attRecordId,
-              date,
-              hours: otHours,
-              multiplier: 1.5,
-              hourlyRate,
-              totalAmount: Math.round(hourlyRate * otHours),
-              source: 'AUTO_CALCULATED',
-              reason: 'Concrete casting and road compaction overtime',
-              supervisorApproval: 'APPROVED',
-              hrApproval: 'APPROVED',
-              status: 'APPROVED',
-              createdAt: `${date}T19:35:00Z`,
-              updatedAt: `${date}T19:35:00Z`
-            });
-
-            otIdx++;
-          }
-
-          recIdx++;
-        });
-      });
-
-      setAttendanceRecords(seededAttendance);
-      setOvertimeRecords(seededOt);
-      try {
-        localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(seededAttendance));
-        localStorage.setItem(OVERTIME_STORAGE_KEY, JSON.stringify(seededOt));
-      } catch (e) {
-        console.error('Failed to seed attendance data:', e);
-      }
+    const initialData = generateInitialAttendanceData(initialStaffMembers);
+    try {
+      localStorage.setItem(OVERTIME_STORAGE_KEY, JSON.stringify(initialData.overtime));
+    } catch (e) {
+      console.error('Failed to seed initial overtime:', e);
     }
-  }, [staffMembers, attendanceRecords.length]);
+    return initialData.overtime;
+  });
 
   const saveAttendance = (records: AttendanceRecord[]) => {
     setAttendanceRecords(records);
@@ -672,8 +680,8 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   };
 
   const clearAttendanceHistory = () => {
-    localStorage.removeItem(ATTENDANCE_STORAGE_KEY);
-    localStorage.removeItem(CORRECTIONS_STORAGE_KEY);
+    localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify([]));
+    localStorage.setItem(CORRECTIONS_STORAGE_KEY, JSON.stringify([]));
     setAttendanceRecords([]);
     setCorrectionRequests([]);
 
@@ -690,7 +698,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   };
 
   const clearOvertimeHistory = () => {
-    localStorage.removeItem(OVERTIME_STORAGE_KEY);
+    localStorage.setItem(OVERTIME_STORAGE_KEY, JSON.stringify([]));
     setOvertimeRecords([]);
 
     AuditService.log({
@@ -706,12 +714,17 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   };
 
   const resetAttendanceData = () => {
-    localStorage.removeItem(ATTENDANCE_STORAGE_KEY);
-    localStorage.removeItem(CORRECTIONS_STORAGE_KEY);
-    localStorage.removeItem(OVERTIME_STORAGE_KEY);
-    setAttendanceRecords([]);
+    const initialData = generateInitialAttendanceData(staffMembers.length > 0 ? staffMembers : initialStaffMembers);
+    try {
+      localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(initialData.attendance));
+      localStorage.setItem(CORRECTIONS_STORAGE_KEY, JSON.stringify([]));
+      localStorage.setItem(OVERTIME_STORAGE_KEY, JSON.stringify(initialData.overtime));
+    } catch (e) {
+      console.error('Failed to reset attendance data:', e);
+    }
+    setAttendanceRecords(initialData.attendance);
     setCorrectionRequests([]);
-    setOvertimeRecords([]);
+    setOvertimeRecords(initialData.overtime);
   };
 
   const bulkImportAttendance = (imported: Partial<AttendanceRecord>[]): { count: number; batchId: string } => {
@@ -723,20 +736,23 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       const hours = calculateHours(punchIn, punchOut);
       return {
         id: a.id || `att-imp-${Date.now()}-${i}`,
+        attendanceId: a.attendanceId || `ATT-2026-${String(attendanceRecords.length + i + 1).padStart(4, '0')}`,
         employeeId: a.employeeId || `EMP-${String(i + 1).padStart(3, '0')}`,
-        employeeName: a.employeeName || 'Employee',
         projectId: a.projectId || 'PIDM 26',
-        projectName: a.projectName || 'Site Project',
+        allocationId: a.allocationId || 'alloc-default',
+        recordSource: a.recordSource || 'MANUAL',
         date: a.date || new Date().toISOString().slice(0, 10),
         punchIn,
         punchOut,
         workingHours: a.workingHours || hours.workingHours,
         regularHours: a.regularHours || hours.regularHours,
         otHours: a.otHours || hours.otHours,
-        source: (a.source as any) || 'MANUAL',
-        status: (a.status as any) || 'APPROVED',
-        supervisorApprovalStatus: (a.supervisorApprovalStatus as any) || 'APPROVED',
-        hrApprovalStatus: (a.hrApprovalStatus as any) || 'APPROVED',
+        status: a.status || 'Present',
+        syncStatus: a.syncStatus || 'SYNCED',
+        geofenceStatus: a.geofenceStatus || 'INSIDE',
+        faceVerificationStatus: a.faceVerificationStatus || 'PASSED',
+        supervisorApproval: typeof a.supervisorApproval === 'string' ? a.supervisorApproval : 'APPROVED',
+        hrApproval: typeof a.hrApproval === 'string' ? a.hrApproval : 'APPROVED',
         remarks: a.remarks ? `[BULK IMPORT] ${a.remarks}` : `Batch import ${batchId}`,
         createdAt: nowIso,
         updatedAt: nowIso
@@ -757,26 +773,19 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     const nowIso = new Date().toISOString();
     const newItems: OvertimeRecord[] = imported.map((o, i) => ({
       id: o.id || `ot-imp-${Date.now()}-${i}`,
+      otId: o.otId || `OT-2026-${String(overtimeRecords.length + i + 1).padStart(4, '0')}`,
       employeeId: o.employeeId || `EMP-${String(i + 1).padStart(3, '0')}`,
-      employeeName: o.employeeName || 'Employee',
+      attendanceId: o.attendanceId || `ATT-2026-${String(i + 1).padStart(4, '0')}`,
       projectId: o.projectId || 'PIDM 26',
       date: o.date || new Date().toISOString().slice(0, 10),
       hours: Number(o.hours) || 2,
-      approvedHours: Number(o.approvedHours) || Number(o.hours) || 2,
+      claimedHours: Number(o.claimedHours || o.hours) || 2,
       multiplier: Number(o.multiplier) || 1.5,
+      source: o.source || 'MANUAL_REQUEST',
       reason: o.reason || 'Concrete casting overtime support',
-      status: (o.status as any) || 'APPROVED',
-      supervisorApproval: o.supervisorApproval || {
-        status: 'APPROVED',
-        approverId: 'SUPERVISOR',
-        timestamp: nowIso
-      },
-      hrApproval: o.hrApproval || {
-        status: 'APPROVED',
-        approverId: 'HR_ADMIN',
-        timestamp: nowIso,
-        approvedHours: Number(o.hours) || 2
-      },
+      status: o.status || 'APPROVED',
+      supervisorApproval: typeof o.supervisorApproval === 'string' ? o.supervisorApproval : 'APPROVED',
+      hrApproval: typeof o.hrApproval === 'string' ? o.hrApproval : 'APPROVED',
       createdAt: nowIso,
       updatedAt: nowIso
     }));

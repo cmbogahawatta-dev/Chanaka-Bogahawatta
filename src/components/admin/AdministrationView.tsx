@@ -86,7 +86,9 @@ export const AdministrationView: React.FC = () => {
     clearTransfersHistory: clearPettyCashTransfersHistory,
     clearSupervisorsDirectory,
     clearProjectsHistory,
-    clearAllPettyCashHistory
+    clearAllPettyCashHistory,
+    deleteProject,
+    deleteSupervisor
   } = usePettyCash();
 
   const {
@@ -103,7 +105,9 @@ export const AdministrationView: React.FC = () => {
     clearTransfersHistory: clearFleetTransfersHistory,
     clearAllFleetHistory,
     clearAllData: clearAllFleetData,
-    resetToSampleData: resetFleetSampleData
+    resetToSampleData: resetFleetSampleData,
+    deleteVehicle,
+    deleteDriver
   } = useFleet();
 
   const {
@@ -115,7 +119,8 @@ export const AdministrationView: React.FC = () => {
   const {
     staffMembers,
     resetStaffDirectory,
-    clearStaffDirectory
+    clearStaffDirectory,
+    deleteStaffMember
   } = useStaff();
 
   const {
@@ -466,12 +471,25 @@ export const AdministrationView: React.FC = () => {
                   <p className="text-center py-6 text-slate-500 italic">No projects registered.</p>
                 ) : (
                   projects.map(p => (
-                    <div key={p.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between">
-                      <div>
+                    <div key={p.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between group hover:border-slate-700 transition-colors">
+                      <div className="pr-2 min-w-0 flex-1">
                         <span className="font-mono font-bold text-purple-300">{p.PROJECT_CODE}</span>
-                        <span className="block text-[11px] text-slate-300">{p.PROJECT_NAME}</span>
+                        <span className="block text-[11px] text-slate-300 truncate">{p.PROJECT_NAME}</span>
                       </div>
-                      <span className="text-[10px] font-mono text-slate-400">LKR {(p.CONTRACT_VALUE || 0).toLocaleString()}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-mono text-slate-400">LKR {(p.CONTRACT_VALUE || p.budget || p.BUDGET || 0).toLocaleString()}</span>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete Project "${p.PROJECT_CODE} - ${p.PROJECT_NAME}"?`)) {
+                              deleteProject(p.id);
+                            }
+                          }}
+                          title="Delete Project Entry"
+                          className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -497,12 +515,25 @@ export const AdministrationView: React.FC = () => {
             </h3>
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">
               {vehicles.map(v => (
-                <div key={v.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between">
-                  <div>
+                <div key={v.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between group hover:border-slate-700 transition-colors">
+                  <div className="pr-2 min-w-0 flex-1">
                     <span className="font-mono font-bold text-blue-300">{v.registrationNumber}</span>
-                    <span className="block text-[11px] text-slate-300">{v.make} {v.model} ({v.type})</span>
+                    <span className="block text-[11px] text-slate-300 truncate">{v.make} {v.model} ({v.type})</span>
                   </div>
-                  <span className="text-[10px] font-mono text-slate-400">{v.currentSite || 'Head Office'}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-mono text-slate-400">{v.currentSite || 'Head Office'}</span>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to delete Vehicle "${v.registrationNumber} (${v.make} ${v.model})"?`)) {
+                          deleteVehicle(v.id);
+                        }
+                      }}
+                      title="Delete Vehicle Entry"
+                      className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -521,12 +552,25 @@ export const AdministrationView: React.FC = () => {
                   <p className="text-center py-6 text-slate-500 italic">No supervisors registered.</p>
                 ) : (
                   supervisors.map(s => (
-                    <div key={s.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between">
-                      <div>
+                    <div key={s.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between group hover:border-slate-700 transition-colors">
+                      <div className="pr-2 min-w-0 flex-1">
                         <span className="font-mono font-bold text-emerald-300">{s.SUPERVISOR_NAME}</span>
-                        <span className="block text-[11px] text-slate-400">{s.DEFAULT_PROJECT || 'General'}</span>
+                        <span className="block text-[11px] text-slate-400 truncate">{s.DEFAULT_PROJECT || 'General'}</span>
                       </div>
-                      <span className="text-[10px] font-mono text-slate-400">LKR {(s.OPENING_PETTY_CASH || 0).toLocaleString()}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-mono text-slate-400">LKR {(s.OPENING_PETTY_CASH || 0).toLocaleString()}</span>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete Supervisor "${s.SUPERVISOR_NAME}"?`)) {
+                              deleteSupervisor(s.id);
+                            }
+                          }}
+                          title="Delete Supervisor Entry"
+                          className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -559,12 +603,25 @@ export const AdministrationView: React.FC = () => {
                   <p className="text-center py-6 text-slate-500 italic">No staff members registered.</p>
                 ) : (
                   staffMembers.map(s => (
-                    <div key={s.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between">
-                      <div>
+                    <div key={s.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between group hover:border-slate-700 transition-colors">
+                      <div className="pr-2 min-w-0 flex-1">
                         <span className="font-mono font-bold text-cyan-300">{s.preferredName}</span>
-                        <span className="block text-[11px] text-slate-400">{s.designation}</span>
+                        <span className="block text-[11px] text-slate-400 truncate">{s.designation}</span>
                       </div>
-                      <span className="text-[10px] font-mono text-slate-400">{s.employeeCode}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-mono text-slate-400">{s.employeeCode}</span>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete Staff Member "${s.fullName} (${s.employeeCode})"?`)) {
+                              deleteStaffMember(s.id);
+                            }
+                          }}
+                          title="Delete Staff Member"
+                          className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}

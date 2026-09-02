@@ -42,15 +42,18 @@ export const GeofenceProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [geofences, setGeofences] = useState<ProjectGeofence[]>(() => {
     try {
       const saved = localStorage.getItem(GEOFENCE_STORAGE_KEY);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch (e) {
       console.error('Error loading geofences from storage:', e);
     }
+    try {
+      localStorage.setItem(GEOFENCE_STORAGE_KEY, JSON.stringify(initialProjectGeofences));
+    } catch {}
     return initialProjectGeofences;
   });
 
@@ -184,7 +187,9 @@ export const GeofenceProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const resetGeofencesToDefault = () => {
-    localStorage.removeItem(GEOFENCE_STORAGE_KEY);
+    try {
+      localStorage.setItem(GEOFENCE_STORAGE_KEY, JSON.stringify(initialProjectGeofences));
+    } catch {}
     setGeofences(initialProjectGeofences);
   };
 

@@ -1,9 +1,44 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { StaffAllocation, StaffAllocationFilter } from '../types/staffAllocationTypes';
 import { useStaff } from './StaffContext';
+import { initialStaffMembers } from '../data/staffData';
 import { AuditService } from '../services/audit/auditService';
 
 const ALLOCATION_STORAGE_KEY = 'ema_staff_allocations_v1';
+
+const generateDefaultAllocations = (staff: any[]): StaffAllocation[] => {
+  return staff.map((member, index) => {
+    const allocId = `ALLOC-${(index + 1).toString().padStart(4, '0')}`;
+    const proj = member.assignedProjectCode || (member.assignedProjectCodes && member.assignedProjectCodes[0]) || 'PIDM 26';
+    
+    return {
+      id: `alloc-init-${member.id}`,
+      allocationId: allocId,
+      employeeId: member.id,
+      projectId: proj,
+      site: `${proj} Main Site`,
+      department: member.department,
+      designation: member.designation,
+      effectiveFrom: member.joinedDate || '2026-01-01',
+      effectiveTo: undefined,
+      immediateSupervisorId: member.reportsToId || undefined,
+      projectManagerId: staff.find(s => s.role === 'PROJECT_MANAGER' && s.id !== member.id)?.id,
+      departmentHeadId: staff.find(s => s.role === 'DIRECTOR' || s.role === 'PROJECT_MANAGER')?.id,
+      hrResponsibleId: staff.find(s => s.role === 'HR_OFFICER')?.id,
+      finalApproverId: staff.find(s => s.role === 'DIRECTOR')?.id,
+      approvalWorkflowId: 'wf-leave-standard',
+      attendanceRequired: true,
+      jibbleAttendanceRequired: true,
+      faceVerificationRequired: true,
+      gpsRequired: true,
+      geofenceRequired: true,
+      status: member.status === 'Active' ? 'Active' : 'Ended',
+      remarks: 'Baseline operational allocation created from master directory',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  });
+};
 
 interface StaffAllocationContextType {
   allocations: StaffAllocation[];
@@ -26,61 +61,23 @@ export const StaffAllocationProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [allocations, setAllocations] = useState<StaffAllocation[]>(() => {
     try {
       const saved = localStorage.getItem(ALLOCATION_STORAGE_KEY);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch (e) {
       console.error('Error loading allocations from storage:', e);
     }
-    return [];
-  });
-
-  // Seed default allocations on first load if empty
-  useEffect(() => {
-    if (allocations.length === 0 && staffMembers.length > 0) {
-      const initial: StaffAllocation[] = staffMembers.map((member, index) => {
-        const allocId = `ALLOC-${(index + 1).toString().padStart(4, '0')}`;
-        const proj = member.assignedProjectCode || (member.assignedProjectCodes && member.assignedProjectCodes[0]) || 'PIDM 26';
-        
-        return {
-          id: `alloc-init-${member.id}`,
-          allocationId: allocId,
-          employeeId: member.id,
-          projectId: proj,
-          site: `${proj} Main Site`,
-          department: member.department,
-          designation: member.designation,
-          effectiveFrom: member.joinedDate || '2026-01-01',
-          effectiveTo: undefined,
-          immediateSupervisorId: member.reportsToId || undefined,
-          projectManagerId: staffMembers.find(s => s.role === 'PROJECT_MANAGER' && s.id !== member.id)?.id,
-          departmentHeadId: staffMembers.find(s => s.role === 'DIRECTOR' || s.role === 'PROJECT_MANAGER')?.id,
-          hrResponsibleId: staffMembers.find(s => s.role === 'HR_OFFICER')?.id,
-          finalApproverId: staffMembers.find(s => s.role === 'DIRECTOR')?.id,
-          approvalWorkflowId: 'wf-leave-standard',
-          attendanceRequired: true,
-          jibbleAttendanceRequired: true,
-          faceVerificationRequired: true,
-          gpsRequired: true,
-          geofenceRequired: true,
-          status: member.status === 'Active' ? 'Active' : 'Ended',
-          remarks: 'Baseline operational allocation created from master directory',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-      });
-
-      setAllocations(initial);
-      try {
-        localStorage.setItem(ALLOCATION_STORAGE_KEY, JSON.stringify(initial));
-      } catch (e) {
-        console.error('Failed to save initial allocations:', e);
-      }
+    const initial = generateDefaultAllocations(initialStaffMembers);
+    try {
+      localStorage.setItem(ALLOCATION_STORAGE_KEY, JSON.stringify(initial));
+    } catch (e) {
+      console.error('Failed to seed initial allocations:', e);
     }
-  }, [staffMembers, allocations.length]);
+    return initial;
+  });
 
   const saveAllocations = (newAllocations: StaffAllocation[]) => {
     setAllocations(newAllocations);
@@ -211,7 +208,7 @@ export const StaffAllocationProvider: React.FC<{ children: ReactNode }> = ({ chi
   };
 
   const clearAllocationHistory = () => {
-    localStorage.removeItem(ALLOCATION_STORAGE_KEY);
+    localStorage.setItem(ALLOCATION_STORAGE_KEY, JSON.stringify([]));
     setAllocations([]);
 
     AuditService.log({
@@ -227,8 +224,13 @@ export const StaffAllocationProvider: React.FC<{ children: ReactNode }> = ({ chi
   };
 
   const resetAllocationsToDefault = () => {
-    localStorage.removeItem(ALLOCATION_STORAGE_KEY);
-    setAllocations([]);
+    const initial = generateDefaultAllocations(staffMembers.length > 0 ? staffMembers : initialStaffMembers);
+    try {
+      localStorage.setItem(ALLOCATION_STORAGE_KEY, JSON.stringify(initial));
+    } catch (e) {
+      console.error('Failed to reset allocations storage:', e);
+    }
+    setAllocations(initial);
   };
 
   return (

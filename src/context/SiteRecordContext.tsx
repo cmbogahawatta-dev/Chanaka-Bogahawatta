@@ -56,11 +56,19 @@ export const SiteRecordProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [records, setRecords] = useState<DailySiteRecord[]>(() => {
     try {
       const saved = localStorage.getItem(SITE_RECORDS_STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
       }
     } catch (e) {
       console.error('Error loading site records from storage', e);
+    }
+    try {
+      localStorage.setItem(SITE_RECORDS_STORAGE_KEY, JSON.stringify(initialDailySiteRecords));
+    } catch (e) {
+      console.error('Failed to seed site records:', e);
     }
     return initialDailySiteRecords;
   });
@@ -313,13 +321,17 @@ export const SiteRecordProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const resetToDefaultRecords = () => {
+    try {
+      localStorage.setItem(SITE_RECORDS_STORAGE_KEY, JSON.stringify(initialDailySiteRecords));
+    } catch (e) {
+      console.error('Failed to reset site records:', e);
+    }
     setRecords(initialDailySiteRecords);
-    localStorage.setItem(SITE_RECORDS_STORAGE_KEY, JSON.stringify(initialDailySiteRecords));
   };
 
   const clearAllRecords = () => {
+    localStorage.setItem(SITE_RECORDS_STORAGE_KEY, JSON.stringify([]));
     setRecords([]);
-    localStorage.removeItem(SITE_RECORDS_STORAGE_KEY);
   };
 
   const bulkImportSiteRecords = (imported: Partial<DailySiteRecord>[]): { count: number; batchId: string } => {
@@ -331,56 +343,43 @@ export const SiteRecordProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       projectCode: r.projectCode || 'PIDM 26',
       projectName: r.projectName || 'Site Project',
       date: r.date || new Date().toISOString().slice(0, 10),
-      weather: r.weather || {
-        condition: 'Sunny',
-        morningCondition: 'Sunny',
-        afternoonCondition: 'Clear',
-        rainfallMm: 0,
-        temperatureC: 30,
-        humidityPercent: 70,
-        workDisrupted: false,
-        hoursLost: 0,
-        impactSummary: 'Normal working conditions'
+      siteLocation: r.siteLocation || 'Site Operations Zone',
+      shift: r.shift || 'Day',
+      workingHoursStart: r.workingHoursStart || '07:30',
+      workingHoursEnd: r.workingHoursEnd || '17:30',
+      weatherMorning: r.weatherMorning || 'Sunny / Clear',
+      weatherAfternoon: r.weatherAfternoon || 'Sunny / Clear',
+      rainfallMm: r.rainfallMm || 0,
+      temperatureC: r.temperatureC || 30,
+      groundCondition: r.groundCondition || 'Dry',
+      workingHoursLostWeather: r.workingHoursLostWeather || 0,
+      weatherImpact: r.weatherImpact || 'No Impact / Normal Work',
+      weatherNotes: r.weatherNotes,
+      manpower: r.manpower || [],
+      equipment: r.equipment || [],
+      materials: r.materials || [],
+      progress: r.progress || [],
+      safety: r.safety || {
+        toolboxTalkConducted: true,
+        toolboxAttendeesCount: 10,
+        safetyInspectionConducted: true,
+        ppeComplianceRate: 100,
+        nearMissesCount: 0,
+        firstAidCasesCount: 0,
+        lostTimeInjuriesCount: 0,
+        environmentalIncidents: 0
       },
-      workShifts: r.workShifts || [{
-        id: `shift-${Date.now()}-${i}`,
-        shiftType: 'Day',
-        startTime: '08:00',
-        endTime: '17:00',
-        activeSupervisorsCount: 1,
-        totalHeadcount: 10
-      }],
-      manpower: r.manpower || {
-        directLabour: [],
-        subcontractorLabour: [],
-        agencyLabour: [],
-        totalDirectWorkers: 8,
-        totalSubcontractorWorkers: 2,
-        totalSiteStrength: 10,
-        totalManHours: 80
-      },
-      plantEquipment: r.plantEquipment || [],
-      materialDeliveries: r.materialDeliveries || [],
-      progressActivities: r.progressActivities || [{
-        id: `act-${Date.now()}-${i}`,
-        locationSection: 'Section 1',
-        activityDescription: 'General site structural & masonry work',
-        tradesInvolved: ['Civil'],
-        outputQuantity: 100,
-        unit: '%',
-        percentCompletedToday: 5,
-        cumulativePercent: 50,
-        delayFlag: false
-      }],
-      safetyEvents: r.safetyEvents || [],
-      qualityInspections: r.qualityInspections || [],
-      siteVisitors: r.siteVisitors || [],
-      dailyNotes: r.dailyNotes || `Bulk imported site log via batch ${batchId}`,
+      delays: r.delays || [],
+      visitors: r.visitors || [],
+      photos: r.photos || [],
+      executiveSummary: r.executiveSummary || `Bulk imported site log via batch ${batchId}`,
+      generalSiteNotes: r.generalSiteNotes,
+      plannedActivitiesTomorrow: r.plannedActivitiesTomorrow,
       signOff: r.signOff || {
         preparedByName: 'Site Supervisor',
         preparedByRole: 'Site Supervisor',
         preparedDate: `${r.date || new Date().toISOString().slice(0, 10)} 17:00`,
-        status: 'Verified'
+        status: 'Verified & Approved'
       },
       createdAt: nowIso,
       updatedAt: nowIso

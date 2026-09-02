@@ -46,7 +46,7 @@ export interface FieldDefinition {
   options?: string[];
   aliases: string[];
   description: string;
-  sampleValue: string | number;
+  sampleValue: string | number | boolean;
 }
 
 export interface DirectoryConfig {

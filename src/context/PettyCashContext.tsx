@@ -289,17 +289,39 @@ const defaultFilters: PettyCashFilterState = {
 const PettyCashContext = createContext<PettyCashContextType | undefined>(undefined);
 
 export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { staffMembers } = useStaff();
+  const { staffMembers, deleteStaffMember } = useStaff();
 
   // State Initialization from LocalStorage or Defaults
   const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.EXPENSES);
-    return saved ? JSON.parse(saved) : initialExpenses;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.EXPENSES);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading expenses from storage', e);
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(initialExpenses));
+    } catch {}
+    return initialExpenses;
   });
 
   const [income, setIncome] = useState<Income[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.INCOME);
-    return saved ? JSON.parse(saved) : initialIncome;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.INCOME);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading income from storage', e);
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(initialIncome));
+    } catch {}
+    return initialIncome;
   });
 
   // Step C: Petty Cash opening float allocations keyed by employeeId (with legacy aliases)
@@ -407,28 +429,83 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [staffMembers, allocations]);
 
   const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PROJECTS);
-    return saved ? JSON.parse(saved) : initialProjects;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading projects from storage', e);
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(initialProjects));
+    } catch {}
+    return initialProjects;
   });
 
   const [categories, setCategories] = useState<ExpenseCategory[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
-    return saved ? JSON.parse(saved) : initialCategories;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading categories from storage', e);
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(initialCategories));
+    } catch {}
+    return initialCategories;
   });
 
   const [transfers, setTransfers] = useState<InternalTransfer[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.TRANSFERS);
-    return saved ? JSON.parse(saved) : initialTransfers;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.TRANSFERS);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading transfers from storage', e);
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(initialTransfers));
+    } catch {}
+    return initialTransfers;
   });
 
   const [importBatches, setImportBatches] = useState<ImportBatchRecord[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.IMPORT_BATCHES);
-    return saved ? JSON.parse(saved) : initialImportBatches;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.IMPORT_BATCHES);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading import batches from storage', e);
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.IMPORT_BATCHES, JSON.stringify(initialImportBatches));
+    } catch {}
+    return initialImportBatches;
   });
 
   const [mappingTemplates, setMappingTemplates] = useState<MappingTemplate[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.MAPPING_TEMPLATES);
-    return saved ? JSON.parse(saved) : initialMappingTemplates;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.MAPPING_TEMPLATES);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading mapping templates from storage', e);
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.MAPPING_TEMPLATES, JSON.stringify(initialMappingTemplates));
+    } catch {}
+    return initialMappingTemplates;
   });
 
   const [userRole, setUserRoleState] = useState<PettyCashUserRole>(() => {
@@ -442,8 +519,17 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
 
   const [sheetsConfig, setSheetsConfig] = useState<GoogleSheetsConfig>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.SHEETS_CONFIG);
-    return saved ? JSON.parse(saved) : initialGoogleSheetsConfig;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.SHEETS_CONFIG);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(initialGoogleSheetsConfig));
+    } catch {}
+    return initialGoogleSheetsConfig;
   });
 
   const [acknowledgedAlertIds, setAcknowledgedAlertIds] = useState<string[]>(() => {
@@ -1354,9 +1440,20 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteSupervisor = (id: string) => {
+    const found = supervisors.find(s => s.id === id || s.SUPERVISOR_ID === id || s.staffId === id || s.employeeCode === id);
+    if (found?.staffId) {
+      deleteStaffMember(found.staffId);
+    } else if (found?.id) {
+      deleteStaffMember(found.id);
+    }
     setAllocations(prev => {
       const next = { ...prev };
       delete next[id];
+      if (found) {
+        delete next[found.SUPERVISOR_NAME.toUpperCase()];
+        if (found.employeeCode) delete next[found.employeeCode];
+        if (found.staffId) delete next[found.staffId];
+      }
       return next;
     });
   };
@@ -1378,7 +1475,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteProject = (id: string) => {
-    setProjects(prev => prev.filter(p => p.id !== id));
+    setProjects(prev => prev.filter(p => p.id !== id && p.PROJECT_CODE !== id && p.PROJECT_ID !== id));
   };
 
   const addCategory = (cat: Omit<ExpenseCategory, 'id' | 'CATEGORY_ID'>): ExpenseCategory => {
@@ -1531,14 +1628,31 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const resetPettyCashData = () => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(initialExpenses));
+      localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(initialIncome));
+      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(initialProjects));
+      localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(initialCategories));
+      localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(initialTransfers));
+      localStorage.setItem(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(initialGoogleSheetsConfig));
+    } catch (e) {
+      console.error('Failed to reset petty cash data in storage', e);
+    }
     setExpenses(initialExpenses);
     setIncome(initialIncome);
-    setAllocations(initialSupervisors.map(s => ({
-      employeeId: s.id,
-      supervisorName: s.SUPERVISOR_NAME,
-      openingBalance: s.OPENING_PETTY_CASH || 0,
-      currentBalance: s.OPENING_PETTY_CASH || 0
-    })));
+    const initialMap: Record<string, number> = {};
+    initialSupervisors.forEach(s => {
+      const supName = (s.SUPERVISOR_NAME || '').trim().toUpperCase();
+      const supId = s.SUPERVISOR_ID || s.id;
+      const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 50000;
+      if (supName) initialMap[supName] = opening;
+      if (supId) initialMap[supId] = opening;
+      if (s.id) initialMap[s.id] = opening;
+    });
+    setAllocations(initialMap);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ALLOCATIONS, JSON.stringify(initialMap));
+    } catch {}
     setProjects(initialProjects);
     setCategories(initialCategories);
     setTransfers(initialTransfers);
@@ -1550,41 +1664,79 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const clearExpensesHistory = (supervisorName?: string, projectCode?: string) => {
     if (supervisorName || projectCode) {
-      setExpenses(prev => prev.filter(e => {
-        if (supervisorName && e.SUPERVISOR_NAME === supervisorName) return false;
-        if (projectCode && e.PROJECT === projectCode) return false;
-        return true;
-      }));
+      setExpenses(prev => {
+        const next = prev.filter(e => {
+          if (supervisorName && e.SUPERVISOR_NAME === supervisorName) return false;
+          if (projectCode && e.PROJECT === projectCode) return false;
+          return true;
+        });
+        try {
+          localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
     } else {
+      try {
+        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
+      } catch {}
       setExpenses([]);
     }
   };
 
   const clearIncomeHistory = (supervisorName?: string) => {
     if (supervisorName) {
-      setIncome(prev => prev.filter(i => i.SUPERVISOR_NAME !== supervisorName));
+      setIncome(prev => {
+        const next = prev.filter(i => i.SUPERVISOR_NAME !== supervisorName);
+        try {
+          localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
     } else {
+      try {
+        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify([]));
+      } catch {}
       setIncome([]);
     }
   };
 
   const clearTransfersHistory = () => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify([]));
+    } catch {}
     setTransfers([]);
   };
 
   const clearSupervisorsDirectory = () => {
-    setAllocations([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ALLOCATIONS, JSON.stringify({}));
+    } catch {}
+    setAllocations({});
   };
 
   const clearProjectsHistory = (projectCode?: string) => {
     if (projectCode) {
-      setProjects(prev => prev.filter(p => p.PROJECT_CODE !== projectCode && p.id !== projectCode));
+      setProjects(prev => {
+        const next = prev.filter(p => p.PROJECT_CODE !== projectCode && p.id !== projectCode);
+        try {
+          localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
     } else {
+      try {
+        localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify([]));
+      } catch {}
       setProjects([]);
     }
   };
 
   const clearAllPettyCashHistory = () => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify([]));
+    } catch {}
     setExpenses([]);
     setIncome([]);
     setTransfers([]);
@@ -1947,11 +2099,12 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const batchId = `BATCH-PRJ-${Date.now().toString().slice(-6)}`;
     const newItems: Project[] = imported.map((p, i) => ({
       id: p.id || `proj-imp-${Date.now()}-${i}`,
-      CODE: (p.CODE || `PRJ-${String(projects.length + i + 1).padStart(3, '0')}`).toUpperCase().trim(),
-      NAME: p.NAME || 'Construction Project',
+      PROJECT_ID: p.PROJECT_ID || `PRJ-${String(projects.length + i + 1).padStart(3, '0')}`,
+      PROJECT_CODE: (p.PROJECT_CODE || (p as any).CODE || `PRJ-${String(projects.length + i + 1).padStart(3, '0')}`).toUpperCase().trim(),
+      PROJECT_NAME: p.PROJECT_NAME || (p as any).NAME || 'Construction Project',
       LOCATION: p.LOCATION || 'Site Location',
-      SUPERVISOR: p.SUPERVISOR || 'BUDDIKA',
-      TOTAL_BUDGET: Number(p.TOTAL_BUDGET) || 10000000,
+      CONTRACT_VALUE: Number(p.CONTRACT_VALUE || (p as any).TOTAL_BUDGET) || 10000000,
+      BUDGET_PETTY_CASH: Number(p.BUDGET_PETTY_CASH || (p as any).TOTAL_BUDGET) || 1000000,
       STATUS: (p.STATUS as any) || 'Active',
       START_DATE: p.START_DATE || new Date().toISOString().slice(0, 10),
       END_DATE: p.END_DATE
@@ -1960,13 +2113,16 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setProjects(prev => {
       const merged = [...prev];
       newItems.forEach(newItem => {
-        const existingIdx = merged.findIndex(x => x.CODE.toUpperCase() === newItem.CODE.toUpperCase());
+        const existingIdx = merged.findIndex(x => x.PROJECT_CODE.toUpperCase() === newItem.PROJECT_CODE.toUpperCase());
         if (existingIdx >= 0) {
           merged[existingIdx] = { ...merged[existingIdx], ...newItem };
         } else {
           merged.push(newItem);
         }
       });
+      try {
+        localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(merged));
+      } catch {}
       return merged;
     });
 
@@ -1975,69 +2131,84 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const bulkImportSupervisorsDirect = (imported: Partial<Supervisor>[]): { count: number; batchId: string } => {
     const batchId = `BATCH-SUP-${Date.now().toString().slice(-6)}`;
-    const newItems: Supervisor[] = imported.map((s, i) => ({
-      id: s.id || `sup-imp-${Date.now()}-${i}`,
-      SUPERVISOR_ID: s.SUPERVISOR_ID || `SUP-${String(supervisors.length + i + 1).padStart(3, '0')}`,
-      SUPERVISOR_NAME: (s.SUPERVISOR_NAME || s.NAME || `SUPERVISOR_${i + 1}`).toUpperCase().trim(),
-      PHONE_NUMBER: s.PHONE_NUMBER || s.PHONE || '+94 77 000 0000',
-      EMAIL: s.EMAIL || `${(s.SUPERVISOR_NAME || 'sup').toLowerCase()}@emagroup.lk`,
-      DEFAULT_PROJECT: s.DEFAULT_PROJECT || 'PIDM 26',
-      OPENING_PETTY_CASH: Number(s.OPENING_PETTY_CASH || s.OPENING_FLOAT) || 100000,
-      CURRENT_BALANCE: Number(s.OPENING_PETTY_CASH || s.OPENING_FLOAT) || 100000,
-      ACTIVE: s.ACTIVE !== undefined ? s.ACTIVE : true
-    }));
-
-    setSupervisors(prev => {
-      const merged = [...prev];
-      newItems.forEach(newItem => {
-        const existingIdx = merged.findIndex(
-          x => x.SUPERVISOR_NAME.toUpperCase() === newItem.SUPERVISOR_NAME.toUpperCase()
-        );
-        if (existingIdx >= 0) {
-          merged[existingIdx] = { ...merged[existingIdx], ...newItem };
-        } else {
-          merged.push(newItem);
-        }
+    setAllocations(prev => {
+      const next = { ...prev };
+      imported.forEach((s, i) => {
+        const supName = (s.SUPERVISOR_NAME || (s as any).NAME || `SUPERVISOR_${i + 1}`).toUpperCase().trim();
+        const supId = s.SUPERVISOR_ID || s.id || `SUP-${String(i + 1).padStart(3, '0')}`;
+        const opening = Number(s.OPENING_PETTY_CASH || (s as any).OPENING_FLOAT) || 100000;
+        if (supName) next[supName] = opening;
+        if (supId) next[supId] = opening;
+        if (s.id) next[s.id] = opening;
       });
-      return merged;
+      try {
+        localStorage.setItem(STORAGE_KEYS.ALLOCATIONS, JSON.stringify(next));
+      } catch {}
+      return next;
     });
 
-    return { count: newItems.length, batchId };
+    return { count: imported.length, batchId };
   };
 
   const bulkImportExpensesDirect = (imported: Partial<Expense>[]): { count: number; batchId: string } => {
     const batchId = `BATCH-EXP-${Date.now().toString().slice(-6)}`;
-    const newItems: Expense[] = imported.map((e, i) => ({
-      id: e.id || `exp-imp-${Date.now()}-${i}`,
-      DATE: e.DATE || new Date().toISOString().slice(0, 10),
-      SUPERVISOR: (e.SUPERVISOR || 'BUDDIKA').toUpperCase().trim(),
-      PROJECT: (e.PROJECT || 'PIDM 26').toUpperCase().trim(),
-      EXPENSES_CATEGORY: e.EXPENSES_CATEGORY || 'Site Materials',
-      EXPENSES_DESCRIPTION: e.EXPENSES_DESCRIPTION || 'Site expense disbursement',
-      AMOUNT: Number(e.AMOUNT) || 1000,
-      TRANSACTION_TYPE: e.TRANSACTION_TYPE || 'PETTY_CASH_EXPENSE',
-      PAYMENT_STATUS: e.PAYMENT_STATUS || 'Paid',
-      PRV_NUMBER: e.PRV_NUMBER
-    }));
+    const newItems: Expense[] = imported.map((e, i) => {
+      const d = e.DATE_REF || (e.DATE ? e.DATE.split('/').reverse().join('-') : new Date().toISOString().slice(0, 10));
+      return {
+        id: e.id || `exp-imp-${Date.now()}-${i}`,
+        EXPENSES_ID: e.EXPENSES_ID || `EXP-${Date.now().toString().slice(-6)}-${i + 1}`,
+        DATE_REF: d,
+        DATE: e.DATE || d,
+        SUPERVISOR: (e.SUPERVISOR || 'BUDDIKA').toUpperCase().trim(),
+        PROJECT: (e.PROJECT || 'PIDM 26').toUpperCase().trim(),
+        EXPENSES_CATEGORY: e.EXPENSES_CATEGORY || 'Site Materials',
+        EXPENSES_DESCRIPTION: e.EXPENSES_DESCRIPTION || 'Site expense disbursement',
+        AMOUNT: Number(e.AMOUNT) || 1000,
+        TRANSACTION_TYPE: e.TRANSACTION_TYPE || 'PETTY_CASH_EXPENSE',
+        PAYMENT_STATUS: e.PAYMENT_STATUS || 'Paid',
+        CREATED_BY: e.CREATED_BY || 'Import User',
+        CREATED_DATE: e.CREATED_DATE || new Date().toISOString(),
+        PRV_NUMBER: e.PRV_NUMBER
+      };
+    });
 
-    setExpenses(prev => [...newItems, ...prev]);
+    setExpenses(prev => {
+      const merged = [...newItems, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(merged));
+      } catch {}
+      return merged;
+    });
     return { count: newItems.length, batchId };
   };
 
   const bulkImportIncomeDirect = (imported: Partial<Income>[]): { count: number; batchId: string } => {
     const batchId = `BATCH-INC-${Date.now().toString().slice(-6)}`;
-    const newItems: Income[] = imported.map((inc, i) => ({
-      id: inc.id || `inc-imp-${Date.now()}-${i}`,
-      DATE: inc.DATE || new Date().toISOString().slice(0, 10),
-      SUPERVISOR: (inc.SUPERVISOR || 'BUDDIKA').toUpperCase().trim(),
-      PROJECT: inc.PROJECT ? inc.PROJECT.toUpperCase().trim() : undefined,
-      AMOUNT: Number(inc.AMOUNT) || 50000,
-      INCOME_SOURCE: inc.INCOME_SOURCE || 'Head Office Bank Transfer',
-      TRANSACTION_TYPE: inc.TRANSACTION_TYPE || 'Float Top-up',
-      CHEQUE_NO: inc.CHEQUE_NO
-    }));
+    const newItems: Income[] = imported.map((inc, i) => {
+      const d = inc.DATE_REF || (inc.DATE ? inc.DATE.split('/').reverse().join('-') : new Date().toISOString().slice(0, 10));
+      return {
+        id: inc.id || `inc-imp-${Date.now()}-${i}`,
+        INCOME_ID: inc.INCOME_ID || `INC-${Date.now().toString().slice(-6)}-${i + 1}`,
+        DATE_REF: d,
+        DATE: inc.DATE || d,
+        SUPERVISOR: (inc.SUPERVISOR || 'BUDDIKA').toUpperCase().trim(),
+        PROJECT: inc.PROJECT ? inc.PROJECT.toUpperCase().trim() : 'HEAD_OFFICE',
+        AMOUNT: Number(inc.AMOUNT) || 50000,
+        INCOME_SOURCE: inc.INCOME_SOURCE || 'Petty Cash Top-up',
+        TRANSACTION_TYPE: inc.TRANSACTION_TYPE || 'PETTY_CASH_TOPUP',
+        CREATED_BY: inc.CREATED_BY || 'Import User',
+        CREATED_DATE: inc.CREATED_DATE || new Date().toISOString(),
+        REMARKS: inc.REMARKS
+      };
+    });
 
-    setIncome(prev => [...newItems, ...prev]);
+    setIncome(prev => {
+      const merged = [...newItems, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(merged));
+      } catch {}
+      return merged;
+    });
     return { count: newItems.length, batchId };
   };
 

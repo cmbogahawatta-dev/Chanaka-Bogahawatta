@@ -204,19 +204,24 @@ const StaffContext = createContext<StaffContextType | undefined>(undefined);
 
 export const StaffProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(() => {
-    let baseList = initialStaffMembers;
     try {
       const saved = localStorage.getItem(STAFF_STORAGE_KEY);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          baseList = parsed;
+        if (Array.isArray(parsed)) {
+          return parsed;
         }
       }
     } catch (e) {
       console.warn('Failed to load staff members from localStorage:', e);
     }
-    return migrateLegacySupervisorsToStaff(baseList);
+    const initial = migrateLegacySupervisorsToStaff(initialStaffMembers);
+    try {
+      localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(initial));
+    } catch (e) {
+      console.error('Failed to seed initial staff members:', e);
+    }
+    return initial;
   });
 
   const [filterState, setFilterState] = useState<StaffFilterState>(initialFilterState);

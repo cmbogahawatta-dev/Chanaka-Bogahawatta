@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Tag, PlusCircle, Folder } from 'lucide-react';
+import { Tag, PlusCircle, Folder, Trash2, Edit2 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 
 export const MasterCategoriesView: React.FC = () => {
-  const { categories, addCategory, pivotMatrix } = usePettyCash();
+  const { categories, addCategory, updateCategory, deleteCategory, pivotMatrix } = usePettyCash();
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [code, setCode] = useState<string>('');
   const [name, setName] = useState<string>('');
   const [group, setGroup] = useState<string>('Direct Project Cost');
@@ -59,29 +60,53 @@ export const MasterCategoriesView: React.FC = () => {
                 <th className="py-3 px-3">Cost Group</th>
                 <th className="py-3 px-3">Description</th>
                 <th className="py-3 px-3 text-right">Total Spent (LKR)</th>
+                <th className="py-3 px-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {categories.map((c) => {
-                const pivotRow = pivotMatrix.rows.find(r => r.categoryCode === c.CATEGORY_CODE);
-                const spent = pivotRow?.rowTotal || 0;
+              {categories.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-500">
+                    No expense categories configured. Click "New Category" above to add one.
+                  </td>
+                </tr>
+              ) : (
+                categories.map((c) => {
+                  const pivotRow = pivotMatrix.rows.find(r => r.categoryCode === c.CATEGORY_CODE);
+                  const spent = pivotRow?.rowTotal || 0;
 
-                return (
-                  <tr key={c.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-3.5 font-mono font-bold text-emerald-400">{c.CATEGORY_CODE}</td>
-                    <td className="py-3 px-3 font-semibold text-slate-100">{c.CATEGORY_NAME}</td>
-                    <td className="py-3 px-3">
-                      <span className="text-[11px] font-medium text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
-                        {c.CATEGORY_GROUP}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-slate-400">{c.DESCRIPTION || '-'}</td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-200">
-                      {spent.toLocaleString('en-LK', { minimumFractionDigits: 2 })} LKR
-                    </td>
-                  </tr>
-                );
-              })}
+                  return (
+                    <tr key={c.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-3.5 font-mono font-bold text-emerald-400">{c.CATEGORY_CODE}</td>
+                      <td className="py-3 px-3 font-semibold text-slate-100">{c.CATEGORY_NAME}</td>
+                      <td className="py-3 px-3">
+                        <span className="text-[11px] font-medium text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                          {c.CATEGORY_GROUP}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-slate-400">{c.DESCRIPTION || '-'}</td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-200">
+                        {spent.toLocaleString('en-LK', { minimumFractionDigits: 2 })} LKR
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to delete expense category "${c.CATEGORY_NAME}" (${c.CATEGORY_CODE})?`)) {
+                                deleteCategory(c.id);
+                              }
+                            }}
+                            title="Delete Expense Category"
+                            className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

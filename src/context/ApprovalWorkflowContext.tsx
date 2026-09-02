@@ -43,14 +43,19 @@ export const ApprovalWorkflowProvider: React.FC<{ children: ReactNode }> = ({ ch
   const [workflows, setWorkflows] = useState<ApprovalWorkflow[]>(() => {
     try {
       const saved = localStorage.getItem(WORKFLOWS_STORAGE_KEY);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch (e) {
       console.error('Error loading approval workflows:', e);
+    }
+    try {
+      localStorage.setItem(WORKFLOWS_STORAGE_KEY, JSON.stringify(initialApprovalWorkflows));
+    } catch (e) {
+      console.error('Failed to seed approval workflows:', e);
     }
     return initialApprovalWorkflows;
   });
@@ -232,7 +237,11 @@ export const ApprovalWorkflowProvider: React.FC<{ children: ReactNode }> = ({ ch
   };
 
   const resetWorkflowsToDefault = () => {
-    localStorage.removeItem(WORKFLOWS_STORAGE_KEY);
+    try {
+      localStorage.setItem(WORKFLOWS_STORAGE_KEY, JSON.stringify(initialApprovalWorkflows));
+    } catch (e) {
+      console.error('Failed to reset approval workflows:', e);
+    }
     setWorkflows(initialApprovalWorkflows);
   };
 

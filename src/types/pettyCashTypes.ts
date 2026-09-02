@@ -151,6 +151,8 @@ export interface Project {
   REMARKS?: string;
   BUDGET_PETTY_CASH?: number;
   BUDGET?: number; // Alias for budget
+  budget?: number; // Lowercase alias
+
 
   // Historical Import Metadata
   DATA_SOURCE?: 'HISTORICAL_IMPORT' | 'SYSTEM_ORIGINAL' | string;

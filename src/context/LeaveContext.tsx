@@ -67,9 +67,17 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>(() => {
     try {
       const saved = localStorage.getItem(LEAVE_TYPES_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {
       console.error('Error loading leave types:', e);
+    }
+    try {
+      localStorage.setItem(LEAVE_TYPES_KEY, JSON.stringify(initialLeaveTypes));
+    } catch (e) {
+      console.error('Failed to seed leave types:', e);
     }
     return initialLeaveTypes;
   });
@@ -77,7 +85,10 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
     try {
       const saved = localStorage.getItem(LEAVE_REQUESTS_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch (e) {
       console.error('Error loading leave requests:', e);
     }
@@ -87,100 +98,15 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [coverUpRequests, setCoverUpRequests] = useState<CoverUpRequest[]>(() => {
     try {
       const saved = localStorage.getItem(COVER_UP_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch (e) {
       console.error('Error loading cover ups:', e);
     }
     return [];
   });
-
-  // Seed sample leave requests on first run
-  useEffect(() => {
-    if (leaveRequests.length === 0 && staffMembers.length >= 2) {
-      const emp1 = staffMembers[0];
-      const emp2 = staffMembers[1];
-      const annualType = initialLeaveTypes.find(lt => lt.code === 'AL') || initialLeaveTypes[0];
-
-      const sampleReqId = `LV-2026-0001`;
-      const sampleId = `lv-seed-1`;
-      const coverId = `cov-seed-1`;
-
-      const seedCover: CoverUpRequest = {
-        id: coverId,
-        leaveRequestId: sampleId,
-        nominatedEmployeeId: emp2.id,
-        nominatedEmployeeName: emp2.fullName,
-        status: 'ACCEPTED',
-        requestedAt: '2026-08-10T09:00:00Z',
-        respondedAt: '2026-08-10T10:30:00Z',
-        responseRemarks: 'Glad to cover duties for casting supervision.'
-      };
-
-      const seedLeave: LeaveRequest = {
-        id: sampleId,
-        leaveRequestId: sampleReqId,
-        employeeId: emp1.id,
-        allocationId: `alloc-${emp1.id}`,
-        leaveTypeId: annualType.id,
-        leaveTypeName: annualType.name,
-        recordSource: 'EMA_NATIVE',
-        startDate: '2026-08-12',
-        endDate: '2026-08-13',
-        workingDays: 2,
-        reason: 'Personal family obligation in hometown',
-        coverUpRequestId: coverId,
-        coverUpStatus: 'ACCEPTED',
-        status: 'APPROVED',
-        currentStepIndex: 3,
-        approvalTrail: [
-          {
-            levelType: 'COVER_UP',
-            sequence: 1,
-            title: 'Cover-Up Staff Acceptance',
-            approverEmployeeId: emp2.id,
-            approverName: emp2.fullName,
-            approverRole: emp2.designation,
-            decision: 'APPROVED',
-            decidedAt: '2026-08-10T10:30:00Z',
-            remarks: 'Accepted'
-          },
-          {
-            levelType: 'IMMEDIATE_SUPERVISOR',
-            sequence: 2,
-            title: 'Site Supervisor Endorsement',
-            approverEmployeeId: 'staff-pm-1',
-            approverName: 'Eng. Sunil Perera',
-            approverRole: 'Project Manager',
-            decision: 'APPROVED',
-            decidedAt: '2026-08-10T14:00:00Z',
-            remarks: 'Work schedule coordinated.'
-          },
-          {
-            levelType: 'HR',
-            sequence: 3,
-            title: 'HR Officer Final Verification',
-            approverEmployeeId: 'staff-hr-1',
-            approverName: 'Kavindi Bandara',
-            approverRole: 'HR Executive',
-            decision: 'APPROVED',
-            decidedAt: '2026-08-11T09:15:00Z',
-            remarks: 'Entitlement verified and approved.'
-          }
-        ],
-        createdAt: '2026-08-10T09:00:00Z',
-        updatedAt: '2026-08-11T09:15:00Z'
-      };
-
-      setLeaveRequests([seedLeave]);
-      setCoverUpRequests([seedCover]);
-      try {
-        localStorage.setItem(LEAVE_REQUESTS_KEY, JSON.stringify([seedLeave]));
-        localStorage.setItem(COVER_UP_KEY, JSON.stringify([seedCover]));
-      } catch (e) {
-        console.error('Failed to seed leave data:', e);
-      }
-    }
-  }, [staffMembers, leaveRequests.length]);
 
   const saveRequests = (requests: LeaveRequest[]) => {
     setLeaveRequests(requests);
@@ -469,8 +395,8 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const clearLeaveHistory = () => {
-    localStorage.removeItem(LEAVE_REQUESTS_KEY);
-    localStorage.removeItem(COVER_UP_KEY);
+    localStorage.setItem(LEAVE_REQUESTS_KEY, JSON.stringify([]));
+    localStorage.setItem(COVER_UP_KEY, JSON.stringify([]));
     setLeaveRequests([]);
     setCoverUpRequests([]);
 
@@ -487,9 +413,13 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const resetLeaveData = () => {
-    localStorage.removeItem(LEAVE_TYPES_KEY);
-    localStorage.removeItem(LEAVE_REQUESTS_KEY);
-    localStorage.removeItem(COVER_UP_KEY);
+    try {
+      localStorage.setItem(LEAVE_TYPES_KEY, JSON.stringify(initialLeaveTypes));
+      localStorage.setItem(LEAVE_REQUESTS_KEY, JSON.stringify([]));
+      localStorage.setItem(COVER_UP_KEY, JSON.stringify([]));
+    } catch (e) {
+      console.error('Failed to reset leave data:', e);
+    }
     setLeaveTypes(initialLeaveTypes);
     setLeaveRequests([]);
     setCoverUpRequests([]);
@@ -500,10 +430,12 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const nowIso = new Date().toISOString();
     const newItems: LeaveRequest[] = imported.map((l, i) => ({
       id: l.id || `lv-imp-${Date.now()}-${i}`,
+      leaveRequestId: l.leaveRequestId || `LV-2026-${String(leaveRequests.length + i + 1).padStart(4, '0')}`,
       employeeId: l.employeeId || `EMP-${String(i + 1).padStart(3, '0')}`,
-      employeeName: l.employeeName || 'Employee',
+      allocationId: l.allocationId || 'alloc-default',
       leaveTypeId: l.leaveTypeId || 'ANNUAL',
       leaveTypeName: l.leaveTypeName || 'Annual Leave',
+      recordSource: l.recordSource || 'EMA_NATIVE',
       startDate: l.startDate || new Date().toISOString().slice(0, 10),
       endDate: l.endDate || new Date().toISOString().slice(0, 10),
       workingDays: Number(l.workingDays) || 1,
@@ -511,8 +443,8 @@ export const LeaveProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       halfDayPeriod: l.halfDayPeriod,
       reason: l.reason || 'Personal / Family commitments',
       status: (l.status as any) || 'APPROVED',
-      coverUpRequired: false,
-      approvalChain: [],
+      approvalTrail: l.approvalTrail || [],
+      currentStepIndex: l.currentStepIndex || 0,
       createdAt: nowIso,
       updatedAt: nowIso
     }));

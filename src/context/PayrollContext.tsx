@@ -67,7 +67,10 @@ export const PayrollProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [payrollBatches, setPayrollBatches] = useState<PayrollBatch[]>(() => {
     try {
       const saved = localStorage.getItem(PAYROLL_BATCHES_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch (e) {
       console.error('Error loading payroll batches:', e);
     }
@@ -77,7 +80,10 @@ export const PayrollProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [approvalRecords, setApprovalRecords] = useState<PayrollApprovalRecord[]>(() => {
     try {
       const saved = localStorage.getItem(PAYROLL_APPROVALS_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch (e) {
       console.error('Error loading payroll approvals:', e);
     }
@@ -217,15 +223,6 @@ export const PayrollProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     return newBatch;
   };
-
-  /**
-   * Seed Initial Batch if empty on load
-   */
-  useEffect(() => {
-    if (payrollBatches.length === 0 && staffMembers.length > 0 && salaryHistory.length > 0) {
-      generatePayrollBatch('2026-08', 'HR_ADMIN');
-    }
-  }, [payrollBatches.length, staffMembers.length, salaryHistory.length]);
 
   /**
    * Individual Employee Approval (Section 28)
@@ -473,8 +470,8 @@ export const PayrollProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const clearPayrollHistory = () => {
-    localStorage.removeItem(PAYROLL_BATCHES_KEY);
-    localStorage.removeItem(PAYROLL_APPROVALS_KEY);
+    localStorage.setItem(PAYROLL_BATCHES_KEY, JSON.stringify([]));
+    localStorage.setItem(PAYROLL_APPROVALS_KEY, JSON.stringify([]));
     setPayrollBatches([]);
     setApprovalRecords([]);
 
@@ -491,8 +488,8 @@ export const PayrollProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const resetPayrollData = () => {
-    localStorage.removeItem(PAYROLL_BATCHES_KEY);
-    localStorage.removeItem(PAYROLL_APPROVALS_KEY);
+    localStorage.setItem(PAYROLL_BATCHES_KEY, JSON.stringify([]));
+    localStorage.setItem(PAYROLL_APPROVALS_KEY, JSON.stringify([]));
     setPayrollBatches([]);
     setApprovalRecords([]);
   };

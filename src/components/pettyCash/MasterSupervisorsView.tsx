@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, UserCheck, Phone, Mail, DollarSign, Building, Edit2, FileSpreadsheet, ShieldCheck, Briefcase, Lock } from 'lucide-react';
+import { Users, UserCheck, Phone, Mail, DollarSign, Building, Edit2, Trash2, FileSpreadsheet, ShieldCheck, Briefcase, Lock } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { useFleet } from '../../context/FleetContext';
@@ -12,6 +12,7 @@ export const MasterSupervisorsView: React.FC = () => {
     supervisors,
     supervisorBalances,
     updateSupervisor,
+    deleteSupervisor,
     clearSupervisorsDirectory
   } = usePettyCash();
   const { currentRole } = useEnterprise();
@@ -209,13 +210,27 @@ export const MasterSupervisorsView: React.FC = () => {
                             Active
                           </span>
                           {isAuthorizedFinancialRole && (
-                            <button
-                              onClick={() => handleOpenEditFloat(sup)}
-                              title="Adjust Opening Float Allocation"
-                              className="p-1 rounded text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleOpenEditFloat(sup)}
+                                title="Adjust Opening Float Allocation"
+                                className="p-1 rounded text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-colors"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const name = sup.FULL_NAME || sup.SUPERVISOR_NAME;
+                                  if (window.confirm(`Are you sure you want to remove supervisor "${name}" (${sup.employeeCode || sup.SUPERVISOR_ID}) from the directory?`)) {
+                                    deleteSupervisor(sup.id);
+                                  }
+                                }}
+                                title="Delete Supervisor Entry"
+                                className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>

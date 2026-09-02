@@ -698,10 +698,17 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequestVoucher[]>(() => {
     try {
       const saved = localStorage.getItem('ema_prv_requests_v2');
-      return saved ? JSON.parse(saved) : INITIAL_PRVS;
-    } catch {
-      return INITIAL_PRVS;
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading PRV requests from storage', e);
     }
+    try {
+      localStorage.setItem('ema_prv_requests_v2', JSON.stringify(INITIAL_PRVS));
+    } catch {}
+    return INITIAL_PRVS;
   });
 
   const [activeSubTab, setActiveSubTab] = useState<PRVSubMenu>('vouchers');
@@ -1492,11 +1499,17 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [paymentRequests, currentUser]);
 
   const clearAllPRVHistory = () => {
+    try {
+      localStorage.setItem('ema_prv_requests_v2', JSON.stringify([]));
+    } catch {}
     setPaymentRequests([]);
     setSelectedPRV(null);
   };
 
   const resetPRVsToDefault = () => {
+    try {
+      localStorage.setItem('ema_prv_requests_v2', JSON.stringify(INITIAL_PRVS));
+    } catch {}
     setPaymentRequests(INITIAL_PRVS);
     setSelectedPRV(null);
   };
@@ -1507,50 +1520,42 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: p.id || `prv-imp-${Date.now()}-${i}`,
       prvNumber: p.prvNumber || `PRV-2026-${String(paymentRequests.length + i + 1).padStart(4, '0')}`,
       requestDate: p.requestDate || new Date().toISOString().slice(0, 10),
-      dueDate: p.dueDate || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
       requestedBy: p.requestedBy || currentUser,
-      requestedByRole: p.requestedByRole || currentRole,
+      requestedByEmail: p.requestedByEmail,
       department: p.department || 'Project Operations',
+      projectId: p.projectId || 'PRJ-001',
       projectCode: p.projectCode || 'PIDM 26',
-      projectName: p.projectName || 'Site Project',
-      supervisorId: p.supervisorId,
-      supervisorName: p.supervisorName,
-      payeeType: p.payeeType || 'SUPPLIER',
-      payeeName: p.payeeName || 'Vendor/Payee',
-      payeePhone: p.payeePhone,
-      payeeAccountDetails: p.payeeAccountDetails || {
-        bankName: 'Commercial Bank',
-        branchName: 'Main',
-        accountNumber: '0000000000',
-        accountHolderName: p.payeeName || 'Vendor/Payee'
-      },
+      costCentre: p.costCentre || `CC-${p.projectCode || 'PIDM26'}-SITE`,
+      expenseCategoryId: p.expenseCategoryId || 'cat-1',
       expenseCategory: p.expenseCategory || 'Building Materials',
       purpose: p.purpose || 'Site Procurement & Material Supply',
       description: p.description || 'Bulk imported voucher request',
-      priority: p.priority || 'MEDIUM',
-      currency: p.currency || 'LKR',
-      items: p.items && p.items.length > 0 ? p.items : [{
-        id: `item-${Date.now()}-${i}-1`,
-        description: p.description || 'Material / Service Purchase',
-        quantity: 1,
-        unit: 'nos',
-        unitPrice: Number(p.totalAmount) || 10000,
-        totalAmount: Number(p.totalAmount) || 10000,
-        category: p.expenseCategory || 'Building Materials'
-      }],
-      subTotal: Number(p.totalAmount) || 10000,
-      taxAmount: 0,
-      discountAmount: 0,
-      totalAmount: Number(p.totalAmount) || 10000,
+      requiredDate: p.requiredDate || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+      priority: p.priority || 'Medium',
+      payeeName: p.payeeName || 'Vendor/Payee',
+      payeeType: p.payeeType || 'Supplier',
+      bankName: p.bankName || 'Commercial Bank',
+      accountName: p.accountName || p.payeeName || 'Vendor/Payee',
+      accountNumber: p.accountNumber || '0000000000',
+      iban: p.iban,
+      swiftCode: p.swiftCode,
+      paymentMethod: p.paymentMethod || 'Bank Transfer',
+      paymentSource: p.paymentSource || 'Bank Account',
+      amount: Number(p.amount || p.totalAmount) || 10000,
+      currency: p.currency || 'AED',
+      vatRate: p.vatRate || 0,
+      vatAmount: p.vatAmount || 0,
+      totalAmount: Number(p.totalAmount || p.amount) || 10000,
+      paymentReference: p.paymentReference,
       status: p.status || 'SUBMITTED',
-      supportingDocuments: [],
-      approvals: [],
+      attachments: p.attachments || [],
+      approvals: p.approvals || [],
       auditTrail: [{
         id: `aud-imp-${Date.now()}-${i}`,
         timestamp: new Date().toLocaleString('en-GB'),
         user: currentUser,
         role: currentRole,
-        action: 'Bulk Imported',
+        action: 'PRV Created',
         newStatus: p.status || 'SUBMITTED',
         comment: `Imported via batch ${batchId}`
       }],
