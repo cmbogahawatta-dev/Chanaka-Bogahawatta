@@ -14,6 +14,7 @@ import { AttendanceProvider } from './context/AttendanceContext';
 import { LeaveProvider } from './context/LeaveContext';
 import { SalaryHistoryProvider } from './context/SalaryHistoryContext';
 import { PayrollProvider } from './context/PayrollContext';
+import { DataManagementProvider } from './context/DataManagementContext';
 
 // Global Navigation Shell
 import { EnterpriseTopUtilityBar } from './components/navigation/EnterpriseTopUtilityBar';
@@ -652,7 +653,9 @@ export default function App() {
                         <LeaveProvider>
                           <SalaryHistoryProvider>
                             <PayrollProvider>
-                              <EnterpriseAppContent />
+                              <DataManagementProvider>
+                                <EnterpriseAppContent />
+                              </DataManagementProvider>
                             </PayrollProvider>
                           </SalaryHistoryProvider>
                         </LeaveProvider>

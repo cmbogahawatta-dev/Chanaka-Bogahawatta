@@ -45,6 +45,7 @@ import { Project } from '../../types/pettyCashTypes';
 import { ProjectModal } from './ProjectModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { BulkImportProjectsModal } from '../pettyCash/BulkImportProjectsModal';
+import { DeleteRequestModal } from '../common/DeleteRequestModal';
 
 export const ProjectsView: React.FC = () => {
   const { projects, expenses, income, userRole, deleteProject, clearProjectsHistory } = usePettyCash();
@@ -59,6 +60,7 @@ export const ProjectsView: React.FC = () => {
   const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
 
   const handleOpenAddProject = () => {
     setProjectToEdit(null);
@@ -71,12 +73,7 @@ export const ProjectsView: React.FC = () => {
   };
 
   const handleDeleteProject = (proj: Project) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently delete Project "${proj.PROJECT_CODE} - ${proj.PROJECT_NAME}"?\n\nThis action cannot be undone.`
-    );
-    if (confirmed) {
-      deleteProject(proj.id);
-    }
+    setProjectToDelete(proj);
   };
 
   const formatLKR = (amt: number) => {
@@ -549,6 +546,28 @@ export const ProjectsView: React.FC = () => {
         }}
         projectToEdit={projectToEdit}
       />
+
+      {/* Safe Delete Request / Direct Delete Modal */}
+      {projectToDelete && (
+        <DeleteRequestModal
+          isOpen={!!projectToDelete}
+          onClose={() => setProjectToDelete(null)}
+          module="PROJECTS"
+          recordType="Project"
+          recordId={projectToDelete.id}
+          recordTitle={`${projectToDelete.PROJECT_CODE} - ${projectToDelete.PROJECT_NAME}`}
+          recordSummary={{
+            code: projectToDelete.PROJECT_CODE,
+            name: projectToDelete.PROJECT_NAME,
+            client: projectToDelete.CLIENT,
+            location: projectToDelete.LOCATION,
+            budget: projectToDelete.CONTRACT_VALUE || projectToDelete.BUDGET
+          }}
+          onDirectDeleteSuccess={() => {
+            setProjectToDelete(null);
+          }}
+        />
+      )}
     </div>
   );
 };

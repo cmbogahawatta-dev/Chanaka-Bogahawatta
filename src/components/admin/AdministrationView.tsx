@@ -43,8 +43,29 @@ import { EnterpriseRole } from '../../types/enterpriseTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { SecurityStatusIndicator } from './SecurityStatusIndicator';
 import { AuditLogView } from './AuditLogView';
+import { ApprovalCentreView } from './ApprovalCentreView';
+import { DeleteRequestModal } from '../common/DeleteRequestModal';
+import { useDataManagement } from '../../context/DataManagementContext';
+import { DataManagementModule } from '../../types/dataManagementTypes';
 
 export const AdministrationView: React.FC = () => {
+  const { deleteRequests, importRequests } = useDataManagement();
+  const pendingApprovalsCount = deleteRequests.filter(r => r.status === 'SUBMITTED').length + importRequests.filter(r => r.status === 'SUBMITTED').length;
+
+  const [deleteModalConfig, setDeleteModalConfig] = useState<{
+    isOpen: boolean;
+    module: DataManagementModule;
+    recordType: string;
+    recordId: string;
+    recordTitle: string;
+    recordSummary?: Record<string, any>;
+  }>({
+    isOpen: false,
+    module: 'PROJECTS',
+    recordType: 'Project',
+    recordId: '',
+    recordTitle: ''
+  });
   const {
     currentRole,
     setCurrentRole,
@@ -151,7 +172,7 @@ export const AdministrationView: React.FC = () => {
     resetPayrollData
   } = usePayroll();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'ROLES' | 'SECURITY' | 'SHEETS' | 'MASTER' | 'CACHE'>('ROLES');
+  const [activeAdminTab, setActiveAdminTab] = useState<'ROLES' | 'SECURITY' | 'APPROVAL' | 'SHEETS' | 'MASTER' | 'CACHE'>('ROLES');
   const [sheetIdInput, setSheetIdInput] = useState(sheetsConfig.spreadsheetId || '1XyZ_SAMPLE_EMA_CONSTRUCTION_PETTY_CASH_FLEET_2026');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -309,6 +330,20 @@ export const AdministrationView: React.FC = () => {
           <span>Security & Audit Logs</span>
         </button>
         <button
+          onClick={() => setActiveAdminTab('APPROVAL')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 relative ${
+            activeAdminTab === 'APPROVAL' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>Approval & Verification Centre</span>
+          {pendingApprovalsCount > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-mono font-bold animate-pulse">
+              {pendingApprovalsCount}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setActiveAdminTab('SHEETS')}
           className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
             activeAdminTab === 'SHEETS' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
@@ -388,11 +423,18 @@ export const AdministrationView: React.FC = () => {
         </div>
       )}
 
-      {/* Tab B: Security & Audit Trail */}
+      {/* Tab B1: Security & Audit Trail */}
       {activeAdminTab === 'SECURITY' && (
         <div className="space-y-6">
           <SecurityStatusIndicator />
           <AuditLogView />
+        </div>
+      )}
+
+      {/* Tab B2: Approval & Verification Centre */}
+      {activeAdminTab === 'APPROVAL' && (
+        <div className="space-y-6">
+          <ApprovalCentreView />
         </div>
       )}
 
@@ -480,11 +522,21 @@ export const AdministrationView: React.FC = () => {
                         <span className="text-[10px] font-mono text-slate-400">LKR {(p.CONTRACT_VALUE || p.budget || p.BUDGET || 0).toLocaleString()}</span>
                         <button
                           onClick={() => {
-                            if (confirm(`Are you sure you want to delete Project "${p.PROJECT_CODE} - ${p.PROJECT_NAME}"?`)) {
-                              deleteProject(p.id);
-                            }
+                            setDeleteModalConfig({
+                              isOpen: true,
+                              module: 'PROJECTS',
+                              recordType: 'Project',
+                              recordId: p.id,
+                              recordTitle: `${p.PROJECT_CODE} - ${p.PROJECT_NAME}`,
+                              recordSummary: {
+                                code: p.PROJECT_CODE,
+                                name: p.PROJECT_NAME,
+                                client: p.CLIENT,
+                                budget: p.CONTRACT_VALUE || p.budget || p.BUDGET
+                              }
+                            });
                           }}
-                          title="Delete Project Entry"
+                          title="Delete Project Entry (with Dependency Safety Check)"
                           className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -524,11 +576,22 @@ export const AdministrationView: React.FC = () => {
                     <span className="text-[10px] font-mono text-slate-400">{v.currentSite || 'Head Office'}</span>
                     <button
                       onClick={() => {
-                        if (confirm(`Are you sure you want to delete Vehicle "${v.registrationNumber} (${v.make} ${v.model})"?`)) {
-                          deleteVehicle(v.id);
-                        }
+                        setDeleteModalConfig({
+                          isOpen: true,
+                          module: 'FLEET',
+                          recordType: 'Vehicle',
+                          recordId: v.id,
+                          recordTitle: `${v.registrationNumber} (${v.make} ${v.model})`,
+                          recordSummary: {
+                            reg: v.registrationNumber,
+                            make: v.make,
+                            model: v.model,
+                            type: v.type,
+                            site: v.currentSite
+                          }
+                        });
                       }}
-                      title="Delete Vehicle Entry"
+                      title="Delete Vehicle Entry (with Dependency Safety Check)"
                       className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -561,11 +624,20 @@ export const AdministrationView: React.FC = () => {
                         <span className="text-[10px] font-mono text-slate-400">LKR {(s.OPENING_PETTY_CASH || 0).toLocaleString()}</span>
                         <button
                           onClick={() => {
-                            if (confirm(`Are you sure you want to delete Supervisor "${s.SUPERVISOR_NAME}"?`)) {
-                              deleteSupervisor(s.id);
-                            }
+                            setDeleteModalConfig({
+                              isOpen: true,
+                              module: 'PETTY_CASH',
+                              recordType: 'Supervisor',
+                              recordId: s.id,
+                              recordTitle: s.SUPERVISOR_NAME,
+                              recordSummary: {
+                                name: s.SUPERVISOR_NAME,
+                                project: s.DEFAULT_PROJECT,
+                                float: s.OPENING_PETTY_CASH
+                              }
+                            });
                           }}
-                          title="Delete Supervisor Entry"
+                          title="Delete Supervisor Entry (with Dependency Safety Check)"
                           className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -612,11 +684,21 @@ export const AdministrationView: React.FC = () => {
                         <span className="text-[10px] font-mono text-slate-400">{s.employeeCode}</span>
                         <button
                           onClick={() => {
-                            if (confirm(`Are you sure you want to delete Staff Member "${s.fullName} (${s.employeeCode})"?`)) {
-                              deleteStaffMember(s.id);
-                            }
+                            setDeleteModalConfig({
+                              isOpen: true,
+                              module: 'STAFF',
+                              recordType: 'StaffMember',
+                              recordId: s.id,
+                              recordTitle: `${s.fullName} (${s.employeeCode})`,
+                              recordSummary: {
+                                name: s.fullName,
+                                code: s.employeeCode,
+                                designation: s.designation,
+                                department: s.department
+                              }
+                            });
                           }}
-                          title="Delete Staff Member"
+                          title="Delete Staff Member (with Dependency Safety Check)"
                           className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1284,6 +1366,22 @@ export const AdministrationView: React.FC = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Safe Delete Request & Verification Modal */}
+      {deleteModalConfig.isOpen && (
+        <DeleteRequestModal
+          isOpen={deleteModalConfig.isOpen}
+          onClose={() => setDeleteModalConfig(prev => ({ ...prev, isOpen: false }))}
+          module={deleteModalConfig.module}
+          recordType={deleteModalConfig.recordType}
+          recordId={deleteModalConfig.recordId}
+          recordTitle={deleteModalConfig.recordTitle}
+          recordSummary={deleteModalConfig.recordSummary}
+          onDirectDeleteSuccess={() => {
+            setDeleteModalConfig(prev => ({ ...prev, isOpen: false }));
+          }}
+        />
       )}
     </div>
   );
