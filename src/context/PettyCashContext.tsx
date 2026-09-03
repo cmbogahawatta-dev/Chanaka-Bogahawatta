@@ -19,8 +19,16 @@ import {
   DuplicateAction,
   BudgetThresholdLevel,
   ProjectBudgetAlert,
-  ProjectBudgetSummary
+  ProjectBudgetSummary,
+  ProjectFinancialSummary,
+  VatTreatment
 } from '../types/pettyCashTypes';
+import {
+  VAT_RATE,
+  calculateVat,
+  round2,
+  isInvoiceOverdue
+} from '../utils/vatCalculations';
 import {
   initialExpenses,
   initialIncome,
@@ -99,12 +107,31 @@ interface PettyCashContextType {
     overdrawnSupervisorsCount: number;
     activeProjectsCount: number;
     activeSupervisorsCount: number;
+
+    // Dedicated VAT & Invoicing KPIs
+    revenueExcludingVat: number;
+    outputVat: number;
+    grossInvoiceIncome: number;
+    amountReceived: number;
+    outstandingReceivables: number;
+    expensesExcludingVat: number;
+    inputVat: number;
+    grossExpenses: number;
+    paidExpenses: number;
+    pendingExpenses: number;
+    netVatPosition: number;
+    vatPositionType: 'VAT_PAYABLE' | 'VAT_CREDIT';
   };
 
-  pivotMatrix: PivotMatrixData;
+  projectFinancialSummaries: ProjectFinancialSummary[];
 
   // Helper Statement Generator
   getSupervisorStatement: (supervisorName: string) => PettyCashStatementRow[];
+
+  // Invoice Actions & Helpers
+  isInvoiceNumberTaken: (invoiceNumber: string, excludeId?: string) => boolean;
+  generateNextInvoiceNumber: () => string;
+  recordInvoicePayment: (incomeId: string, paymentAmount: number, paymentDate?: string, reference?: string) => void;
 
   // CRUD Operations
   addExpense: (expense: Omit<Expense, 'id' | 'EXPENSES_ID' | 'CREATED_DATE'>) => Expense;
@@ -286,26 +313,70 @@ const defaultFilters: PettyCashFilterState = {
   dataSource: 'ALL'
 };
 
+// Safe Historical Data Migration Helpers (Requirement 3)
+const migrateHistoricalExpense = (exp: any): Expense => {
+  const amt = Number(exp.AMOUNT) || 0;
+  return {
+    ...exp,
+    vatTreatment: exp.vatTreatment || 'VAT_NOT_APPLICABLE',
+    vatRate: typeof exp.vatRate === 'number' ? exp.vatRate : 0,
+    netAmount: typeof exp.netAmount === 'number' ? exp.netAmount : amt,
+    vatAmount: typeof exp.vatAmount === 'number' ? exp.vatAmount : 0,
+    grossAmount: typeof exp.grossAmount === 'number' ? exp.grossAmount : amt,
+    vatApplicable: exp.vatApplicable !== undefined ? exp.vatApplicable : false
+  };
+};
+
+const migrateHistoricalIncome = (inc: any): Income => {
+  const amt = Number(inc.AMOUNT) || 0;
+  const isInvoice =
+    inc.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME' ||
+    inc.INCOME_SOURCE === 'Project Income / Invoice' ||
+    Boolean(inc.invoiceNumber);
+
+  const gross = typeof inc.grossAmount === 'number' ? inc.grossAmount : amt;
+  const received = typeof inc.amountReceived === 'number'
+    ? inc.amountReceived
+    : (isInvoice ? (inc.paymentStatus === 'Paid' ? gross : 0) : amt);
+  const balance = typeof inc.balanceDue === 'number'
+    ? inc.balanceDue
+    : (isInvoice ? Math.max(0, gross - received) : 0);
+
+  return {
+    ...inc,
+    vatTreatment: inc.vatTreatment || 'VAT_NOT_APPLICABLE',
+    vatRate: typeof inc.vatRate === 'number' ? inc.vatRate : 0,
+    netAmount: typeof inc.netAmount === 'number' ? inc.netAmount : amt,
+    vatAmount: typeof inc.vatAmount === 'number' ? inc.vatAmount : 0,
+    grossAmount: gross,
+    vatApplicable: inc.vatApplicable !== undefined ? inc.vatApplicable : false,
+    amountReceived: received,
+    balanceDue: balance,
+    paymentStatus: inc.paymentStatus || (isInvoice ? (balance <= 0 ? 'Paid' : 'Approved') : undefined)
+  };
+};
+
 const PettyCashContext = createContext<PettyCashContextType | undefined>(undefined);
 
 export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { staffMembers, deleteStaffMember } = useStaff();
 
-  // State Initialization from LocalStorage or Defaults
+  // State Initialization from LocalStorage or Defaults with Safe Migration
   const [expenses, setExpenses] = useState<Expense[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.EXPENSES);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(migrateHistoricalExpense);
       }
     } catch (e) {
       console.error('Error loading expenses from storage', e);
     }
+    const migrated = initialExpenses.map(migrateHistoricalExpense);
     try {
-      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(initialExpenses));
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(migrated));
     } catch {}
-    return initialExpenses;
+    return migrated;
   });
 
   const [income, setIncome] = useState<Income[]>(() => {
@@ -313,15 +384,16 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const saved = localStorage.getItem(STORAGE_KEYS.INCOME);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(migrateHistoricalIncome);
       }
     } catch (e) {
       console.error('Error loading income from storage', e);
     }
+    const migrated = initialIncome.map(migrateHistoricalIncome);
     try {
-      localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(initialIncome));
+      localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(migrated));
     } catch {}
-    return initialIncome;
+    return migrated;
   });
 
   // Step C: Petty Cash opening float allocations keyed by employeeId (with legacy aliases)
@@ -666,9 +738,9 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const supName = sup.SUPERVISOR_NAME.trim().toUpperCase();
       const opening = sup.OPENING_PETTY_CASH || 0;
 
-      // Income / Top-ups to this supervisor
+      // Income / Top-ups to this supervisor (excluding project invoice revenue)
       const incomeTotal = income
-        .filter(inc => isIncomeForSupervisor(inc, sup))
+        .filter(inc => isIncomeForSupervisor(inc, sup) && inc.TRANSACTION_TYPE !== 'PROJECT_INVOICE_INCOME' && inc.INCOME_SOURCE !== 'Project Income / Invoice')
         .reduce((sum, inc) => sum + (Number(inc.AMOUNT) || 0), 0);
 
       // Internal Transfers In
@@ -835,18 +907,28 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Top KPI Metrics
   const kpiMetrics = useMemo(() => {
-    const totalExpensesApproved = filteredExpenses
-      .filter(e => e.PAYMENT_STATUS === 'Approved' || e.PAYMENT_STATUS === 'Paid' || e.PAYMENT_STATUS === 'Reimbursed')
-      .reduce((sum, e) => sum + (Number(e.AMOUNT) || 0), 0);
+    const totalExpensesApproved = round2(
+      filteredExpenses
+        .filter(e => e.PAYMENT_STATUS === 'Approved' || e.PAYMENT_STATUS === 'Paid' || e.PAYMENT_STATUS === 'Reimbursed')
+        .reduce((sum, e) => sum + (Number(e.grossAmount ?? e.AMOUNT) || 0), 0)
+    );
 
-    const totalExpensesPending = filteredExpenses
-      .filter(e => e.PAYMENT_STATUS === 'Pending')
-      .reduce((sum, e) => sum + (Number(e.AMOUNT) || 0), 0);
+    const totalExpensesPending = round2(
+      filteredExpenses
+        .filter(e => e.PAYMENT_STATUS === 'Pending')
+        .reduce((sum, e) => sum + (Number(e.grossAmount ?? e.AMOUNT) || 0), 0)
+    );
 
-    const totalIncomeReceived = filteredIncome
-      .reduce((sum, i) => sum + (Number(i.AMOUNT) || 0), 0);
+    const totalIncomeReceived = round2(
+      filteredIncome
+        .reduce((sum, i) => {
+          if (typeof i.amountReceived === 'number') return sum + i.amountReceived;
+          if (i.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME') return sum + (i.paymentStatus === 'Paid' ? (i.grossAmount ?? i.AMOUNT) : 0);
+          return sum + (Number(i.grossAmount ?? i.AMOUNT) || 0);
+        }, 0)
+    );
 
-    const netCashFlow = totalIncomeReceived - totalExpensesApproved;
+    const netCashFlow = round2(totalIncomeReceived - totalExpensesApproved);
 
     let totalPettyCashInHand = 0;
     let overdrawnSupervisorsCount = 0;
@@ -859,17 +941,129 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const activeProjectsCount = projects.filter(p => p.STATUS === 'Active').length;
     const activeSupervisorsCount = supervisors.filter(s => s.ACTIVE).length;
 
+    // Dedicated VAT Metrics
+    // Income:
+    const revenueExcludingVat = round2(
+      filteredIncome.reduce((sum, i) => sum + (Number(i.netAmount ?? i.AMOUNT) || 0), 0)
+    );
+    const outputVat = round2(
+      filteredIncome.reduce((sum, i) => sum + (Number(i.vatAmount) || 0), 0)
+    );
+    const grossInvoiceIncome = round2(
+      filteredIncome.reduce((sum, i) => sum + (Number(i.grossAmount ?? i.AMOUNT) || 0), 0)
+    );
+    const amountReceived = totalIncomeReceived;
+    const outstandingReceivables = round2(
+      filteredIncome.reduce((sum, i) => {
+        if (typeof i.balanceDue === 'number') return sum + i.balanceDue;
+        const gross = Number(i.grossAmount ?? i.AMOUNT) || 0;
+        const rec = Number(i.amountReceived ?? gross) || 0;
+        return sum + Math.max(0, gross - rec);
+      }, 0)
+    );
+
+    // Expenses:
+    const approvedExpensesList = filteredExpenses.filter(
+      e => e.PAYMENT_STATUS === 'Approved' || e.PAYMENT_STATUS === 'Paid' || e.PAYMENT_STATUS === 'Reimbursed'
+    );
+    const expensesExcludingVat = round2(
+      approvedExpensesList.reduce((sum, e) => sum + (Number(e.netAmount ?? e.AMOUNT) || 0), 0)
+    );
+    const inputVat = round2(
+      approvedExpensesList.reduce((sum, e) => sum + (Number(e.vatAmount) || 0), 0)
+    );
+    const grossExpenses = totalExpensesApproved;
+    const paidExpenses = round2(
+      filteredExpenses
+        .filter(e => e.PAYMENT_STATUS === 'Paid' || e.PAYMENT_STATUS === 'Reimbursed')
+        .reduce((sum, e) => sum + (Number(e.grossAmount ?? e.AMOUNT) || 0), 0)
+    );
+    const pendingExpenses = totalExpensesPending;
+
+    // VAT Summary:
+    const netVatPosition = round2(outputVat - inputVat);
+    const vatPositionType: 'VAT_PAYABLE' | 'VAT_CREDIT' = netVatPosition >= 0 ? 'VAT_PAYABLE' : 'VAT_CREDIT';
+
     return {
       totalExpensesApproved,
       totalExpensesPending,
       totalIncomeReceived,
       netCashFlow,
-      totalPettyCashInHand,
+      totalPettyCashInHand: round2(totalPettyCashInHand),
       overdrawnSupervisorsCount,
       activeProjectsCount,
-      activeSupervisorsCount
+      activeSupervisorsCount,
+      revenueExcludingVat,
+      outputVat,
+      grossInvoiceIncome,
+      amountReceived,
+      outstandingReceivables,
+      expensesExcludingVat,
+      inputVat,
+      grossExpenses,
+      paidExpenses,
+      pendingExpenses,
+      netVatPosition,
+      vatPositionType
     };
   }, [filteredExpenses, filteredIncome, supervisorBalances, projects, supervisors]);
+
+  // Project-wise Financial Summaries (Requirement 15)
+  const projectFinancialSummaries = useMemo<ProjectFinancialSummary[]>(() => {
+    return projects.map(p => {
+      const prjCode = p.PROJECT_CODE;
+
+      // Filter income and expenses for this project
+      const prjIncome = income.filter(i => i.PROJECT === prjCode);
+      const prjExpenses = expenses.filter(e => e.PROJECT === prjCode && e.PAYMENT_STATUS !== 'Rejected');
+
+      // Revenue
+      const revenueExcludingVat = round2(prjIncome.reduce((sum, i) => sum + (Number(i.netAmount ?? i.AMOUNT) || 0), 0));
+      const outputVat = round2(prjIncome.reduce((sum, i) => sum + (Number(i.vatAmount) || 0), 0));
+      const grossRevenue = round2(prjIncome.reduce((sum, i) => sum + (Number(i.grossAmount ?? i.AMOUNT) || 0), 0));
+      
+      // Amount received vs balance due
+      const amountReceived = round2(prjIncome.reduce((sum, i) => {
+        if (typeof i.amountReceived === 'number') return sum + i.amountReceived;
+        if (i.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME') return sum + (i.paymentStatus === 'Paid' ? (i.grossAmount ?? i.AMOUNT) : 0);
+        return sum + (Number(i.grossAmount ?? i.AMOUNT) || 0);
+      }, 0));
+      const outstandingIncome = round2(Math.max(0, grossRevenue - amountReceived));
+
+      // Expenses (Costs)
+      const expensesExcludingVat = round2(prjExpenses.reduce((sum, e) => sum + (Number(e.netAmount ?? e.AMOUNT) || 0), 0));
+      const inputVat = round2(prjExpenses.reduce((sum, e) => sum + (Number(e.vatAmount) || 0), 0));
+      const grossExpenses = round2(prjExpenses.reduce((sum, e) => sum + (Number(e.grossAmount ?? e.AMOUNT) || 0), 0));
+
+      // Profitability & Cash Flow
+      const netProjectRevenue = revenueExcludingVat;
+      const netProjectCost = expensesExcludingVat;
+      const grossCashFlow = round2(grossRevenue - grossExpenses);
+      const netProjectProfit = round2(netProjectRevenue - netProjectCost);
+      const profitMarginPercent = netProjectRevenue > 0 ? round2((netProjectProfit / netProjectRevenue) * 100) : 0;
+
+      return {
+        projectId: p.id,
+        projectCode: prjCode,
+        projectName: p.PROJECT_NAME,
+        client: p.CLIENT || p.CLIENT_NAME || 'Road Development Authority',
+        status: p.STATUS,
+        revenueExcludingVat,
+        outputVat,
+        grossRevenue,
+        amountReceived,
+        outstandingIncome,
+        expensesExcludingVat,
+        inputVat,
+        grossExpenses,
+        netProjectRevenue,
+        netProjectCost,
+        grossCashFlow,
+        netProjectProfit,
+        profitMarginPercent
+      };
+    });
+  }, [projects, income, expenses]);
 
   // Project-wise Category Pivot Matrix calculation
   const pivotMatrix = useMemo<PivotMatrixData>(() => {
@@ -1169,9 +1363,9 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       remarks: 'Initial cash baseline'
     });
 
-    // 2. Incomes / Top-ups
+    // 2. Incomes / Top-ups (excluding project invoice revenue from petty cash statement)
     income
-      .filter(inc => sup ? isIncomeForSupervisor(inc, sup) : inc.SUPERVISOR.trim().toUpperCase() === supName)
+      .filter(inc => (sup ? isIncomeForSupervisor(inc, sup) : inc.SUPERVISOR.trim().toUpperCase() === supName) && inc.TRANSACTION_TYPE !== 'PROJECT_INVOICE_INCOME' && inc.INCOME_SOURCE !== 'Project Income / Invoice')
       .forEach(inc => {
         items.push({
           date: inc.DATE,
@@ -1268,6 +1462,56 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return statement;
   };
 
+  // Invoice Actions & Helpers
+  const isInvoiceNumberTaken = (invNumber: string, excludeId?: string): boolean => {
+    if (!invNumber || !invNumber.trim()) return false;
+    const target = invNumber.trim().toUpperCase();
+    return income.some(i => i.invoiceNumber && i.invoiceNumber.trim().toUpperCase() === target && i.id !== excludeId);
+  };
+
+  const generateNextInvoiceNumber = (): string => {
+    const year = new Date().getFullYear();
+    const prefix = `INV-${year}-`;
+    const matchingNumbers = income
+      .map(i => i.invoiceNumber)
+      .filter((inv): inv is string => Boolean(inv && inv.startsWith(prefix)))
+      .map(inv => {
+        const numPart = parseInt(inv.replace(prefix, ''), 10);
+        return isNaN(numPart) ? 0 : numPart;
+      });
+    const maxNum = matchingNumbers.length > 0 ? Math.max(...matchingNumbers) : 0;
+    const nextSeq = String(maxNum + 1).padStart(5, '0');
+    return `${prefix}${nextSeq}`;
+  };
+
+  const recordInvoicePayment = (incomeId: string, paymentAmount: number, paymentDate?: string, reference?: string) => {
+    const payAmt = Number(paymentAmount) || 0;
+    if (payAmt <= 0) return;
+
+    setIncome(prev => prev.map(inc => {
+      if (inc.id !== incomeId) return inc;
+      const gross = Number(inc.grossAmount ?? inc.AMOUNT) || 0;
+      const currentReceived = Number(inc.amountReceived) || 0;
+      const newReceived = round2(Math.min(gross, currentReceived + payAmt));
+      const newBalance = round2(Math.max(0, gross - newReceived));
+      const newStatus = newBalance <= 0.01 ? 'Paid' : (newReceived > 0 ? 'Partially Paid' : 'Approved');
+
+      const paymentNote = `Payment of LKR ${payAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })} received on ${paymentDate || new Date().toLocaleDateString('en-GB')}${reference ? ` (Ref: ${reference})` : ''}`;
+      const updatedRemarks = inc.REMARKS ? `${inc.REMARKS} | ${paymentNote}` : paymentNote;
+
+      return {
+        ...inc,
+        amountReceived: newReceived,
+        balanceDue: newBalance,
+        paymentStatus: newStatus as any,
+        paymentDate: paymentDate || inc.paymentDate || new Date().toISOString().split('T')[0],
+        paymentReference: reference || inc.paymentReference,
+        REMARKS: updatedRemarks,
+        UPDATED_DATE: new Date().toLocaleString('en-GB')
+      };
+    }));
+  };
+
   // CRUD Implementations
   const addExpense = (newExpData: Omit<Expense, 'id' | 'EXPENSES_ID' | 'CREATED_DATE'>): Expense => {
     const dateObj = new Date();
@@ -1293,10 +1537,20 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
 
+    const treatment = newExpData.vatTreatment || 'EXCLUDING_VAT';
+    const rate = typeof newExpData.vatRate === 'number' ? newExpData.vatRate : (treatment === 'VAT_NOT_APPLICABLE' ? 0 : VAT_RATE);
+    const vatCalc = calculateVat(Number(newExpData.AMOUNT) || 0, treatment, rate);
+
     const newExpense: Expense = {
       ...newExpData,
       SUPERVISOR: supName,
       SUPERVISOR_ID: supId,
+      vatTreatment: treatment,
+      vatRate: rate,
+      netAmount: newExpData.netAmount !== undefined ? newExpData.netAmount : vatCalc.netAmount,
+      vatAmount: newExpData.vatAmount !== undefined ? newExpData.vatAmount : vatCalc.vatAmount,
+      grossAmount: newExpData.grossAmount !== undefined ? newExpData.grossAmount : vatCalc.grossAmount,
+      vatApplicable: vatCalc.vatApplicable,
       id: `exp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       EXPENSES_ID: generatedId,
       CREATED_DATE: new Date().toLocaleString('en-GB')
@@ -1308,7 +1562,20 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const updateExpense = (id: string, updates: Partial<Expense>) => {
     setExpenses(prev =>
-      prev.map(exp => (exp.id === id ? { ...exp, ...updates, UPDATED_DATE: new Date().toLocaleString('en-GB') } : exp))
+      prev.map(exp => {
+        if (exp.id !== id) return exp;
+        const updated: Expense = { ...exp, ...updates, UPDATED_DATE: new Date().toLocaleString('en-GB') };
+        if (updates.AMOUNT !== undefined || updates.vatTreatment !== undefined || updates.vatRate !== undefined) {
+          const treatment = updated.vatTreatment || 'VAT_NOT_APPLICABLE';
+          const rate = typeof updated.vatRate === 'number' ? updated.vatRate : (treatment === 'VAT_NOT_APPLICABLE' ? 0 : VAT_RATE);
+          const calc = calculateVat(Number(updated.AMOUNT) || 0, treatment, rate);
+          if (updates.netAmount === undefined) updated.netAmount = calc.netAmount;
+          if (updates.vatAmount === undefined) updated.vatAmount = calc.vatAmount;
+          if (updates.grossAmount === undefined) updated.grossAmount = calc.grossAmount;
+          updated.vatApplicable = calc.vatApplicable;
+        }
+        return updated;
+      })
     );
   };
 
@@ -1359,10 +1626,27 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
 
+    const isInvoice = newIncData.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME' || newIncData.INCOME_SOURCE === 'Project Income / Invoice' || Boolean(newIncData.invoiceNumber);
+    const treatment = newIncData.vatTreatment || (isInvoice ? 'EXCLUDING_VAT' : 'VAT_NOT_APPLICABLE');
+    const rate = typeof newIncData.vatRate === 'number' ? newIncData.vatRate : (treatment === 'VAT_NOT_APPLICABLE' ? 0 : VAT_RATE);
+    const vatCalc = calculateVat(Number(newIncData.AMOUNT) || 0, treatment, rate);
+
+    const gross = newIncData.grossAmount !== undefined ? newIncData.grossAmount : vatCalc.grossAmount;
+    const received = newIncData.amountReceived !== undefined ? newIncData.amountReceived : (isInvoice ? (newIncData.paymentStatus === 'Paid' ? gross : 0) : gross);
+    const balance = newIncData.balanceDue !== undefined ? newIncData.balanceDue : (isInvoice ? Math.max(0, gross - received) : 0);
+
     const newInc: Income = {
       ...newIncData,
-      SUPERVISOR: supName,
+      SUPERVISOR: supName || 'HEAD_OFFICE',
       SUPERVISOR_ID: supId,
+      vatTreatment: treatment,
+      vatRate: rate,
+      netAmount: newIncData.netAmount !== undefined ? newIncData.netAmount : vatCalc.netAmount,
+      vatAmount: newIncData.vatAmount !== undefined ? newIncData.vatAmount : vatCalc.vatAmount,
+      grossAmount: gross,
+      vatApplicable: vatCalc.vatApplicable,
+      amountReceived: received,
+      balanceDue: balance,
       id: `inc-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       INCOME_ID: generatedId,
       CREATED_DATE: new Date().toLocaleString('en-GB')
@@ -1373,7 +1657,23 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateIncome = (id: string, updates: Partial<Income>) => {
-    setIncome(prev => prev.map(inc => (inc.id === id ? { ...inc, ...updates } : inc)));
+    setIncome(prev => prev.map(inc => {
+      if (inc.id !== id) return inc;
+      const updated: Income = { ...inc, ...updates, UPDATED_DATE: new Date().toLocaleString('en-GB') };
+      if (updates.AMOUNT !== undefined || updates.vatTreatment !== undefined || updates.vatRate !== undefined) {
+        const treatment = updated.vatTreatment || 'VAT_NOT_APPLICABLE';
+        const rate = typeof updated.vatRate === 'number' ? updated.vatRate : (treatment === 'VAT_NOT_APPLICABLE' ? 0 : VAT_RATE);
+        const calc = calculateVat(Number(updated.AMOUNT) || 0, treatment, rate);
+        if (updates.netAmount === undefined) updated.netAmount = calc.netAmount;
+        if (updates.vatAmount === undefined) updated.vatAmount = calc.vatAmount;
+        if (updates.grossAmount === undefined) updated.grossAmount = calc.grossAmount;
+        updated.vatApplicable = calc.vatApplicable;
+      }
+      if (updated.grossAmount !== undefined && updated.amountReceived !== undefined) {
+        updated.balanceDue = round2(Math.max(0, updated.grossAmount - updated.amountReceived));
+      }
+      return updated;
+    }));
   };
 
   const deleteIncome = (id: string) => {
@@ -1530,7 +1830,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Export engine to CSV / Excel compatible text
-  const exportToCsv = (type: 'expenses' | 'income' | 'pivot' | 'statement', supervisorName?: string) => {
+  const exportToCsv = (type: 'expenses' | 'income' | 'pivot' | 'statement' | 'vat_summary', supervisorName?: string) => {
     let csvContent = '';
     let fileName = `EMA_PettyCash_${type}_${new Date().toISOString().split('T')[0]}.csv`;
 
@@ -1542,6 +1842,11 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         'PROJECT',
         'CATEGORY',
         'AMOUNT (LKR)',
+        'VAT_TREATMENT',
+        'VAT_RATE_%',
+        'NET_AMOUNT (LKR)',
+        'VAT_AMOUNT (LKR)',
+        'GROSS_AMOUNT (LKR)',
         'DESCRIPTION',
         'STATUS',
         'CREATED_BY',
@@ -1556,6 +1861,11 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         `"${e.PROJECT}"`,
         `"${e.EXPENSES_CATEGORY}"`,
         e.AMOUNT,
+        `"${e.vatTreatment || 'VAT_NOT_APPLICABLE'}"`,
+        e.vatRate ?? 0,
+        e.netAmount ?? e.AMOUNT,
+        e.vatAmount ?? 0,
+        e.grossAmount ?? e.AMOUNT,
         `"${(e.EXPENSES_DESCRIPTION || '').replace(/"/g, '""')}"`,
         `"${e.PAYMENT_STATUS}"`,
         `"${e.CREATED_BY}"`,
@@ -1568,10 +1878,22 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const headers = [
         'INCOME_ID',
         'DATE',
-        'SUPERVISOR',
+        'INVOICE_NUMBER',
+        'INVOICE_DATE',
+        'DUE_DATE',
+        'CLIENT',
         'PROJECT',
         'SOURCE',
         'AMOUNT (LKR)',
+        'VAT_TREATMENT',
+        'VAT_RATE_%',
+        'NET_AMOUNT (LKR)',
+        'VAT_AMOUNT (LKR)',
+        'GROSS_AMOUNT (LKR)',
+        'AMOUNT_RECEIVED (LKR)',
+        'BALANCE_DUE (LKR)',
+        'PAYMENT_STATUS',
+        'SUPERVISOR',
         'CREATED_BY',
         'CREATED_DATE',
         'REMARKS'
@@ -1579,10 +1901,22 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const rows = filteredIncome.map(i => [
         `"${i.INCOME_ID}"`,
         `"${i.DATE}"`,
-        `"${i.SUPERVISOR}"`,
+        `"${i.invoiceNumber || ''}"`,
+        `"${i.invoiceDate || ''}"`,
+        `"${i.dueDate || ''}"`,
+        `"${i.clientName || ''}"`,
         `"${i.PROJECT}"`,
         `"${i.INCOME_SOURCE}"`,
         i.AMOUNT,
+        `"${i.vatTreatment || 'VAT_NOT_APPLICABLE'}"`,
+        i.vatRate ?? 0,
+        i.netAmount ?? i.AMOUNT,
+        i.vatAmount ?? 0,
+        i.grossAmount ?? i.AMOUNT,
+        i.amountReceived ?? (i.grossAmount ?? i.AMOUNT),
+        i.balanceDue ?? 0,
+        `"${i.paymentStatus || 'Received'}"`,
+        `"${i.SUPERVISOR}"`,
         `"${i.CREATED_BY}"`,
         `"${i.CREATED_DATE}"`,
         `"${(i.REMARKS || '').replace(/"/g, '""')}"`
@@ -1604,6 +1938,56 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         `"${(s.remarks || '').replace(/"/g, '""')}"`
       ]);
       csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    } else if (type === 'vat_summary') {
+      fileName = `EMA_VAT_Summary_${new Date().toISOString().split('T')[0]}.csv`;
+      const headers = ['PROJECT_CODE', 'PROJECT_NAME', 'CLIENT', 'REVENUE_EXCL_VAT', 'OUTPUT_VAT', 'GROSS_REVENUE', 'AMOUNT_RECEIVED', 'OUTSTANDING_RECEIVABLE', 'EXPENSES_EXCL_VAT', 'INPUT_VAT', 'GROSS_EXPENSES', 'NET_PROFIT', 'PROFIT_MARGIN_%'];
+      const rows = projectFinancialSummaries.map(p => [
+        `"${p.projectCode}"`,
+        `"${p.projectName}"`,
+        `"${p.client}"`,
+        p.revenueExcludingVat,
+        p.outputVat,
+        p.grossRevenue,
+        p.amountReceived,
+        p.outstandingIncome,
+        p.expensesExcludingVat,
+        p.inputVat,
+        p.grossExpenses,
+        p.netProjectProfit,
+        p.profitMarginPercent
+      ]);
+      const summaryHeader = '\n"TOTALS",,,,';
+      const kpiRow = [
+        '"TOTAL SUMMARY"',
+        '""',
+        '""',
+        kpiMetrics.revenueExcludingVat,
+        kpiMetrics.outputVat,
+        kpiMetrics.grossInvoiceIncome,
+        kpiMetrics.amountReceived,
+        kpiMetrics.outstandingReceivables,
+        kpiMetrics.expensesExcludingVat,
+        kpiMetrics.inputVat,
+        kpiMetrics.grossExpenses,
+        round2(kpiMetrics.revenueExcludingVat - kpiMetrics.expensesExcludingVat),
+        '""'
+      ];
+      const vatNetRow = [
+        `"NET VAT POSITION: ${kpiMetrics.vatPositionType}"`,
+        '""',
+        '""',
+        '""',
+        `"OUTPUT VAT: ${kpiMetrics.outputVat}"`,
+        '""',
+        '""',
+        '""',
+        '""',
+        `"INPUT VAT: ${kpiMetrics.inputVat}"`,
+        '""',
+        `"NET VAT: ${kpiMetrics.netVatPosition}"`,
+        '""'
+      ];
+      csvContent = [headers.join(','), ...rows.map(r => r.join(',')), summaryHeader, kpiRow.join(','), vatNetRow.join(',')].join('\n');
     } else if (type === 'pivot') {
       const projectHeaders = pivotMatrix.projects.map(p => `"${p.PROJECT_CODE}"`);
       const headers = ['CATEGORY_CODE', 'CATEGORY_NAME', 'GROUP', ...projectHeaders, 'GRAND_TOTAL'];
@@ -2237,8 +2621,12 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         filteredTransfers,
         supervisorBalances,
         kpiMetrics,
+        projectFinancialSummaries,
         pivotMatrix,
         getSupervisorStatement,
+        isInvoiceNumberTaken,
+        generateNextInvoiceNumber,
+        recordInvoicePayment,
         addExpense,
         updateExpense,
         deleteExpense,

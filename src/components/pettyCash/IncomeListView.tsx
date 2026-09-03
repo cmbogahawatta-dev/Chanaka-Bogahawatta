@@ -12,7 +12,8 @@ import {
   ArrowUpDown,
   Edit2,
   Trash2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
@@ -24,9 +25,13 @@ import { BulkImportIncomeModal } from './BulkImportIncomeModal';
 
 interface IncomeListViewProps {
   onOpenAddIncome: () => void;
+  onNavigateToProjectInvoices?: () => void;
 }
 
-export const IncomeListView: React.FC<IncomeListViewProps> = ({ onOpenAddIncome }) => {
+export const IncomeListView: React.FC<IncomeListViewProps> = ({
+  onOpenAddIncome,
+  onNavigateToProjectInvoices
+}) => {
   const { filteredIncome, exportToCsv, clearIncomeHistory, userRole, deleteIncome } = usePettyCash();
   const { currentRole } = useEnterprise();
   const isAdmin = userRole === 'ADMIN' || currentRole === 'ADMIN';
@@ -60,6 +65,18 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({ onOpenAddIncome 
         </div>
 
         <div className="flex items-center gap-2">
+          {onNavigateToProjectInvoices && (
+            <button
+              id="btn-switch-to-project-invoices"
+              onClick={onNavigateToProjectInvoices}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 text-xs font-bold shadow-md transition-all active:scale-95"
+              title="Switch to Project Invoices & Tax Invoicing Management"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Project Invoices</span>
+            </button>
+          )}
+
           <AdminClearHistoryButton
             id="btn-admin-clear-income"
             moduleName="Petty Cash Top-ups"

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Upload, CheckCircle2, AlertCircle, Calendar, User, Building, Tag, DollarSign, FileText, Image as ImageIcon, AlertTriangle, AlertOctagon, ShieldAlert } from 'lucide-react';
+import { X, Upload, CheckCircle2, AlertCircle, Calendar, User, Building, Tag, DollarSign, FileText, Image as ImageIcon, AlertTriangle, AlertOctagon, ShieldAlert, Percent } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
-import { Expense, TransactionType } from '../../types/pettyCashTypes';
+import { Expense, TransactionType, VatTreatment } from '../../types/pettyCashTypes';
+import { VAT_RATE, calculateVat, formatLkr } from '../../utils/vatCalculations';
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [category, setCategory] = useState<string>(categories[0]?.CATEGORY_NAME || '5000 Construction Materials');
   const [transactionType, setTransactionType] = useState<TransactionType>('PETTY_CASH_EXPENSE');
   const [amount, setAmount] = useState<string>('');
+  const [vatTreatment, setVatTreatment] = useState<VatTreatment>('EXCLUDING_VAT');
   const [description, setDescription] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
   const [proofDocument, setProofDocument] = useState<string>('');
@@ -47,10 +49,15 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
   const numericAmount = parseFloat(amount.replace(/,/g, '')) || 0;
 
+  // Real-time VAT Breakdown calculation
+  const vatBreakdown = useMemo(() => {
+    return calculateVat(numericAmount, vatTreatment, VAT_RATE);
+  }, [numericAmount, vatTreatment]);
+
   // Real-time project budget impact calculation
   const budgetImpact = useMemo(() => {
-    return checkBudgetImpact(project, numericAmount);
-  }, [project, numericAmount, checkBudgetImpact]);
+    return checkBudgetImpact(project, vatBreakdown.grossAmount);
+  }, [project, vatBreakdown.grossAmount, checkBudgetImpact]);
 
   useEffect(() => {
     if (expenseToEdit) {
@@ -60,6 +67,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setCategory(expenseToEdit.EXPENSES_CATEGORY || categories[0]?.CATEGORY_NAME || '5000 Construction Materials');
       setTransactionType(expenseToEdit.TRANSACTION_TYPE || 'PETTY_CASH_EXPENSE');
       setAmount(expenseToEdit.AMOUNT ? expenseToEdit.AMOUNT.toString() : '');
+      setVatTreatment(expenseToEdit.vatTreatment || (expenseToEdit.vatApplicable ? 'EXCLUDING_VAT' : 'VAT_NOT_APPLICABLE'));
       setDescription(expenseToEdit.EXPENSES_DESCRIPTION || '');
       setRemarks(expenseToEdit.REMARKS || '');
       setProofDocument(expenseToEdit.PROOF_DOCUMENT || '');
@@ -73,6 +81,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setCategory(categories[0]?.CATEGORY_NAME || '5000 Construction Materials');
       setTransactionType('PETTY_CASH_EXPENSE');
       setAmount('');
+      setVatTreatment('EXCLUDING_VAT');
       setDescription('');
       setRemarks('');
       setProofDocument('');
@@ -158,6 +167,12 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           EXPENSES_CATEGORY: category,
           TRANSACTION_TYPE: transactionType,
           AMOUNT: numericAmount,
+          vatTreatment,
+          vatRate: vatTreatment === 'VAT_NOT_APPLICABLE' ? 0 : VAT_RATE,
+          netAmount: vatBreakdown.netAmount,
+          vatAmount: vatBreakdown.vatAmount,
+          grossAmount: vatBreakdown.grossAmount,
+          vatApplicable: vatBreakdown.vatApplicable,
           EXPENSES_DESCRIPTION: description.trim(),
           PROOF_DOCUMENT: proofDocument || undefined,
           PROOF_DOCUMENT_NAME: proofDocName || undefined,
@@ -175,6 +190,12 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           EXPENSES_CATEGORY: category,
           TRANSACTION_TYPE: transactionType,
           AMOUNT: numericAmount,
+          vatTreatment,
+          vatRate: vatTreatment === 'VAT_NOT_APPLICABLE' ? 0 : VAT_RATE,
+          netAmount: vatBreakdown.netAmount,
+          vatAmount: vatBreakdown.vatAmount,
+          grossAmount: vatBreakdown.grossAmount,
+          vatApplicable: vatBreakdown.vatApplicable,
           EXPENSES_DESCRIPTION: description.trim(),
           PAYMENT_STATUS: userRole === 'ADMIN' || userRole === 'FINANCE' ? 'Approved' : 'Pending',
           PROOF_DOCUMENT: proofDocument || undefined,
@@ -350,7 +371,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             {/* Amount in LKR */}
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1">
-                Amount in Sri Lankan Rupees (LKR) *
+                Input Amount (LKR) *
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-400 font-mono">
@@ -362,12 +383,95 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   step="0.01"
                   min="0.01"
                   required
-                  placeholder="e.g. 15400.00"
+                  placeholder="e.g. 100000.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-14 pr-3 py-2.5 text-sm font-mono font-bold text-slate-100 focus:outline-none focus:border-emerald-500"
                 />
               </div>
+            </div>
+
+            {/* VAT Treatment Selection (Standard 18% VAT) */}
+            <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <Percent className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>VAT Treatment</span>
+                </label>
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">
+                  Standard Rate: {VAT_RATE}%
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  id="expense-vat-excluding"
+                  onClick={() => setVatTreatment('EXCLUDING_VAT')}
+                  className={`p-2.5 rounded-lg border text-left transition-all ${
+                    vatTreatment === 'EXCLUDING_VAT'
+                      ? 'bg-emerald-950/40 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/40'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                  }`}
+                >
+                  <p className="text-xs font-bold">Excluding VAT</p>
+                  <p className="text-[10px] opacity-75 mt-0.5">+18% VAT on top</p>
+                </button>
+
+                <button
+                  type="button"
+                  id="expense-vat-including"
+                  onClick={() => setVatTreatment('INCLUDING_VAT')}
+                  className={`p-2.5 rounded-lg border text-left transition-all ${
+                    vatTreatment === 'INCLUDING_VAT'
+                      ? 'bg-cyan-950/40 border-cyan-500 text-cyan-200 ring-1 ring-cyan-500/40'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                  }`}
+                >
+                  <p className="text-xs font-bold">Including VAT</p>
+                  <p className="text-[10px] opacity-75 mt-0.5">18% extracted (18/118)</p>
+                </button>
+
+                <button
+                  type="button"
+                  id="expense-vat-none"
+                  onClick={() => setVatTreatment('VAT_NOT_APPLICABLE')}
+                  className={`p-2.5 rounded-lg border text-left transition-all ${
+                    vatTreatment === 'VAT_NOT_APPLICABLE'
+                      ? 'bg-slate-800 border-slate-500 text-slate-200 ring-1 ring-slate-500/40'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                  }`}
+                >
+                  <p className="text-xs font-bold">Not Applicable</p>
+                  <p className="text-[10px] opacity-75 mt-0.5">0% VAT (Exempt)</p>
+                </button>
+              </div>
+
+              {/* Real-time Calculation Breakdown Box */}
+              {numericAmount > 0 && (
+                <div className="mt-2.5 pt-2.5 border-t border-slate-800/80 grid grid-cols-3 gap-2 text-center bg-slate-900/60 p-2 rounded-lg">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Net Amount</span>
+                    <span className="text-xs font-mono font-bold text-slate-200">
+                      {formatLkr(vatBreakdown.netAmount)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-emerald-400 block font-medium">
+                      VAT ({vatTreatment === 'VAT_NOT_APPLICABLE' ? '0%' : '18%'})
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-400">
+                      {formatLkr(vatBreakdown.vatAmount)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-blue-400 block font-medium">Gross Total</span>
+                    <span className="text-xs font-mono font-bold text-white">
+                      {formatLkr(vatBreakdown.grossAmount)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Description */}

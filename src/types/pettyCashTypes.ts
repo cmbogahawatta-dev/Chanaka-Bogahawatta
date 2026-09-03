@@ -1,5 +1,20 @@
 export type PaymentStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected' | 'Paid' | 'Reimbursed';
 
+export type InvoicePaymentStatus =
+  | 'Draft'
+  | 'Pending'
+  | 'Submitted'
+  | 'Approved'
+  | 'Partially Paid'
+  | 'Paid'
+  | 'Overdue'
+  | 'Cancelled';
+
+export type VatTreatment =
+  | 'EXCLUDING_VAT'
+  | 'INCLUDING_VAT'
+  | 'VAT_NOT_APPLICABLE';
+
 export type PettyCashNavTab =
   | 'master-dashboard'
   | 'dashboard'
@@ -7,6 +22,7 @@ export type PettyCashNavTab =
   | 'expenses'
   | 'add-income'
   | 'income'
+  | 'invoices'
   | 'petty-cash'
   | 'projects'
   | 'supervisors'
@@ -19,10 +35,13 @@ export type PettyCashNavTab =
 export type IncomeSource = 
   | 'Petty Cash Top-up' 
   | 'Client Payment' 
+  | 'Project Income / Invoice'
   | 'Advance' 
   | 'Reimbursement' 
   | 'Other Income' 
-  | 'Internal Transfer';
+  | 'Internal Transfer'
+  | 'Head Office Petty Cash Top-up'
+  | string;
 
 export type TransactionType =
   | 'PETTY_CASH_EXPENSE'
@@ -32,6 +51,7 @@ export type TransactionType =
   | 'LOAN_REPAYMENT'
   | 'PETTY_CASH_TOPUP'
   | 'CLIENT_INCOME'
+  | 'PROJECT_INVOICE_INCOME'
   | 'INTERNAL_TRANSFER'
   | 'REIMBURSEMENT_SETTLEMENT';
 
@@ -47,7 +67,7 @@ export interface Expense {
   PROJECT: string; // FK to PROJECTS.PROJECT_CODE
   EXPENSES_CATEGORY: string; // FK to EXPENSE_CATEGORIES.CATEGORY_NAME
   TRANSACTION_TYPE: TransactionType;
-  AMOUNT: number; // LKR Value (positive)
+  AMOUNT: number; // LKR Value (positive user-entered amount)
   EXPENSES_DESCRIPTION: string;
   PAYMENT_STATUS: PaymentStatus;
   PROOF_DOCUMENT?: string; // URL, Base64 image, or Google Drive link
@@ -59,6 +79,14 @@ export interface Expense {
   APPROVED_DATE?: string;
   REMARKS?: string;
   REJECTION_REASON?: string;
+
+  // VAT Breakdown Attributes
+  vatTreatment?: VatTreatment;
+  vatRate?: number;
+  netAmount?: number;
+  vatAmount?: number;
+  grossAmount?: number;
+  vatApplicable?: boolean;
 
   // PRV Payment & Source Integration Extensions
   PRV_NUMBER?: string; // e.g. "PRV-2026-00045"
@@ -89,12 +117,35 @@ export interface Income {
   PROJECT: string;
   INCOME_SOURCE: IncomeSource;
   TRANSACTION_TYPE: TransactionType;
-  AMOUNT: number; // LKR Value
+  AMOUNT: number; // LKR Value (user-entered amount)
   PROOF_DOCUMENT?: string;
   PROOF_DOCUMENT_NAME?: string;
   CREATED_BY: string;
   CREATED_DATE: string;
   REMARKS?: string;
+
+  // VAT Breakdown Attributes
+  vatTreatment?: VatTreatment;
+  vatRate?: number;
+  netAmount?: number;
+  vatAmount?: number;
+  grossAmount?: number;
+  vatApplicable?: boolean;
+
+  // Dedicated Project Income / Invoice Fields
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  invoiceDueDate?: string;
+  dueDate?: string;
+  clientName?: string;
+  clientCode?: string;
+  invoiceDescription?: string;
+  billingDescription?: string;
+  paymentStatus?: InvoicePaymentStatus;
+  amountReceived?: number;
+  balanceDue?: number;
+  paymentDate?: string;
+  paymentReference?: string;
 }
 
 export interface PettyCashAllocation {
@@ -201,6 +252,33 @@ export interface ProjectBudgetSummary {
   thresholdLevel: BudgetThresholdLevel;
   assignedSupervisors: string[];
   alert?: ProjectBudgetAlert;
+}
+
+export interface ProjectFinancialSummary {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  client: string;
+  status: string;
+  
+  // Revenue / Income
+  revenueExcludingVat: number; // Net Revenue
+  outputVat: number;
+  grossRevenue: number;
+  amountReceived: number;
+  outstandingIncome: number; // Balance Due
+  
+  // Expenses / Cost
+  expensesExcludingVat: number; // Net Cost
+  inputVat: number;
+  grossExpenses: number;
+  
+  // Profitability & Cash Flow
+  netProjectRevenue: number; // = Revenue Excl VAT
+  netProjectCost: number; // = Expenses Excl VAT
+  grossCashFlow: number; // = Gross Revenue - Gross Expenses
+  netProjectProfit: number; // = Net Revenue - Net Cost
+  profitMarginPercent: number; // (netProjectProfit / netProjectRevenue) * 100
 }
 
 export interface ExpenseCategory {

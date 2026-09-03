@@ -16,7 +16,8 @@ import {
   X,
   FileSpreadsheet,
   Database,
-  ShieldAlert
+  ShieldAlert,
+  FileCheck
 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { PettyCashNavTab } from '../../types/pettyCashTypes';
@@ -40,7 +41,12 @@ export const PettyCashSidebar: React.FC<PettyCashSidebarProps> = ({
   onOpenAddExpense,
   onOpenAddIncome
 }) => {
-  const { userRole, kpiMetrics } = usePettyCash();
+  const { userRole, kpiMetrics, income } = usePettyCash();
+
+  const pendingInvoicesCount = income.filter(i =>
+    (i.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME' || Boolean(i.invoiceNumber)) &&
+    (i.paymentStatus === 'Pending' || i.paymentStatus === 'Partially Paid')
+  ).length;
 
   const navItems: {
     id: PettyCashNavTab;
@@ -106,6 +112,13 @@ export const PettyCashSidebar: React.FC<PettyCashSidebarProps> = ({
       id: 'projects',
       label: 'Projects Matrix',
       icon: FolderKanban
+    },
+    {
+      id: 'invoices',
+      label: 'Project Invoices',
+      icon: FileCheck,
+      badge: pendingInvoicesCount > 0 ? `${pendingInvoicesCount} Active` : undefined,
+      badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold'
     },
     {
       id: 'supervisors',

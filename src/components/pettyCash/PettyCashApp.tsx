@@ -10,6 +10,7 @@ import { MasterSupervisorsView } from './MasterSupervisorsView';
 import { MasterCategoriesView } from './MasterCategoriesView';
 import { PettyCashReportsView } from './PettyCashReportsView';
 import { ProofDocumentsView } from './ProofDocumentsView';
+import { ProjectInvoicesView } from './ProjectInvoicesView';
 import { GoogleSheetsSettingsView } from './GoogleSheetsSettingsView';
 import { AdminDataImportView } from './admin/AdminDataImportView';
 import { AdminSecurityModal } from './admin/AdminSecurityModal';
@@ -52,6 +53,7 @@ export const PettyCashApp: React.FC<PettyCashAppProps> = ({
   const [isBudgetAlertsOpen, setIsBudgetAlertsOpen] = useState<boolean>(false);
   const [selectedExpenseForDetail, setSelectedExpenseForDetail] = useState<Expense | null>(null);
   const [selectedSupervisorForStatement, setSelectedSupervisorForStatement] = useState<string | undefined>(undefined);
+  const [selectedProjectForInvoices, setSelectedProjectForInvoices] = useState<string | undefined>(undefined);
 
   // Intercept navigation to admin-import tab to enforce security verification
   const handleSelectTab = (tab: PettyCashNavTab) => {
@@ -94,6 +96,11 @@ export const PettyCashApp: React.FC<PettyCashAppProps> = ({
   const handleOpenSupervisorStatement = (supervisorName: string) => {
     setSelectedSupervisorForStatement(supervisorName);
     setActiveTab('petty-cash');
+  };
+
+  const handleOpenProjectInvoices = (projectCode?: string) => {
+    setSelectedProjectForInvoices(projectCode);
+    setActiveTab('invoices');
   };
 
   return (
@@ -156,6 +163,7 @@ export const PettyCashApp: React.FC<PettyCashAppProps> = ({
           {activeTab === 'income' && (
             <IncomeListView
               onOpenAddIncome={() => setIsAddIncomeOpen(true)}
+              onNavigateToProjectInvoices={() => handleOpenProjectInvoices()}
             />
           )}
 
@@ -171,6 +179,14 @@ export const PettyCashApp: React.FC<PettyCashAppProps> = ({
           {activeTab === 'projects' && (
             <ProjectMatrixView
               onSelectExpenseForDetail={(exp) => setSelectedExpenseForDetail(exp)}
+              onNavigateToProjectInvoices={handleOpenProjectInvoices}
+            />
+          )}
+
+          {activeTab === 'invoices' && (
+            <ProjectInvoicesView
+              initialProjectCode={selectedProjectForInvoices}
+              onNavigateToProjects={() => setActiveTab('projects')}
             />
           )}
 

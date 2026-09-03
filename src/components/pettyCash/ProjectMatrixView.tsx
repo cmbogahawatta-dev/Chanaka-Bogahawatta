@@ -13,7 +13,8 @@ import {
   Edit2,
   Trash2,
   CheckCircle2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { PettyCashFilterBar } from './PettyCashFilterBar';
@@ -22,9 +23,13 @@ import { BulkImportProjectsModal } from './BulkImportProjectsModal';
 
 interface ProjectMatrixViewProps {
   onSelectExpenseForDetail: (expense: Expense) => void;
+  onNavigateToProjectInvoices?: (projectCode?: string) => void;
 }
 
-export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectExpenseForDetail }) => {
+export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
+  onSelectExpenseForDetail,
+  onNavigateToProjectInvoices
+}) => {
   const {
     projects,
     pivotMatrix,
@@ -35,7 +40,8 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
     addProject,
     updateProject,
     deleteProject,
-    userRole
+    userRole,
+    income
   } = usePettyCash();
 
   // Cell drilldown state
@@ -152,6 +158,18 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
         </div>
 
         <div className="flex items-center gap-2">
+          {onNavigateToProjectInvoices && (
+            <button
+              id="btn-navigate-to-invoices"
+              onClick={() => onNavigateToProjectInvoices()}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 text-xs font-bold shadow-md transition-all active:scale-95"
+              title="Manage Project Billing, Tax Invoices & VAT Reconciliation"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Project Invoices</span>
+            </button>
+          )}
+
           <button
             id="btn-bulk-import-projects"
             onClick={() => setIsBulkImportOpen(true)}
@@ -506,6 +524,15 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({ onSelectEx
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
+                          {onNavigateToProjectInvoices && (
+                            <button
+                              onClick={() => onNavigateToProjectInvoices(p.PROJECT_CODE)}
+                              title={`View & Manage Invoices for ${p.PROJECT_CODE}`}
+                              className="p-1.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-900 text-indigo-300 hover:text-white transition-colors"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleOpenEditProject(p)}
                             title="Edit Project Details"
