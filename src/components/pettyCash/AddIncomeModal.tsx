@@ -1,13 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Upload, CheckCircle2, AlertCircle, Building, User, FileText, Image as ImageIcon } from 'lucide-react';
+import {
+  X,
+  DollarSign,
+  Upload,
+  CheckCircle2,
+  AlertCircle,
+  Building,
+  User,
+  Image as ImageIcon,
+  ArrowRight,
+  TrendingUp,
+  FileText
+} from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
+import { useEnterprise } from '../../context/EnterpriseContext';
 import { Income, IncomeSource } from '../../types/pettyCashTypes';
+
+export type IncomeModalType =
+  | 'PETTY_CASH_TOPUP'
+  | 'OTHER_INCOME';
 
 interface AddIncomeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (incomeId: string) => void;
   incomeToEdit?: Income | null;
+  initialType?: IncomeModalType;
 }
 
 export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
@@ -16,9 +34,21 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
   onSuccess,
   incomeToEdit
 }) => {
-  const { supervisors, projects, addIncome, updateIncome } = usePettyCash();
+  const {
+    supervisors,
+    projects,
+    addIncome,
+    updateIncome,
+    userRole,
+    currentSupervisorName
+  } = usePettyCash();
 
+  const { navigateToModule } = useEnterprise();
+
+  // Common dates
   const todayIso = new Date().toISOString().split('T')[0];
+
+  // Petty Cash Top-up form states
   const [dateRef, setDateRef] = useState<string>(todayIso);
   const [supervisor, setSupervisor] = useState<string>(supervisors[0]?.SUPERVISOR_NAME || 'BUDDIKA');
   const [project, setProject] = useState<string>(projects[0]?.PROJECT_CODE || 'HEAD_OFFICE');
@@ -30,9 +60,12 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
   const [error, setError] = useState<string>('');
   const [submittedIncomeId, setSubmittedIncomeId] = useState<string | null>(null);
 
+  // Initialize form when opening or editing
   useEffect(() => {
+    if (!isOpen) return;
+
     if (incomeToEdit) {
-      setDateRef(incomeToEdit.DATE_REF || todayIso);
+      setDateRef(incomeToEdit.DATE || todayIso);
       setSupervisor(incomeToEdit.SUPERVISOR || supervisors[0]?.SUPERVISOR_NAME || 'BUDDIKA');
       setProject(incomeToEdit.PROJECT || projects[0]?.PROJECT_CODE || 'HEAD_OFFICE');
       setIncomeSource(incomeToEdit.INCOME_SOURCE || 'Head Office Petty Cash Top-up');
@@ -40,10 +73,10 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
       setRemarks(incomeToEdit.REMARKS || '');
       setProofDocument(incomeToEdit.PROOF_DOCUMENT || '');
       setProofDocName(incomeToEdit.PROOF_DOCUMENT_NAME || '');
-      setError('');
     } else {
       setDateRef(todayIso);
-      setSupervisor(supervisors[0]?.SUPERVISOR_NAME || 'BUDDIKA');
+      const initialSup = currentSupervisorName || supervisors[0]?.SUPERVISOR_NAME || 'BUDDIKA';
+      setSupervisor(initialSup);
       setProject(projects[0]?.PROJECT_CODE || 'HEAD_OFFICE');
       setIncomeSource('Head Office Petty Cash Top-up');
       setAmount('');
@@ -51,328 +84,303 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
       setProofDocument('');
       setProofDocName('');
       setError('');
+      setSubmittedIncomeId(null);
     }
-  }, [incomeToEdit, isOpen]);
+  }, [isOpen, incomeToEdit, supervisors, projects, todayIso, currentSupervisorName]);
 
   if (!isOpen) return null;
 
-  const formatDateDisplay = (isoStr: string) => {
-    if (!isoStr) return '';
-    const parts = isoStr.split('-');
-    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    return isoStr;
-  };
-
+  // File Upload Handler (Bank slip / Deposit receipt)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setProofDocName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        setProofDocument(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Proof image exceeds 5MB size limit.');
+      return;
     }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProofDocument(reader.result as string);
+      setProofDocName(file.name);
+    };
+    reader.readAsDataURL(file);
   };
 
+  // Submit Petty Cash Top-up
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     const numericAmount = parseFloat(amount.replace(/,/g, ''));
     if (isNaN(numericAmount) || numericAmount <= 0) {
-      setError('Please enter a valid positive LKR amount.');
+      setError('Please enter a valid positive top-up amount.');
+      return;
+    }
+
+    if (!supervisor) {
+      setError('Please select a recipient supervisor for this float top-up.');
       return;
     }
 
     try {
-      const displayDate = formatDateDisplay(dateRef);
-      const selectedSupObj = supervisors.find(s =>
-        s.SUPERVISOR_NAME.trim().toUpperCase() === supervisor.trim().toUpperCase() ||
-        s.id === supervisor ||
-        s.SUPERVISOR_ID === supervisor ||
-        s.employeeCode === supervisor ||
-        s.staffId === supervisor
-      );
-      const supId = selectedSupObj?.staffId || selectedSupObj?.id || selectedSupObj?.employeeCode || supervisor;
-      const supName = selectedSupObj?.SUPERVISOR_NAME || supervisor;
-
       if (incomeToEdit) {
+        // Edit existing record
         updateIncome(incomeToEdit.id, {
-          DATE_REF: dateRef,
-          DATE: displayDate,
-          SUPERVISOR: supName,
-          SUPERVISOR_ID: supId,
+          DATE: dateRef,
+          SUPERVISOR: supervisor,
           PROJECT: project,
           INCOME_SOURCE: incomeSource,
           AMOUNT: numericAmount,
+          REMARKS: remarks.trim() || undefined,
           PROOF_DOCUMENT: proofDocument || undefined,
-          PROOF_DOCUMENT_NAME: proofDocName || undefined,
-          REMARKS: remarks.trim() || undefined
+          PROOF_DOCUMENT_NAME: proofDocName || undefined
         });
-        if (onSuccess) onSuccess(incomeToEdit.INCOME_ID);
-        onClose();
+        setSubmittedIncomeId(incomeToEdit.INCOME_ID || incomeToEdit.id);
       } else {
-        const newInc = addIncome({
-          DATE_REF: dateRef,
-          DATE: displayDate,
-          SUPERVISOR: supName,
-          SUPERVISOR_ID: supId,
+        // Create new Petty Cash Top-up
+        const newRecord = addIncome({
+          DATE: dateRef,
+          SUPERVISOR: supervisor,
           PROJECT: project,
           INCOME_SOURCE: incomeSource,
           AMOUNT: numericAmount,
+          REMARKS: remarks.trim() || 'Site petty cash float replenishment',
           PROOF_DOCUMENT: proofDocument || undefined,
           PROOF_DOCUMENT_NAME: proofDocName || undefined,
-          CREATED_BY: 'finance@company.com',
-          REMARKS: remarks.trim() || undefined
+          TRANSACTION_TYPE: 'PETTY_CASH_TOPUP'
         });
-
-        setSubmittedIncomeId(newInc.INCOME_ID);
-        if (onSuccess) onSuccess(newInc.INCOME_ID);
+        setSubmittedIncomeId(newRecord.INCOME_ID);
       }
+
+      if (onSuccess && submittedIncomeId) {
+        onSuccess(submittedIncomeId);
+      }
+
+      setTimeout(() => {
+        onClose();
+      }, 1500);
     } catch (err: any) {
-      setError(err?.message || 'Failed to submit income.');
+      setError(err?.message || 'Failed to save petty cash top-up.');
     }
   };
 
-  const handleResetAndClose = () => {
-    setSubmittedIncomeId(null);
-    setAmount('');
-    setRemarks('');
-    setProofDocument('');
-    setProofDocName('');
-    setError('');
-    onClose();
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-              <DollarSign className="w-4 h-4" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/60">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
+              <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-100">{incomeToEdit ? 'Edit Income / Cash Top-up' : 'Add Income / Cash Top-up'}</h3>
-              <p className="text-xs text-slate-400">{incomeToEdit ? `Updating income voucher ${incomeToEdit.INCOME_ID}` : 'Record cash float top-up to supervisor or project'}</p>
+              <h2 className="text-base sm:text-lg font-black text-slate-100 tracking-tight">
+                {incomeToEdit ? 'Edit Petty Cash Top-up' : 'Record Petty Cash Top-up'}
+              </h2>
+              <p className="text-xs text-slate-400">
+                Disburse float replenishments and cash advances to site supervisors
+              </p>
             </div>
           </div>
           <button
-            onClick={handleResetAndClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-200 p-1.5 rounded-xl hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* Notice for Project Invoices & Client Payments */}
+        <div className="bg-indigo-950/40 border-b border-indigo-900/40 px-6 py-2.5 flex items-center justify-between text-xs text-indigo-300">
+          <span className="flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span>Looking for Project Invoices (Inc) & Client Payments?</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              navigateToModule('payments');
+            }}
+            className="text-indigo-300 hover:text-white font-bold underline ml-2 shrink-0"
+          >
+            Go to Finance & PRV
+          </button>
+        </div>
+
+        {/* Success confirmation */}
         {submittedIncomeId ? (
-          <div className="p-6 text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center justify-center mx-auto">
+          <div className="p-8 text-center space-y-3">
+            <div className="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <div>
-              <h4 className="text-lg font-bold text-slate-100">Income / Top-up Recorded!</h4>
-              <p className="text-xs text-slate-400 mt-1">Supervisor petty cash balance has been credited with ID:</p>
-              <div className="mt-2 font-mono text-sm font-bold bg-slate-950 border border-emerald-800 text-emerald-300 py-1.5 px-3 rounded-lg inline-block">
-                {submittedIncomeId}
-              </div>
-            </div>
-            <div className="pt-3 flex justify-center gap-3">
-              <button
-                onClick={() => {
-                  setSubmittedIncomeId(null);
-                  setAmount('');
-                  setRemarks('');
-                  setProofDocument('');
-                }}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
-              >
-                Add Another
-              </button>
-              <button
-                onClick={handleResetAndClose}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
-              >
-                Done
-              </button>
-            </div>
+            <h3 className="text-lg font-bold text-slate-100">Petty Cash Float Top-up Recorded!</h3>
+            <p className="text-xs text-slate-400">
+              Voucher <span className="font-mono font-bold text-emerald-400">{submittedIncomeId}</span> has been logged and credited to {supervisor}&apos;s cash balance.
+            </p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-300 text-xs font-medium">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                 <span>{error}</span>
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Date & Amount */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Transaction Date *
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  Top-up Date *
                 </label>
                 <input
                   type="date"
-                  required
                   value={dateRef}
                   onChange={(e) => setDateRef(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                  required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Receiving Supervisor *
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  Amount (LKR) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">
+                    LKR
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="e.g. 50000"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-12 pr-3.5 py-2.5 text-xs text-slate-100 font-mono font-bold focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Supervisor & Project Allocation */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  Recipient Supervisor *
                 </label>
                 <select
-                  required
                   value={supervisor}
                   onChange={(e) => setSupervisor(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                  required
                 >
-                  {supervisors.map(s => (
-                    <option key={s.id} value={s.SUPERVISOR_NAME}>
-                      {s.employeeCode || s.SUPERVISOR_ID} — {s.FULL_NAME || s.SUPERVISOR_NAME}
+                  {supervisors.map((s) => (
+                    <option key={s.SUPERVISOR_NAME} value={s.SUPERVISOR_NAME}>
+                      {s.SUPERVISOR_NAME} {s.TELEPHONE ? `(${s.TELEPHONE})` : ''}
                     </option>
                   ))}
                 </select>
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Income Source *
-                </label>
-                <select
-                  required
-                  value={incomeSource}
-                  onChange={(e) => setIncomeSource(e.target.value as IncomeSource)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="Head Office Petty Cash Top-up">Head Office Petty Cash Top-up</option>
-                  <option value="Commercial Bank Transfer">Commercial Bank Transfer</option>
-                  <option value="Sampath Bank Cheque">Sampath Bank Cheque</option>
-                  <option value="BOC Cash Advance">BOC Cash Advance</option>
-                  <option value="Client Direct Advance">Client Direct Advance</option>
-                  <option value="Scrap & Salvage Sale">Scrap & Salvage Sale</option>
-                  <option value="Other Reimbursement">Other Reimbursement</option>
-                </select>
-              </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Project Code *
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  Project Allocation *
                 </label>
                 <select
-                  required
                   value={project}
                   onChange={(e) => setProject(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                  required
                 >
-                  <option value="HEAD_OFFICE">HEAD_OFFICE - Central Treasury</option>
-                  {projects.map(p => (
-                    <option key={p.id} value={p.PROJECT_CODE}>
-                      {p.PROJECT_CODE} - {p.PROJECT_NAME.slice(0, 20)}...
+                  <option value="HEAD_OFFICE">HEAD_OFFICE - General Cash Float</option>
+                  {projects.map((p) => (
+                    <option key={p.PROJECT_CODE} value={p.PROJECT_CODE}>
+                      {p.PROJECT_CODE} - {p.PROJECT_NAME}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
 
+            {/* Top-up Channel / Source */}
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Amount in Sri Lankan Rupees (LKR) *
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Top-up Channel / Method *
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-400 font-mono">
-                  LKR
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  required
-                  placeholder="e.g. 50000.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-14 pr-3 py-2.5 text-sm font-mono font-bold text-slate-100 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+              <select
+                value={incomeSource}
+                onChange={(e) => setIncomeSource(e.target.value as IncomeSource)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+              >
+                <option value="Head Office Petty Cash Top-up">Head Office Petty Cash Top-up</option>
+                <option value="Direct Bank Transfer to Supervisor">Direct Bank Transfer to Supervisor Float</option>
+                <option value="Cash Advance / Float Replenishment">Cash Advance / Float Replenishment</option>
+                <option value="Bank Deposit Slip">Bank Deposit Slip (BOC / Commercial Bank)</option>
+                <option value="Owner Advance">Owner Float Advance</option>
+                <option value="Other Income / Float Adjustment">Other Float Adjustment</option>
+              </select>
             </div>
 
+            {/* Remarks */}
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Remarks / Bank Reference / Voucher Details
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Remarks / Float Purpose
               </label>
-              <textarea
-                rows={2}
-                placeholder="e.g. Cheque #89124 issued for site emergency float..."
+              <input
+                type="text"
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                placeholder="e.g. Float replenishment for week 36 site civil works"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
               />
             </div>
 
+            {/* Slip Proof Upload */}
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Bank Slip / Deposit Slip Image
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Bank Deposit / Transfer Proof Slip (Optional)
               </label>
-              <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500 rounded-xl p-3 text-center bg-slate-950 transition-colors">
-                {proofDocument ? (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ImageIcon className="w-5 h-5 text-emerald-400" />
-                      <span className="text-xs text-slate-200 truncate max-w-[200px]">
-                        {proofDocName || 'Bank Slip Attached'}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProofDocument('');
-                        setProofDocName('');
-                      }}
-                      className="text-xs text-rose-400 hover:underline"
-                    >
-                      Remove
-                    </button>
-                  </div>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold cursor-pointer transition-colors">
+                  <Upload className="w-4 h-4 text-emerald-400" />
+                  <span>Choose Image</span>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
+                {proofDocName ? (
+                  <span className="text-xs text-emerald-400 font-mono truncate max-w-[200px]">
+                    {proofDocName}
+                  </span>
                 ) : (
-                  <div>
-                    <Upload className="w-5 h-5 text-slate-400 mx-auto mb-1" />
-                    <label
-                      htmlFor="income-proof-file-input"
-                      className="text-xs text-emerald-400 hover:underline font-semibold cursor-pointer"
-                    >
-                      Upload bank deposit slip / voucher
-                    </label>
-                    <input
-                      id="income-proof-file-input"
-                      type="file"
-                      accept="image/*,.pdf"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                  </div>
+                  <span className="text-xs text-slate-500">No slip chosen (max 5MB)</span>
                 )}
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-800">
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
               <button
                 type="button"
-                onClick={handleResetAndClose}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all active:scale-95"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-950/40 transition-all active:scale-95 flex items-center gap-1.5"
               >
-                {incomeToEdit ? 'Save Changes' : 'Record Income / Top-up'}
+                <TrendingUp className="w-4 h-4" />
+                <span>{incomeToEdit ? 'Save Top-up Changes' : 'Record Petty Cash Top-up'}</span>
               </button>
             </div>
           </form>

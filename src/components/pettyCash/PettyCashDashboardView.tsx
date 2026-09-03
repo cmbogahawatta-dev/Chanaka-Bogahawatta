@@ -165,16 +165,16 @@ export const PettyCashDashboardView: React.FC<PettyCashDashboardViewProps> = ({
             <span className="text-[10px] text-emerald-400 font-semibold mt-1">Approved / Paid</span>
           </div>
 
-          {/* 2. Total Income / Top-ups */}
+          {/* 2. Petty Cash Top-ups */}
           <div className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-3.5 flex flex-col justify-between shadow-sm hover:border-slate-700 transition-all">
             <div className="flex items-center justify-between text-slate-400 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Total Income</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider">Petty Cash Top-ups</span>
               <TrendingUp className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-sm sm:text-base font-black text-emerald-300 tracking-tight">
               {formatLKR(kpiMetrics.totalIncomeReceived)}
             </div>
-            <span className="text-[10px] text-slate-400 font-medium mt-1">Top-ups & Receipts</span>
+            <span className="text-[10px] text-slate-400 font-medium mt-1">Supervisor Float Top-ups</span>
           </div>
 
           {/* 3. Net Cash Flow */}
@@ -188,7 +188,7 @@ export const PettyCashDashboardView: React.FC<PettyCashDashboardViewProps> = ({
             }`}>
               {formatLKR(kpiMetrics.netCashFlow)}
             </div>
-            <span className="text-[10px] text-slate-400 font-medium mt-1">Income - Expenses</span>
+            <span className="text-[10px] text-slate-400 font-medium mt-1">Top-ups - Expenses</span>
           </div>
 
           {/* 4. Pending Expenses */}

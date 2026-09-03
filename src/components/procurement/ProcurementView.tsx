@@ -87,11 +87,7 @@ export const ProcurementView: React.FC = () => {
   };
 
   const formatLKR = (amt: number) => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR',
-      maximumFractionDigits: 0
-    }).format(amt);
+    return `LKR ${Number(amt || 0).toLocaleString('en-LK', { maximumFractionDigits: 0 })}`;
   };
 
   const filteredOrders = useMemo(() => {

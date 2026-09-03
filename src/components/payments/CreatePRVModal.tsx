@@ -60,7 +60,7 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
 
   // Amount & Financials
   const [amount, setAmount] = useState<number>(0);
-  const [currency, setCurrency] = useState<CurrencyCode>('AED');
+  const [currency, setCurrency] = useState<CurrencyCode>('LKR');
   const [vatRate, setVatRate] = useState<number>(0);
   const [paymentReference, setPaymentReference] = useState<string>('');
 
@@ -442,8 +442,8 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
                   onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-amber-300 font-mono font-bold focus:border-amber-500 focus:outline-none"
                 >
-                  <option value="AED">AED - UAE Dirham</option>
                   <option value="LKR">LKR - Sri Lankan Rupee</option>
+                  <option value="AED">AED - UAE Dirham</option>
                   <option value="USD">USD - US Dollar</option>
                   <option value="EUR">EUR - Euro</option>
                   <option value="SAR">SAR - Saudi Riyal</option>

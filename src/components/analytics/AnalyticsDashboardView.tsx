@@ -588,7 +588,7 @@ export const AnalyticsDashboardView: React.FC = () => {
             {averageFleetEfficiency} <span className="text-xs text-slate-400 font-normal">km/L</span>
           </p>
           <p className="text-[11px] text-slate-400 mt-1">
-            Cost: <span className="font-semibold text-slate-200">Rs. {averageCostPerKm} / km</span>
+            Cost: <span className="font-semibold text-slate-200">LKR {averageCostPerKm} / km</span>
           </p>
         </div>
       </div>
@@ -628,7 +628,7 @@ export const AnalyticsDashboardView: React.FC = () => {
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Spend (Rs.)
+                Spend (LKR)
               </button>
             </div>
           </div>
@@ -684,7 +684,7 @@ export const AnalyticsDashboardView: React.FC = () => {
                   <Bar
                     yAxisId="left"
                     dataKey="fuelCost"
-                    name="Fuel Spend (Rs.)"
+                    name="Fuel Spend (LKR)"
                     fill="#10b981"
                     radius={[4, 4, 0, 0]}
                     maxBarSize={28}

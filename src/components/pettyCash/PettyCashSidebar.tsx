@@ -89,7 +89,7 @@ export const PettyCashSidebar: React.FC<PettyCashSidebarProps> = ({
     },
     {
       id: 'add-income',
-      label: 'Add Income',
+      label: 'Add Petty Cash Top-up',
       icon: DollarSign,
       roles: ['ADMIN', 'FINANCE'],
       isAction: true,
@@ -97,7 +97,7 @@ export const PettyCashSidebar: React.FC<PettyCashSidebarProps> = ({
     },
     {
       id: 'income',
-      label: 'Income & Top-ups',
+      label: 'Petty Cash Top-ups',
       icon: TrendingUp,
       roles: ['ADMIN', 'FINANCE', 'SUPERVISOR', 'VIEWER']
     },
@@ -112,13 +112,6 @@ export const PettyCashSidebar: React.FC<PettyCashSidebarProps> = ({
       id: 'projects',
       label: 'Projects Matrix',
       icon: FolderKanban
-    },
-    {
-      id: 'invoices',
-      label: 'Project Invoices',
-      icon: FileCheck,
-      badge: pendingInvoicesCount > 0 ? `${pendingInvoicesCount} Active` : undefined,
-      badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold'
     },
     {
       id: 'supervisors',

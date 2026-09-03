@@ -22,7 +22,9 @@ import {
   Layers,
   MapPin,
   Clock,
-  Trash2
+  Trash2,
+  FileSpreadsheet,
+  Receipt
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
@@ -146,6 +148,24 @@ export const GlobalCommandPaletteModal: React.FC<GlobalCommandPaletteModalProps>
       icon: CreditCard,
       color: 'text-rose-400',
       action: () => { setCurrentModule('payments'); onClose(); }
+    },
+    {
+      id: 'nav-invoices',
+      type: 'Navigation',
+      title: 'Project Invoices (Inc)',
+      subtitle: 'Client tax invoices, progress billings, advance receipts, VAT & retentions',
+      icon: FileSpreadsheet,
+      color: 'text-indigo-400',
+      action: () => { setCurrentModule('invoices'); onClose(); }
+    },
+    {
+      id: 'nav-client-payments',
+      type: 'Navigation',
+      title: 'Client Payments & Receipts',
+      subtitle: 'Milestone collections, client payments ledger, bank deposits & receivables',
+      icon: Receipt,
+      color: 'text-emerald-400',
+      action: () => { setCurrentModule('client-payments'); onClose(); }
     },
     {
       id: 'nav-reports',

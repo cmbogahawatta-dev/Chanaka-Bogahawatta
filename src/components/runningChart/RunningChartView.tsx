@@ -90,7 +90,7 @@ export const RunningChartView: React.FC<RunningChartViewProps> = ({ onOpenNewTri
       'End Odometer (km)',
       'Distance (km)',
       'Route Description',
-      'Toll/Parking (Rs.)',
+      'Toll/Parking (LKR)',
       'Passengers',
       'Remarks'
     ];

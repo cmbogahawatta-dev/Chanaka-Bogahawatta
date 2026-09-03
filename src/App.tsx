@@ -169,6 +169,10 @@ const EnterpriseAppContent: React.FC = () => {
           '6': 'projects',
           '7': 'procurement',
           '8': 'payments',
+          'i': 'invoices',
+          'I': 'invoices',
+          'c': 'client-payments',
+          'C': 'client-payments',
           '9': 'reports',
           '0': 'documents',
           'p': 'admin',
@@ -286,7 +290,7 @@ const EnterpriseAppContent: React.FC = () => {
                         pettyCashTab === 'income' ? 'bg-emerald-600 text-white shadow-sm font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                       }`}
                     >
-                      Income / Top-ups
+                      Petty Cash Top-ups
                     </button>
                     <button
                       onClick={() => setPettyCashTab('petty-cash')}
@@ -553,8 +557,10 @@ const EnterpriseAppContent: React.FC = () => {
             {/* MODULE 5: PROCUREMENT & MATERIALS */}
             {currentModule === 'procurement' && <ProcurementView />}
 
-            {/* MODULE 6: PAYMENTS & DISBURSALS */}
-            {currentModule === 'payments' && <PaymentsView />}
+            {/* MODULE 6: FINANCE & PRV VOUCHERS, INVOICES & CLIENT PAYMENTS */}
+            {currentModule === 'payments' && <PaymentsView initialTab="vouchers" />}
+            {currentModule === 'invoices' && <PaymentsView initialTab="project_invoices" />}
+            {currentModule === 'client-payments' && <PaymentsView initialTab="client_payments" />}
 
             {/* MODULE 7: CONSOLIDATED REPORTS */}
             {currentModule === 'reports' && <EnterpriseReportsView />}

@@ -197,7 +197,7 @@ export const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-400 font-medium">Currency:</span>
           <span className="text-xs font-bold text-slate-200 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
-            LKR (Rs.)
+            LKR
           </span>
           <span className="text-xs text-slate-400 font-medium ml-2">Date Format:</span>
           <span className="text-xs font-medium text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
@@ -241,7 +241,7 @@ export const PettyCashHeader: React.FC<PettyCashHeaderProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-slate-700 text-xs font-bold shadow-sm transition-all active:scale-95"
             >
               <DollarSign className="w-4 h-4 text-emerald-400" />
-              <span>Add Income / Top-up</span>
+              <span>Add Petty Cash Top-up</span>
             </button>
           )}
 

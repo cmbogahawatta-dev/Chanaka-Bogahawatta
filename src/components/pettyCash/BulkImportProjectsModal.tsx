@@ -88,11 +88,7 @@ export const BulkImportProjectsModal: React.FC<BulkImportProjectsModalProps> = (
 
   // Format currency in LKR
   const formatLKR = (val: number): string => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR',
-      maximumFractionDigits: 0
-    }).format(val);
+    return `LKR ${Number(val || 0).toLocaleString('en-LK', { maximumFractionDigits: 0 })}`;
   };
 
   // --- Step 1: Parsing Handler ---

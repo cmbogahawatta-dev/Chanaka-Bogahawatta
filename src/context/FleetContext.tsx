@@ -1124,7 +1124,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       module: 'MAINTENANCE',
       recordId: newLog.id,
       recordTitle: `Completed Service: ${log.serviceType}`,
-      details: `Logged completed maintenance for vehicle ID ${log.vehicleId} by ${log.performedBy} (Cost: AED/LKR ${log.cost}).`,
+      details: `Logged completed maintenance for vehicle ID ${log.vehicleId} by ${log.performedBy} (Cost: LKR ${log.cost}).`,
       newValue: newLog
     });
   };

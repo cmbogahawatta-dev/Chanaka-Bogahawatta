@@ -93,8 +93,8 @@ export const FuelRecordView: React.FC<FuelRecordViewProps> = ({ onOpenNewFuel })
       'Odometer (km)',
       'Fuel Type',
       'Liters (L)',
-      'Price Per Liter (Rs.)',
-      'Total Cost (Rs.)',
+      'Price Per Liter (LKR)',
+      'Total Cost (LKR)',
       'Full Tank',
       'Efficiency (km/L)',
       'Station Name',
@@ -292,7 +292,7 @@ export const FuelRecordView: React.FC<FuelRecordViewProps> = ({ onOpenNewFuel })
                       {formatCurrency(record.totalCost)}
                     </span>
                     <p className="text-[10px] text-slate-400">
-                      {record.liters} L @ Rs. {record.pricePerLiter}/L
+                      {record.liters} L @ LKR {record.pricePerLiter}/L
                     </p>
                   </div>
                 </div>

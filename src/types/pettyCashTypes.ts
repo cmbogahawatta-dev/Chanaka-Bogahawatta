@@ -96,7 +96,7 @@ export interface Expense {
   BANK_ACCOUNT?: string; // e.g. "EMA Main Account - BOC 77482"
   PAYMENT_REFERENCE?: string; // e.g. "TXN-928374"
   PAID_BY?: string; // User who completed payment
-  CURRENCY?: string; // e.g. "AED", "LKR", "USD"
+  CURRENCY?: string; // e.g. "LKR", "USD", "AED"
   PAYEE?: string;
 
   // Historical Import Metadata
@@ -355,7 +355,8 @@ export type ImportType =
   | 'HISTORICAL_EXPENSES' 
   | 'PROJECT_DIRECTORY' 
   | 'SUPERVISOR_DIRECTORY'
-  | 'HISTORICAL_INCOME';
+  | 'HISTORICAL_INCOME'
+  | 'PROJECT_INVOICES';
 
 export type DuplicateAction = 'SKIP' | 'UPDATE' | 'IMPORT_AS_NEW' | 'CANCEL';
 

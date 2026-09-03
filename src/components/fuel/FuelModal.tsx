@@ -277,7 +277,7 @@ export const FuelModal: React.FC<FuelModalProps> = ({ isOpen, onClose, fuelRecor
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Price / L (Rs.)</label>
+                <label className="block text-[10px] text-slate-400 mb-1">Price / L (LKR)</label>
                 <input
                   type="number"
                   value={pricePerLiter}
@@ -305,7 +305,7 @@ export const FuelModal: React.FC<FuelModalProps> = ({ isOpen, onClose, fuelRecor
               <div className="text-right">
                 <span className="text-[10px] text-slate-400 uppercase font-semibold">Total Amount:</span>
                 <p className="text-base font-extrabold text-amber-400">
-                  Rs. {totalCost.toLocaleString()}
+                  LKR {totalCost.toLocaleString()}
                 </p>
               </div>
             </div>

@@ -7,6 +7,8 @@ export type EnterpriseModule =
   | 'projects'
   | 'procurement'
   | 'payments'
+  | 'invoices'
+  | 'client-payments'
   | 'reports'
   | 'documents'
   | 'admin';

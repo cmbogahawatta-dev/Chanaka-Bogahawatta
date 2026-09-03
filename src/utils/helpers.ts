@@ -1,11 +1,18 @@
 import { ServiceSchedule, ServiceStatus, Vehicle } from '../types';
 
 export function formatCurrency(amount: number): string {
+  if (isNaN(amount) || amount === null || amount === undefined) return 'LKR 0';
+  return `LKR ${Math.round(amount).toLocaleString('en-LK')}`;
+}
+
+export function formatLKR(amount: number): string {
+  if (isNaN(amount) || amount === null || amount === undefined) return 'LKR 0.00';
   return new Intl.NumberFormat('en-LK', {
     style: 'currency',
     currency: 'LKR',
-    maximumFractionDigits: 0
-  }).format(amount).replace('LKR', 'Rs.');
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount).replace('LKR', 'LKR ');
 }
 
 export function formatDate(dateString: string): string {

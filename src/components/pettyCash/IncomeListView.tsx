@@ -13,7 +13,8 @@ import {
   Edit2,
   Trash2,
   FileSpreadsheet,
-  FileText
+  FileText,
+  Receipt
 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
@@ -33,7 +34,7 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
   onNavigateToProjectInvoices
 }) => {
   const { filteredIncome, exportToCsv, clearIncomeHistory, userRole, deleteIncome } = usePettyCash();
-  const { currentRole } = useEnterprise();
+  const { currentRole, navigateToModule } = useEnterprise();
   const isAdmin = userRole === 'ADMIN' || currentRole === 'ADMIN';
 
   const [selectedIncome, setSelectedIncome] = useState<Income | null>(null);
@@ -48,7 +49,14 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
     }).format(amount).replace('LKR', 'LKR ');
   };
 
-  const totalFilteredIncome = filteredIncome.reduce((sum, inc) => sum + (Number(inc.AMOUNT) || 0), 0);
+  // Strictly filter to Petty Cash Float Top-ups (corporate project invoices belong in Finance & PRV Vouchers)
+  const pettyCashTopups = filteredIncome.filter(inc =>
+    inc.TRANSACTION_TYPE !== 'PROJECT_INVOICE_INCOME' &&
+    !inc.invoiceNumber &&
+    inc.INCOME_SOURCE !== 'Project Income / Invoice'
+  );
+
+  const totalFilteredIncome = pettyCashTopups.reduce((sum, inc) => sum + (Number(inc.AMOUNT) || 0), 0);
 
   return (
     <div className="space-y-4 pb-12">
@@ -57,30 +65,27 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
         <div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2">
             <TrendingUp className="w-6 h-6 text-emerald-400" />
-            <span>Income & Petty Cash Float Top-ups</span>
+            <span>Petty Cash Top-ups</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Displaying {filteredIncome.length} receipts. Total cash received: <span className="font-bold text-emerald-400 font-mono">{formatLKR(totalFilteredIncome)}</span>
+            Displaying {pettyCashTopups.length} supervisor float replenishments and cashier cash allocations. Total top-ups: <span className="font-bold text-emerald-400 font-mono">{formatLKR(totalFilteredIncome)}</span>
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {onNavigateToProjectInvoices && (
-            <button
-              id="btn-switch-to-project-invoices"
-              onClick={onNavigateToProjectInvoices}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 text-xs font-bold shadow-md transition-all active:scale-95"
-              title="Switch to Project Invoices & Tax Invoicing Management"
-            >
-              <FileText className="w-4 h-4" />
-              <span>Project Invoices</span>
-            </button>
-          )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => navigateToModule('payments')}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 text-xs font-bold shadow-md transition-all active:scale-95"
+            title="Switch to Finance & PRV Vouchers for Project Invoices & Client Payments"
+          >
+            <FileText className="w-4 h-4" />
+            <span>Finance & PRV Vouchers</span>
+          </button>
 
           <AdminClearHistoryButton
             id="btn-admin-clear-income"
             moduleName="Petty Cash Top-ups"
-            itemCount={filteredIncome.length}
+            itemCount={pettyCashTopups.length}
             itemDescription="float top-up receipts and bank deposit confirmations"
             preservedItemsDescription="Supervisors, projects, and chart of accounts remain intact."
             onClear={() => clearIncomeHistory()}
@@ -90,7 +95,7 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
             id="btn-bulk-import-income"
             onClick={() => setIsBulkImportOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-xs font-bold shadow-md transition-all active:scale-95"
-            title="Bulk import income and top-ups from Excel/CSV with Admin PIN authorization"
+            title="Bulk import petty cash top-ups from Excel/CSV with Admin PIN authorization"
           >
             <FileSpreadsheet className="w-4 h-4" />
             <span>Bulk Import</span>
@@ -112,7 +117,7 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all active:scale-95"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Add Income / Top-up</span>
+              <span>Add Petty Cash Top-up</span>
             </button>
           )}
         </div>
@@ -121,17 +126,41 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
       {/* Global Filter Bar */}
       <PettyCashFilterBar showCategoryFilter={false} showStatusFilter={false} />
 
+      {/* Informative Notice Bar linking to dedicated sidebar modules */}
+      <div className="bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 text-slate-400">
+          <FileSpreadsheet className="w-4 h-4 text-indigo-400 shrink-0" />
+          <span>Looking for corporate customer billing? Project Invoices & Client Payments are relocated to dedicated sidebar navigation.</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigateToModule('invoices')}
+            className="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] font-semibold transition-all flex items-center gap-1.5"
+          >
+            <span>Project Invoices</span>
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => navigateToModule('client-payments')}
+            className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold transition-all flex items-center gap-1.5"
+          >
+            <span>Client Payments</span>
+            <Receipt className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
       {/* Income Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-md">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-800 text-slate-300 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-700">
               <tr>
-                <th className="py-3 px-3.5">Income ID</th>
+                <th className="py-3 px-3.5">Top-up ID</th>
                 <th className="py-3 px-3">Date</th>
                 <th className="py-3 px-3">Supervisor</th>
                 <th className="py-3 px-3">Project / Allocation</th>
-                <th className="py-3 px-3">Source / Channel</th>
+                <th className="py-3 px-3">Top-up Channel</th>
                 <th className="py-3 px-3 text-right">Amount (LKR)</th>
                 <th className="py-3 px-3">Created By</th>
                 <th className="py-3 px-3 min-w-[180px]">Remarks</th>
@@ -140,21 +169,26 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 font-sans">
-              {filteredIncome.length === 0 ? (
+              {pettyCashTopups.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-8 text-center text-slate-400">
-                    No income records found matching current criteria.
+                    No petty cash top-up records found matching current criteria.
                   </td>
                 </tr>
               ) : (
-                filteredIncome.map((inc) => (
+                pettyCashTopups.map((inc) => (
                   <tr
                     key={inc.id}
                     onClick={() => setSelectedIncome(inc)}
                     className="hover:bg-slate-800/50 cursor-pointer transition-colors"
                   >
                     <td className="py-3 px-3.5 font-mono font-bold text-slate-200">
-                      {inc.INCOME_ID}
+                      <div>{inc.INCOME_ID}</div>
+                      {inc.invoiceNumber && (
+                        <span className="text-[10px] text-indigo-400 font-mono font-semibold block">
+                          {inc.invoiceNumber}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-3 text-slate-300 font-medium">
                       {inc.DATE}
@@ -167,8 +201,18 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
                         {inc.PROJECT}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-emerald-300 font-medium">
-                      {inc.INCOME_SOURCE}
+                    <td className="py-3 px-3">
+                      <span className="text-emerald-300 font-medium block">{inc.INCOME_SOURCE}</span>
+                      {inc.paymentStatus && (
+                        <span className={`inline-block text-[9px] font-mono font-bold px-1.5 py-0.5 rounded mt-0.5 ${
+                          inc.paymentStatus === 'Paid' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+                          inc.paymentStatus === 'Partially Paid' ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' :
+                          inc.paymentStatus === 'Overdue' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
+                          'bg-slate-800 text-slate-300 border border-slate-700'
+                        }`}>
+                          {inc.paymentStatus}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
                       {formatLKR(inc.AMOUNT)}
@@ -238,10 +282,40 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
               <button onClick={() => setSelectedIncome(null)} className="text-slate-400 hover:text-white">✕</button>
             </div>
             <div className="space-y-2 text-xs">
+              {selectedIncome.invoiceNumber && (
+                <div className="flex justify-between bg-indigo-950/40 p-2 rounded-lg border border-indigo-800/50">
+                  <span className="text-slate-400">Invoice Number:</span>
+                  <span className="font-mono font-bold text-indigo-300">{selectedIncome.invoiceNumber}</span>
+                </div>
+              )}
+              {selectedIncome.clientName && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Client / Employer:</span>
+                  <span className="text-slate-100 font-semibold">{selectedIncome.clientName}</span>
+                </div>
+              )}
               <div className="flex justify-between">
-                <span className="text-slate-400">Amount:</span>
-                <span className="font-bold text-base font-mono text-emerald-400">{formatLKR(selectedIncome.AMOUNT)}</span>
+                <span className="text-slate-400">{selectedIncome.invoiceNumber ? 'Gross Invoice Amount:' : 'Amount:'}</span>
+                <span className="font-bold text-base font-mono text-emerald-400">{formatLKR(selectedIncome.grossAmount ?? selectedIncome.AMOUNT)}</span>
               </div>
+              {selectedIncome.vatAmount !== undefined && (
+                <div className="flex justify-between text-[11px] text-slate-400">
+                  <span>VAT (18%): {formatLKR(selectedIncome.vatAmount)}</span>
+                  <span>Net: {formatLKR(selectedIncome.netAmount ?? 0)}</span>
+                </div>
+              )}
+              {selectedIncome.balanceDue !== undefined && (
+                <div className="flex justify-between bg-slate-950 p-2 rounded-lg border border-slate-800">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Received</span>
+                    <span className="font-mono font-bold text-emerald-400">{formatLKR(selectedIncome.amountReceived ?? 0)}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-amber-400 block">Balance Due</span>
+                    <span className="font-mono font-bold text-amber-300">{formatLKR(selectedIncome.balanceDue ?? 0)}</span>
+                  </div>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-slate-400">Date:</span>
                 <span className="text-slate-200 font-medium">{selectedIncome.DATE}</span>
@@ -258,6 +332,12 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
                 <span className="text-slate-400">Source:</span>
                 <span className="text-slate-200">{selectedIncome.INCOME_SOURCE}</span>
               </div>
+              {selectedIncome.paymentStatus && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Payment Status:</span>
+                  <span className="font-semibold text-slate-100">{selectedIncome.paymentStatus}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-slate-400">Remarks:</span>
                 <span className="text-slate-300 italic">{selectedIncome.REMARKS || 'None'}</span>

@@ -118,7 +118,7 @@ export const PRVListView: React.FC = () => {
         <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
           <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Requested</span>
           <div className="text-sm sm:text-base font-mono font-bold text-slate-100">
-            AED {metrics.totalAmountRequested.toLocaleString()}
+            LKR {metrics.totalAmountRequested.toLocaleString()}
           </div>
         </div>
 

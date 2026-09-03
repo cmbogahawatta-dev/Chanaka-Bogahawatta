@@ -383,6 +383,153 @@ export const INCOME_FIELDS: FieldDefinition[] = [
   }
 ];
 
+export const INVOICE_FIELDS: FieldDefinition[] = [
+  {
+    key: 'INVOICE_NUMBER',
+    label: 'Invoice / IPC Number',
+    required: true,
+    type: 'string',
+    description: 'Unique client tax invoice or interim payment certificate (IPC) reference',
+    aliases: ['invoice number', 'invoice no', 'inv no', 'inv number', 'invoice #', 'bill no', 'bill number', 'ipc no', 'ipc number', 'certificate no', 'invoice', 'ref no', 'ref'],
+    example: 'INV-2024-001'
+  },
+  {
+    key: 'PROJECT',
+    label: 'Project Code',
+    required: true,
+    type: 'string',
+    description: 'Assigned construction site / project code (e.g. PIDM 26, HAVELOCK)',
+    aliases: ['project', 'project code', 'project id', 'site', 'site code', 'job code', 'project name', 'wbs'],
+    example: 'PIDM 26'
+  },
+  {
+    key: 'CLIENT_NAME',
+    label: 'Client / Organization',
+    required: false,
+    type: 'string',
+    description: 'Client name, government authority, or employer company',
+    aliases: ['client name', 'client', 'customer', 'employer', 'client organization', 'billed to', 'client agency', 'organization', 'agency'],
+    example: 'National Water Supply & Drainage Board'
+  },
+  {
+    key: 'INVOICE_DATE',
+    label: 'Invoice Date',
+    required: true,
+    type: 'date',
+    description: 'Date issued or certified (DD/MM/YYYY or YYYY-MM-DD)',
+    aliases: ['invoice date', 'date', 'bill date', 'issue date', 'dated', 'submission date', 'certified date'],
+    example: '15/01/2024'
+  },
+  {
+    key: 'DUE_DATE',
+    label: 'Payment Due Date',
+    required: false,
+    type: 'date',
+    description: 'Certificate maturity / contractual payment due date',
+    aliases: ['due date', 'payment due date', 'payment due', 'maturity date', 'term date', 'expiry date'],
+    example: '15/02/2024'
+  },
+  {
+    key: 'BILLING_DESCRIPTION',
+    label: 'Billing Description / Scope',
+    required: true,
+    type: 'string',
+    description: 'Interim payment scope, progress billing milestone, or work particulars',
+    aliases: ['billing description', 'description', 'scope', 'milestone', 'particulars', 'work description', 'item', 'certificate title', 'narrative'],
+    example: 'Interim Payment Certificate No. 04 - Pipeline Installation Progress'
+  },
+  {
+    key: 'NET_AMOUNT',
+    label: 'Net Certified Amount (LKR)',
+    required: true,
+    type: 'number',
+    description: 'Net billing value before Sri Lankan VAT (18%)',
+    aliases: ['net amount', 'amount', 'net value', 'base amount', 'subtotal', 'certified amount', 'net billed', 'net', 'contract amount'],
+    example: '2500000'
+  },
+  {
+    key: 'VAT_TREATMENT',
+    label: 'VAT Treatment',
+    required: false,
+    type: 'string',
+    description: 'Tax category: EXCLUDING_VAT (default), INCLUDING_VAT, or VAT_NOT_APPLICABLE',
+    aliases: ['vat treatment', 'vat type', 'vat mode', 'tax treatment', 'vat applied', 'tax category'],
+    example: 'EXCLUDING_VAT'
+  },
+  {
+    key: 'VAT_RATE',
+    label: 'VAT Rate (%)',
+    required: false,
+    type: 'number',
+    description: 'Sri Lanka standard VAT rate percentage (defaults to 18%)',
+    aliases: ['vat rate', 'vat %', 'tax rate', 'vat percentage', 'rate', 'vat percent'],
+    example: '18'
+  },
+  {
+    key: 'GROSS_AMOUNT',
+    label: 'Gross Invoiced Total (LKR)',
+    required: false,
+    type: 'number',
+    description: 'Total certified bill including VAT. Auto-calculated from net amount + VAT if omitted.',
+    aliases: ['gross amount', 'gross total', 'total amount', 'total', 'grand total', 'invoice total', 'gross'],
+    example: '2950000'
+  },
+  {
+    key: 'AMOUNT_RECEIVED',
+    label: 'Amount Received (LKR)',
+    required: false,
+    type: 'number',
+    description: 'Cash/cheque receipts collected from client towards this invoice',
+    aliases: ['amount received', 'received amount', 'paid amount', 'cash received', 'collected', 'collection', 'payments received', 'receipts'],
+    example: '1500000'
+  },
+  {
+    key: 'PAYMENT_STATUS',
+    label: 'Payment Status',
+    required: false,
+    type: 'string',
+    description: 'Collection status: Approved, Paid, Partially Paid, Overdue, Submitted, Draft',
+    aliases: ['payment status', 'status', 'invoice status', 'collection status', 'state'],
+    example: 'Approved'
+  },
+  {
+    key: 'PAYMENT_DATE',
+    label: 'Receipt / Payment Date',
+    required: false,
+    type: 'date',
+    description: 'Date payment was credited by client (if received)',
+    aliases: ['payment date', 'received date', 'collected date', 'paid date', 'collection date'],
+    example: '28/01/2024'
+  },
+  {
+    key: 'PAYMENT_REFERENCE',
+    label: 'Payment / Bank Reference',
+    required: false,
+    type: 'string',
+    description: 'Client cheque number, RTGS/SLIPS transaction ref',
+    aliases: ['payment reference', 'reference', 'cheque no', 'transfer ref', 'receipt ref', 'bank ref', 'deposit slip'],
+    example: 'BOC-RTGS-990182'
+  },
+  {
+    key: 'SUPERVISOR',
+    label: 'Project Engineer / In-Charge',
+    required: false,
+    type: 'string',
+    description: 'Site project engineer or billing supervisor',
+    aliases: ['supervisor', 'engineer', 'manager', 'prepared by', 'in charge', 'contact person'],
+    example: 'BUDDIKA'
+  },
+  {
+    key: 'REMARKS',
+    label: 'Remarks / Notes',
+    required: false,
+    type: 'string',
+    description: 'Audit memo, retention notes, or certificate remarks',
+    aliases: ['remarks', 'notes', 'memo', 'comments', 'retention'],
+    example: 'Subject to 5% retention release on practical completion'
+  }
+];
+
 export interface ParsedRawData {
   headers: string[];
   rows: Record<string, any>[];
@@ -423,6 +570,8 @@ export class DataImportService {
         return SUPERVISOR_FIELDS;
       case 'HISTORICAL_INCOME':
         return INCOME_FIELDS;
+      case 'PROJECT_INVOICES':
+        return INVOICE_FIELDS;
     }
   }
 
@@ -1096,6 +1245,200 @@ export class DataImportService {
               field: 'INCOME_ID',
               value: incIdVal,
               error: `Income ID '${incIdVal}' already exists in system records.`,
+              severity: 'DUPLICATE'
+            });
+          }
+        }
+      }
+
+      // 5. Specific Validation for PROJECT_INVOICES
+      if (importType === 'PROJECT_INVOICES') {
+        // Invoice Number
+        const invNum = String(mapped['INVOICE_NUMBER'] || '').trim();
+        if (!invNum) {
+          rowErrors.push({
+            row: rowIndex,
+            field: 'INVOICE_NUMBER',
+            value: '',
+            error: 'Invoice or IPC number is required.',
+            severity: 'ERROR'
+          });
+        }
+
+        // Project validation
+        const prjVal = String(mapped['PROJECT'] || '').trim().toUpperCase();
+        if (!prjVal) {
+          rowErrors.push({
+            row: rowIndex,
+            field: 'PROJECT',
+            value: '',
+            error: 'Assigned Project Code is required.',
+            severity: 'ERROR'
+          });
+        } else {
+          mapped['PROJECT'] = prjVal;
+          const matchPrj = masterContext.existingProjects.find(
+            p => p.PROJECT_CODE.trim().toUpperCase() === prjVal ||
+                 p.PROJECT_NAME.trim().toUpperCase() === prjVal
+          );
+          if (!matchPrj) {
+            rowWarnings.push({
+              row: rowIndex,
+              field: 'PROJECT',
+              value: prjVal,
+              error: `Project code '${prjVal}' is not in active project directory. Project site will be auto-registered if enabled.`,
+              severity: 'WARNING'
+            });
+          }
+        }
+
+        // Invoice Date validation
+        const dateResult = this.normalizeDate(mapped['INVOICE_DATE']);
+        if (!dateResult.isValid) {
+          rowErrors.push({
+            row: rowIndex,
+            field: 'INVOICE_DATE',
+            value: mapped['INVOICE_DATE'],
+            error: 'Valid Invoice Date is required (DD/MM/YYYY or YYYY-MM-DD).',
+            severity: 'ERROR'
+          });
+        } else {
+          mapped['INVOICE_DATE_ISO'] = dateResult.isoDate;
+          mapped['INVOICE_DATE_DISPLAY'] = dateResult.displayDate;
+        }
+
+        // Due Date validation (optional)
+        if (mapped['DUE_DATE']) {
+          const dueDateResult = this.normalizeDate(mapped['DUE_DATE']);
+          if (dueDateResult.isValid) {
+            mapped['DUE_DATE_ISO'] = dueDateResult.isoDate;
+          } else {
+            rowWarnings.push({
+              row: rowIndex,
+              field: 'DUE_DATE',
+              value: mapped['DUE_DATE'],
+              error: 'Due Date format unreadable; defaulting to 30 days after Invoice Date.',
+              severity: 'WARNING'
+            });
+          }
+        }
+
+        // Billing Description
+        const descVal = String(mapped['BILLING_DESCRIPTION'] || '').trim();
+        if (!descVal) {
+          rowErrors.push({
+            row: rowIndex,
+            field: 'BILLING_DESCRIPTION',
+            value: '',
+            error: 'Billing description or IPC milestone summary is mandatory.',
+            severity: 'ERROR'
+          });
+        }
+
+        // Net Amount validation
+        const netResult = this.normalizeNumber(mapped['NET_AMOUNT']);
+        if (!netResult.isValid || netResult.numberValue <= 0) {
+          rowErrors.push({
+            row: rowIndex,
+            field: 'NET_AMOUNT',
+            value: mapped['NET_AMOUNT'],
+            error: 'Net certified amount must be a positive numeric value.',
+            severity: 'ERROR'
+          });
+        } else {
+          mapped['NET_AMOUNT'] = netResult.numberValue;
+        }
+
+        // VAT Treatment & Rate
+        let vatTreatment = String(mapped['VAT_TREATMENT'] || 'EXCLUDING_VAT').trim().toUpperCase();
+        if (!['EXCLUDING_VAT', 'INCLUDING_VAT', 'VAT_NOT_APPLICABLE'].includes(vatTreatment)) {
+          if (vatTreatment.includes('INC') || vatTreatment.includes('INCL')) {
+            vatTreatment = 'INCLUDING_VAT';
+          } else if (vatTreatment.includes('NO') || vatTreatment.includes('EXEMPT') || vatTreatment.includes('NOT') || vatTreatment.includes('ZERO')) {
+            vatTreatment = 'VAT_NOT_APPLICABLE';
+          } else {
+            vatTreatment = 'EXCLUDING_VAT';
+          }
+        }
+        mapped['VAT_TREATMENT'] = vatTreatment;
+
+        const vatRateResult = this.normalizeNumber(mapped['VAT_RATE']);
+        const vatRate = vatRateResult.isValid && vatRateResult.numberValue >= 0 ? vatRateResult.numberValue : 18;
+        mapped['VAT_RATE'] = vatRate;
+
+        // Auto-calculate Net, VAT, Gross
+        const netVal = Number(mapped['NET_AMOUNT']) || 0;
+        let vatVal = 0;
+        let grossVal = 0;
+
+        if (vatTreatment === 'EXCLUDING_VAT') {
+          vatVal = Math.round((netVal * (vatRate / 100)) * 100) / 100;
+          grossVal = Math.round((netVal + vatVal) * 100) / 100;
+        } else if (vatTreatment === 'INCLUDING_VAT') {
+          grossVal = netVal;
+          const calculatedNet = Math.round((grossVal / (1 + vatRate / 100)) * 100) / 100;
+          vatVal = Math.round((grossVal - calculatedNet) * 100) / 100;
+          mapped['NET_AMOUNT'] = calculatedNet;
+        } else {
+          vatVal = 0;
+          grossVal = netVal;
+        }
+
+        // Check if explicit GROSS_AMOUNT provided
+        if (mapped['GROSS_AMOUNT']) {
+          const explicitGross = this.normalizeNumber(mapped['GROSS_AMOUNT']);
+          if (explicitGross.isValid && explicitGross.numberValue > 0) {
+            grossVal = explicitGross.numberValue;
+            if (vatTreatment === 'EXCLUDING_VAT') {
+              vatVal = Math.max(0, Math.round((grossVal - netVal) * 100) / 100);
+            }
+          }
+        }
+        mapped['CALCULATED_VAT'] = vatVal;
+        mapped['CALCULATED_GROSS'] = grossVal;
+
+        // Amount Received & Balance Due
+        const receivedResult = this.normalizeNumber(mapped['AMOUNT_RECEIVED']);
+        const amountReceived = receivedResult.isValid && receivedResult.numberValue >= 0 ? receivedResult.numberValue : 0;
+        mapped['AMOUNT_RECEIVED'] = amountReceived;
+        const balanceDue = Math.max(0, Math.round((grossVal - amountReceived) * 100) / 100);
+        mapped['BALANCE_DUE'] = balanceDue;
+
+        // Status
+        let status = String(mapped['PAYMENT_STATUS'] || '').trim();
+        if (!status) {
+          if (amountReceived >= grossVal && grossVal > 0) {
+            status = 'Paid';
+          } else if (amountReceived > 0) {
+            status = 'Partially Paid';
+          } else {
+            status = 'Approved';
+          }
+        }
+        mapped['PAYMENT_STATUS'] = status;
+
+        // Payment Date (if provided)
+        if (mapped['PAYMENT_DATE']) {
+          const payDateRes = this.normalizeDate(mapped['PAYMENT_DATE']);
+          if (payDateRes.isValid) {
+            mapped['PAYMENT_DATE_ISO'] = payDateRes.isoDate;
+          }
+        }
+
+        // Duplicate Check by INVOICE_NUMBER or INCOME_ID
+        if (invNum && masterContext.existingIncome) {
+          const dup = masterContext.existingIncome.find(
+            inc => (inc.invoiceNumber && inc.invoiceNumber.trim().toUpperCase() === invNum.toUpperCase()) ||
+                   (inc.INCOME_ID && inc.INCOME_ID.trim().toUpperCase() === invNum.toUpperCase())
+          );
+          if (dup) {
+            isDuplicate = true;
+            duplicateId = dup.invoiceNumber || dup.INCOME_ID;
+            rowWarnings.push({
+              row: rowIndex,
+              field: 'INVOICE_NUMBER',
+              value: invNum,
+              error: `Invoice number '${invNum}' already exists in system records.`,
               severity: 'DUPLICATE'
             });
           }
@@ -2107,6 +2450,235 @@ export class DataImportService {
   }
 
   /**
+   * Execute bulk project invoice import with full VAT, receivable accounting & admin audit
+   */
+  static executeInvoiceBulkImport(
+    batchId: string,
+    validatedSummary: ValidationSummary,
+    options: {
+      performedBy: string;
+      userRole: string;
+      approvalRemarks?: string;
+      fileName: string;
+      fileSize: string;
+      skipInvalid: boolean;
+      duplicateAction: DuplicateAction;
+      autoRegisterProjects?: boolean;
+    },
+    masterContext: {
+      income: Income[];
+      projects: Project[];
+    }
+  ): {
+    batchRecord: ImportBatchRecord;
+    updatedIncome: Income[];
+    updatedProjects: Project[];
+    totalGross: number;
+    totalNet: number;
+    totalVat: number;
+    totalReceived: number;
+  } {
+    const timestamp = new Date().toISOString();
+    let importedRows = 0;
+    let updatedRows = 0;
+    let skippedRows = 0;
+    let failedRows = 0;
+    let totalGross = 0;
+    let totalNet = 0;
+    let totalVat = 0;
+    let totalReceived = 0;
+
+    let newIncome = [...masterContext.income];
+    let newProjects = [...masterContext.projects];
+
+    const createdRecordIds: {
+      income: string[];
+      supervisors: string[];
+      projects: string[];
+    } = {
+      income: [],
+      supervisors: [],
+      projects: []
+    };
+
+    const previousSnapshot: {
+      updatedIncome: Income[];
+      updatedSupervisors: Supervisor[];
+      updatedProjects: Project[];
+    } = {
+      updatedIncome: [],
+      updatedSupervisors: [],
+      updatedProjects: []
+    };
+
+    const allErrors: ImportErrorDetail[] = [];
+
+    validatedSummary.validatedRows.forEach((row) => {
+      if (!row.isValid) {
+        failedRows++;
+        allErrors.push(...row.errors);
+        return;
+      }
+
+      if (row.isDuplicate) {
+        if (options.duplicateAction === 'SKIP') {
+          skippedRows++;
+          return;
+        }
+        if (options.duplicateAction === 'CANCEL') {
+          throw new Error(`Import cancelled due to duplicate invoice reference: ${row.duplicateId}`);
+        }
+      }
+
+      const m = row.mapped;
+      const invNumber = String(m.INVOICE_NUMBER || '').trim();
+      const dateObj = new Date();
+      const yyyy = dateObj.getFullYear();
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const seq = String(newIncome.length + 1).padStart(4, '0');
+
+      const generatedIncId = invNumber
+        ? (invNumber.startsWith('INC-') ? invNumber : `INC-INV-${invNumber.replace(/[^a-zA-Z0-9_-]/g, '')}`)
+        : `INC-${yyyy}${mm}-${seq}`;
+
+      const netVal = Number(m.NET_AMOUNT) || 0;
+      const vatVal = Number(m.CALCULATED_VAT) || 0;
+      const grossVal = Number(m.CALCULATED_GROSS) || (netVal + vatVal);
+      const receivedVal = Number(m.AMOUNT_RECEIVED) || 0;
+      const dueVal = Number(m.BALANCE_DUE) !== undefined ? Number(m.BALANCE_DUE) : Math.max(0, grossVal - receivedVal);
+
+      totalGross += grossVal;
+      totalNet += netVal;
+      totalVat += vatVal;
+      totalReceived += receivedVal;
+
+      const invoiceDateIso = m.INVOICE_DATE_ISO || new Date().toISOString().slice(0, 10);
+      const invoiceDateDisplay = m.INVOICE_DATE_DISPLAY || new Date().toLocaleDateString('en-GB');
+
+      let dueDateIso = m.DUE_DATE_ISO;
+      if (!dueDateIso) {
+        const d = new Date(invoiceDateIso);
+        d.setDate(d.getDate() + 30);
+        dueDateIso = d.toISOString().slice(0, 10);
+      }
+
+      const clientName = String(m.CLIENT_NAME || '').trim() || 'Client Organization';
+      const prjCode = String(m.PROJECT || '').trim().toUpperCase();
+
+      const newInv: Income = {
+        id: `inv_bulk_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        INCOME_ID: generatedIncId,
+        invoiceNumber: invNumber || generatedIncId,
+        clientName: clientName,
+        clientCode: clientName.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, ''),
+        billingDescription: String(m.BILLING_DESCRIPTION || '').trim(),
+        invoiceDescription: String(m.BILLING_DESCRIPTION || '').trim(),
+        invoiceDate: invoiceDateIso,
+        dueDate: dueDateIso,
+        netAmount: netVal,
+        vatTreatment: (m.VAT_TREATMENT as any) || 'EXCLUDING_VAT',
+        vatRate: Number(m.VAT_RATE) || 18,
+        vatAmount: vatVal,
+        grossAmount: grossVal,
+        amountReceived: receivedVal,
+        balanceDue: dueVal,
+        paymentStatus: (m.PAYMENT_STATUS as any) || (dueVal <= 0 ? 'Paid' : receivedVal > 0 ? 'Partially Paid' : 'Approved'),
+        paymentDate: m.PAYMENT_DATE_ISO,
+        paymentReference: m.PAYMENT_REFERENCE ? String(m.PAYMENT_REFERENCE).trim() : undefined,
+
+        // Base Income fields for system reconciliation
+        DATE_REF: invoiceDateIso,
+        DATE: invoiceDateDisplay,
+        SUPERVISOR: String(m.SUPERVISOR || 'FINANCE_DIRECTOR').trim().toUpperCase(),
+        PROJECT: prjCode,
+        INCOME_SOURCE: 'Project Income / Invoice',
+        TRANSACTION_TYPE: 'PROJECT_INVOICE_INCOME',
+        AMOUNT: grossVal,
+        CREATED_BY: options.performedBy,
+        CREATED_DATE: timestamp,
+        REMARKS: options.approvalRemarks
+          ? `[INVOICE BULK IMPORT] ${options.approvalRemarks}`
+          : (m.REMARKS ? String(m.REMARKS).trim() : `Imported via Invoice Batch ${batchId}`)
+      };
+
+      if (row.isDuplicate && options.duplicateAction === 'UPDATE') {
+        const idx = newIncome.findIndex(
+          inc => (inc.invoiceNumber && inc.invoiceNumber.toUpperCase() === invNumber.toUpperCase()) ||
+                 (inc.INCOME_ID && inc.INCOME_ID.toUpperCase() === generatedIncId.toUpperCase())
+        );
+        if (idx !== -1) {
+          previousSnapshot.updatedIncome.push({ ...newIncome[idx] });
+          newIncome[idx] = { ...newIncome[idx], ...newInv, id: newIncome[idx].id };
+          updatedRows++;
+          return;
+        }
+      }
+
+      newIncome.unshift(newInv);
+      createdRecordIds.income.push(newInv.id);
+      importedRows++;
+
+      // Auto-register project if absent and option enabled
+      if (options.autoRegisterProjects !== false && prjCode && !newProjects.some(p => p.PROJECT_CODE.toUpperCase() === prjCode)) {
+        const autoPrj: Project = {
+          id: `prj_auto_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          PROJECT_ID: `PRJ-AUTO-${String(newProjects.length + 1).padStart(3, '0')}`,
+          PROJECT_CODE: prjCode,
+          PROJECT_NAME: `${prjCode} Client Project`,
+          CLIENT: clientName,
+          LOCATION: 'Site Location',
+          CONTRACT_VALUE: grossVal * 4,
+          START_DATE: invoiceDateIso,
+          END_DATE: '2026-12-31',
+          STATUS: 'Active',
+          DATA_SOURCE: 'HISTORICAL_IMPORT',
+          IMPORT_BATCH_ID: batchId,
+          IMPORTED_BY: options.performedBy,
+          IMPORTED_AT: timestamp,
+          IS_HISTORICAL: false,
+          REMARKS: `Auto-registered via Project Invoice Bulk Batch ${batchId}`
+        };
+        newProjects.push(autoPrj);
+        createdRecordIds.projects.push(autoPrj.id);
+      }
+    });
+
+    const status: ImportBatchRecord['status'] =
+      failedRows > 0 || allErrors.length > 0 ? 'COMPLETED_WITH_WARNINGS' : 'COMPLETED';
+
+    const batchRecord: ImportBatchRecord = {
+      id: batchId,
+      batchNumber: batchId,
+      importType: 'PROJECT_INVOICES',
+      fileName: options.fileName,
+      fileSize: options.fileSize,
+      totalRows: validatedSummary.totalRows,
+      importedRows,
+      updatedRows,
+      skippedRows,
+      failedRows,
+      duplicateRows: validatedSummary.duplicatesCount,
+      status,
+      performedBy: options.performedBy,
+      userRole: options.userRole,
+      timestamp,
+      errorDetails: allErrors,
+      createdRecordIds,
+      previousSnapshot
+    };
+
+    return {
+      batchRecord,
+      updatedIncome: newIncome,
+      updatedProjects: newProjects,
+      totalGross,
+      totalNet,
+      totalVat,
+      totalReceived
+    };
+  }
+
+  /**
    * Rollback an imported batch safely
    */
   static rollbackBatch(
@@ -2736,6 +3308,214 @@ export class DataImportService {
           'Example / Valid Options': 'January Opening Float via BOC Transfer #99102'
         }
       ];
+    } else if (importType === 'PROJECT_INVOICES') {
+      fileName = `EMA_Project_Invoices_Template.${format}`;
+      headers = [
+        'Invoice Number',
+        'Project Code',
+        'Client Name',
+        'Invoice Date',
+        'Due Date',
+        'Billing Description',
+        'Net Amount',
+        'VAT Treatment',
+        'VAT Rate',
+        'Gross Amount',
+        'Amount Received',
+        'Payment Status',
+        'Payment Date',
+        'Payment Reference',
+        'Project Engineer',
+        'Remarks'
+      ];
+      colWidths = [
+        { wch: 18 }, // Invoice Number
+        { wch: 16 }, // Project Code
+        { wch: 34 }, // Client Name
+        { wch: 14 }, // Invoice Date
+        { wch: 14 }, // Due Date
+        { wch: 42 }, // Billing Description
+        { wch: 18 }, // Net Amount
+        { wch: 18 }, // VAT Treatment
+        { wch: 12 }, // VAT Rate
+        { wch: 18 }, // Gross Amount
+        { wch: 18 }, // Amount Received
+        { wch: 16 }, // Payment Status
+        { wch: 14 }, // Payment Date
+        { wch: 20 }, // Payment Reference
+        { wch: 18 }, // Project Engineer
+        { wch: 35 }  // Remarks
+      ];
+      sampleData = [
+        {
+          'Invoice Number': 'INV-2024-001',
+          'Project Code': 'PIDM 26',
+          'Client Name': 'National Water Supply & Drainage Board',
+          'Invoice Date': '15/01/2024',
+          'Due Date': '15/02/2024',
+          'Billing Description': 'Interim Payment Certificate No. 04 - Pipeline Installation Progress',
+          'Net Amount': 2500000,
+          'VAT Treatment': 'EXCLUDING_VAT',
+          'VAT Rate': 18,
+          'Gross Amount': 2950000,
+          'Amount Received': 1500000,
+          'Payment Status': 'Partially Paid',
+          'Payment Date': '28/01/2024',
+          'Payment Reference': 'BOC-SLIP-77102',
+          'Project Engineer': 'BUDDIKA',
+          'Remarks': '50% advance certification release received via RTGS'
+        },
+        {
+          'Invoice Number': 'INV-2024-002',
+          'Project Code': 'HAVELOCK',
+          'Client Name': 'Urban Development Authority (UDA)',
+          'Invoice Date': '22/01/2024',
+          'Due Date': '22/02/2024',
+          'Billing Description': 'IPC No. 02 - Foundation & Substructure Concrete Pouring',
+          'Net Amount': 4200000,
+          'VAT Treatment': 'EXCLUDING_VAT',
+          'VAT Rate': 18,
+          'Gross Amount': 4956000,
+          'Amount Received': 4956000,
+          'Payment Status': 'Paid',
+          'Payment Date': '10/02/2024',
+          'Payment Reference': 'PB-CHQ-009182',
+          'Project Engineer': 'KASUN',
+          'Remarks': "Full settlement cleared via People's Bank Cheque"
+        },
+        {
+          'Invoice Number': 'INV-2024-003',
+          'Project Code': 'TRILLIUM',
+          'Client Name': 'Trillium Residencies Ltd',
+          'Invoice Date': '05/02/2024',
+          'Due Date': '05/03/2024',
+          'Billing Description': 'IPC No. 06 - External Facade & Curtain Wall Installation',
+          'Net Amount': 1850000,
+          'VAT Treatment': 'EXCLUDING_VAT',
+          'VAT Rate': 18,
+          'Gross Amount': 2183000,
+          'Amount Received': 0,
+          'Payment Status': 'Approved',
+          'Payment Date': '',
+          'Payment Reference': '',
+          'Project Engineer': 'PRADEEP',
+          'Remarks': 'Submitted for consultant engineer certificate approval'
+        }
+      ];
+      validationRules = [
+        {
+          'Field Name': 'Invoice Number',
+          'Required?': 'REQUIRED',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'Unique invoice or Interim Payment Certificate (IPC) reference string.',
+          'Example / Valid Options': 'INV-2024-001, IPC-HAV-004'
+        },
+        {
+          'Field Name': 'Project Code',
+          'Required?': 'REQUIRED',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'Project code site allocation. Matched against active project directory or auto-created.',
+          'Example / Valid Options': 'PIDM 26, HAVELOCK, TRILLIUM'
+        },
+        {
+          'Field Name': 'Client Name',
+          'Required?': 'Optional',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'Name of the client department, corporation, or employer organization.',
+          'Example / Valid Options': 'National Water Supply & Drainage Board, UDA, RDA'
+        },
+        {
+          'Field Name': 'Invoice Date',
+          'Required?': 'REQUIRED',
+          'Data Type': 'Date',
+          'Validation Rules & Format': 'Issue or certification date in DD/MM/YYYY or YYYY-MM-DD format.',
+          'Example / Valid Options': '15/01/2024, 2024-01-15'
+        },
+        {
+          'Field Name': 'Due Date',
+          'Required?': 'Optional',
+          'Data Type': 'Date',
+          'Validation Rules & Format': 'Contractual payment due date. Defaults to Invoice Date + 30 days if omitted.',
+          'Example / Valid Options': '15/02/2024, 2024-02-15'
+        },
+        {
+          'Field Name': 'Billing Description',
+          'Required?': 'REQUIRED',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'IPC milestone scope, certified work description, or billing particulars.',
+          'Example / Valid Options': 'IPC No. 04 - Pipeline Installation Progress'
+        },
+        {
+          'Field Name': 'Net Amount',
+          'Required?': 'REQUIRED',
+          'Data Type': 'Numeric (LKR)',
+          'Validation Rules & Format': 'Certified net billing sum before Sri Lanka VAT (18%). Non-negative numeric.',
+          'Example / Valid Options': '2500000, 4200000.00'
+        },
+        {
+          'Field Name': 'VAT Treatment',
+          'Required?': 'Optional',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'EXCLUDING_VAT, INCLUDING_VAT, or VAT_NOT_APPLICABLE. Defaults to EXCLUDING_VAT.',
+          'Example / Valid Options': 'EXCLUDING_VAT, INCLUDING_VAT, VAT_NOT_APPLICABLE'
+        },
+        {
+          'Field Name': 'VAT Rate',
+          'Required?': 'Optional',
+          'Data Type': 'Numeric (%)',
+          'Validation Rules & Format': 'Sri Lanka standard VAT rate percentage. Defaults to 18%.',
+          'Example / Valid Options': '18, 0'
+        },
+        {
+          'Field Name': 'Gross Amount',
+          'Required?': 'Optional',
+          'Data Type': 'Numeric (LKR)',
+          'Validation Rules & Format': 'Total certified bill including VAT. Auto-calculated if omitted.',
+          'Example / Valid Options': '2950000'
+        },
+        {
+          'Field Name': 'Amount Received',
+          'Required?': 'Optional',
+          'Data Type': 'Numeric (LKR)',
+          'Validation Rules & Format': 'Amount collected or paid by client towards this invoice.',
+          'Example / Valid Options': '1500000, 0'
+        },
+        {
+          'Field Name': 'Payment Status',
+          'Required?': 'Optional',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'Approved, Paid, Partially Paid, Overdue, Submitted, Draft. Defaults based on receipts.',
+          'Example / Valid Options': 'Approved, Paid, Partially Paid'
+        },
+        {
+          'Field Name': 'Payment Date',
+          'Required?': 'Optional',
+          'Data Type': 'Date',
+          'Validation Rules & Format': 'Date client payment was received / cleared.',
+          'Example / Valid Options': '28/01/2024'
+        },
+        {
+          'Field Name': 'Payment Reference',
+          'Required?': 'Optional',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'Cheque number, RTGS/SLIPS transaction ID, or bank reference.',
+          'Example / Valid Options': 'BOC-SLIP-77102'
+        },
+        {
+          'Field Name': 'Project Engineer',
+          'Required?': 'Optional',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'Site engineer or supervisor overseeing work.',
+          'Example / Valid Options': 'BUDDIKA, KASUN'
+        },
+        {
+          'Field Name': 'Remarks',
+          'Required?': 'Optional',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'Internal notes or billing comments.',
+          'Example / Valid Options': '50% advance certification release received via RTGS'
+        }
+      ];
     }
 
     const ws = XLSX.utils.json_to_sheet(sampleData, { header: headers });
@@ -2769,10 +3549,16 @@ export class DataImportService {
   }
 
   /**
-   * Download all 4 official Excel (.xlsx) templates sequentially
+   * Download all official Excel (.xlsx) templates sequentially
    */
   static downloadAllTemplates(format: 'xlsx' | 'csv' = 'xlsx'): void {
-    const types: ImportType[] = ['HISTORICAL_EXPENSES', 'PROJECT_DIRECTORY', 'SUPERVISOR_DIRECTORY', 'HISTORICAL_INCOME'];
+    const types: ImportType[] = [
+      'HISTORICAL_EXPENSES',
+      'PROJECT_DIRECTORY',
+      'SUPERVISOR_DIRECTORY',
+      'HISTORICAL_INCOME',
+      'PROJECT_INVOICES'
+    ];
     types.forEach((type, index) => {
       setTimeout(() => {
         this.downloadTemplate(type, format);

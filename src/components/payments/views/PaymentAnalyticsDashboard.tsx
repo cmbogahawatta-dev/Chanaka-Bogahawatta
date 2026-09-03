@@ -113,7 +113,7 @@ export const PaymentAnalyticsDashboard: React.FC = () => {
             <DollarSign className="w-4 h-4 text-purple-400" />
           </div>
           <div className="text-base sm:text-lg font-mono font-bold text-slate-100">
-            AED {metrics.totalAmountRequested.toLocaleString()}
+            LKR {metrics.totalAmountRequested.toLocaleString()}
           </div>
           <p className="text-[10px] text-slate-500 font-mono">{metrics.totalRequests} Total Vouchers</p>
         </div>
@@ -124,7 +124,7 @@ export const PaymentAnalyticsDashboard: React.FC = () => {
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-base sm:text-lg font-mono font-bold text-emerald-400">
-            AED {metrics.totalAmountPaid.toLocaleString()}
+            LKR {metrics.totalAmountPaid.toLocaleString()}
           </div>
           <p className="text-[10px] text-emerald-400/70 font-mono">
             {metrics.totalAmountRequested > 0 ? Math.round((metrics.totalAmountPaid / metrics.totalAmountRequested) * 100) : 0}% of Total Volume
@@ -137,7 +137,7 @@ export const PaymentAnalyticsDashboard: React.FC = () => {
             <Clock className="w-4 h-4 text-amber-400" />
           </div>
           <div className="text-base sm:text-lg font-mono font-bold text-amber-400">
-            AED {metrics.totalAmountPending.toLocaleString()}
+            LKR {metrics.totalAmountPending.toLocaleString()}
           </div>
           <p className="text-[10px] text-amber-400/70 font-mono">
             {metrics.pendingAccountsL1Count + metrics.pendingAccountsL2Count + metrics.pendingOwnerCount} Active in Queue
@@ -173,7 +173,7 @@ export const PaymentAnalyticsDashboard: React.FC = () => {
                 <YAxis stroke="#64748b" tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '11px' }}
-                  formatter={(value: any) => [`AED ${Number(value).toLocaleString()}`, 'Total Amount']}
+                  formatter={(value: any) => [`LKR ${Number(value).toLocaleString()}`, 'Total Amount']}
                 />
                 <Bar dataKey="amount" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -207,7 +207,7 @@ export const PaymentAnalyticsDashboard: React.FC = () => {
                 </Pie>
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '11px' }}
-                  formatter={(value: any) => [`AED ${Number(value).toLocaleString()}`, 'Amount']}
+                  formatter={(value: any) => [`LKR ${Number(value).toLocaleString()}`, 'Amount']}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -226,7 +226,7 @@ export const PaymentAnalyticsDashboard: React.FC = () => {
                 <tr className="border-b border-slate-800 text-[10px] text-slate-400 uppercase font-bold">
                   <th className="py-2">Payee / Beneficiary</th>
                   <th className="py-2 text-center">Vouchers</th>
-                  <th className="py-2 text-right">Total Disbursed (AED)</th>
+                  <th className="py-2 text-right">Total Disbursed (LKR)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -254,7 +254,7 @@ export const PaymentAnalyticsDashboard: React.FC = () => {
                   <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
                   <span className="font-bold text-slate-200">{m.name}</span>
                 </div>
-                <span className="font-mono font-bold text-slate-300">AED {m.value.toLocaleString()}</span>
+                <span className="font-mono font-bold text-slate-300">LKR {m.value.toLocaleString()}</span>
               </div>
             ))}
           </div>

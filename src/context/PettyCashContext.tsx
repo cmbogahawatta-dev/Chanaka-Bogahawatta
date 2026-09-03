@@ -29,6 +29,7 @@ import {
   round2,
   isInvoiceOverdue
 } from '../utils/vatCalculations';
+import { formatLKR } from '../utils/helpers';
 import {
   initialExpenses,
   initialIncome,
@@ -131,7 +132,12 @@ interface PettyCashContextType {
   // Invoice Actions & Helpers
   isInvoiceNumberTaken: (invoiceNumber: string, excludeId?: string) => boolean;
   generateNextInvoiceNumber: () => string;
-  recordInvoicePayment: (incomeId: string, paymentAmount: number, paymentDate?: string, reference?: string) => void;
+  recordInvoicePayment: (
+    incomeId: string,
+    paymentAmount: number,
+    paymentDateOrOptions?: string | { paymentDate?: string; paymentReference?: string; reference?: string; notes?: string; paymentMethod?: string; proofDocument?: string; proofDocName?: string },
+    reference?: string
+  ) => void;
 
   // CRUD Operations
   addExpense: (expense: Omit<Expense, 'id' | 'EXPENSES_ID' | 'CREATED_DATE'>) => Expense;
@@ -233,6 +239,27 @@ interface PettyCashContextType {
       autoRegisterProjects?: boolean;
     }
   ) => { batchRecord: ImportBatchRecord; totalAmount: number; count: number };
+  bulkImportInvoices: (
+    batchId: string,
+    summary: ValidationSummary,
+    options: {
+      performedBy: string;
+      userRole: string;
+      approvalRemarks?: string;
+      fileName: string;
+      fileSize: string;
+      skipInvalid: boolean;
+      duplicateAction: DuplicateAction;
+      autoRegisterProjects?: boolean;
+    }
+  ) => {
+    batchRecord: ImportBatchRecord;
+    totalGross: number;
+    totalNet: number;
+    totalVat: number;
+    totalReceived: number;
+    count: number;
+  };
   bulkApproveExpenses: (expenseIds: string[], approverName?: string, remarks?: string) => void;
   bulkRejectExpenses: (expenseIds: string[], approverName?: string, reason?: string) => void;
   approveImportBatch: (batchId: string, approverName?: string, remarks?: string) => void;
@@ -283,6 +310,7 @@ interface PettyCashContextType {
   bulkImportSupervisorsDirect: (imported: Partial<Supervisor>[]) => { count: number; batchId: string };
   bulkImportExpensesDirect: (imported: Partial<Expense>[]) => { count: number; batchId: string };
   bulkImportIncomeDirect: (imported: Partial<Income>[]) => { count: number; batchId: string };
+  formatLKR: (amount: number) => string;
 }
 
 const STORAGE_KEYS = {
@@ -1484,9 +1512,30 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return `${prefix}${nextSeq}`;
   };
 
-  const recordInvoicePayment = (incomeId: string, paymentAmount: number, paymentDate?: string, reference?: string) => {
+  const recordInvoicePayment = (
+    incomeId: string,
+    paymentAmount: number,
+    paymentDateOrOptions?: string | { paymentDate?: string; paymentReference?: string; reference?: string; notes?: string; paymentMethod?: string; proofDocument?: string; proofDocName?: string },
+    reference?: string
+  ) => {
     const payAmt = Number(paymentAmount) || 0;
     if (payAmt <= 0) return;
+
+    let pDate: string | undefined = typeof paymentDateOrOptions === 'string' ? paymentDateOrOptions : undefined;
+    let pRef: string | undefined = reference;
+    let pNotes: string | undefined;
+    let pMethod: string | undefined;
+    let pProof: string | undefined;
+    let pProofName: string | undefined;
+
+    if (paymentDateOrOptions && typeof paymentDateOrOptions === 'object') {
+      pDate = paymentDateOrOptions.paymentDate;
+      pRef = paymentDateOrOptions.paymentReference || paymentDateOrOptions.reference || reference;
+      pNotes = paymentDateOrOptions.notes;
+      pMethod = paymentDateOrOptions.paymentMethod;
+      pProof = paymentDateOrOptions.proofDocument;
+      pProofName = paymentDateOrOptions.proofDocName;
+    }
 
     setIncome(prev => prev.map(inc => {
       if (inc.id !== incomeId) return inc;
@@ -1496,7 +1545,10 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const newBalance = round2(Math.max(0, gross - newReceived));
       const newStatus = newBalance <= 0.01 ? 'Paid' : (newReceived > 0 ? 'Partially Paid' : 'Approved');
 
-      const paymentNote = `Payment of LKR ${payAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })} received on ${paymentDate || new Date().toLocaleDateString('en-GB')}${reference ? ` (Ref: ${reference})` : ''}`;
+      const methodPart = pMethod ? ` via ${pMethod}` : '';
+      const refPart = pRef ? ` (Ref: ${pRef})` : '';
+      const notesPart = pNotes ? ` - Note: ${pNotes}` : '';
+      const paymentNote = `Payment of LKR ${payAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })}${methodPart} received on ${pDate || new Date().toLocaleDateString('en-GB')}${refPart}${notesPart}`;
       const updatedRemarks = inc.REMARKS ? `${inc.REMARKS} | ${paymentNote}` : paymentNote;
 
       return {
@@ -1504,8 +1556,10 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         amountReceived: newReceived,
         balanceDue: newBalance,
         paymentStatus: newStatus as any,
-        paymentDate: paymentDate || inc.paymentDate || new Date().toISOString().split('T')[0],
-        paymentReference: reference || inc.paymentReference,
+        paymentDate: pDate || inc.paymentDate || new Date().toISOString().split('T')[0],
+        paymentReference: pRef || inc.paymentReference,
+        PROOF_DOCUMENT: pProof || inc.PROOF_DOCUMENT,
+        PROOF_DOCUMENT_NAME: pProofName || inc.PROOF_DOCUMENT_NAME,
         REMARKS: updatedRemarks,
         UPDATED_DATE: new Date().toLocaleString('en-GB')
       };
@@ -2358,6 +2412,51 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   };
 
+  const bulkImportInvoices = (
+    batchId: string,
+    summary: ValidationSummary,
+    options: {
+      performedBy: string;
+      userRole: string;
+      approvalRemarks?: string;
+      fileName: string;
+      fileSize: string;
+      skipInvalid: boolean;
+      duplicateAction: DuplicateAction;
+      autoRegisterProjects?: boolean;
+    }
+  ): {
+    batchRecord: ImportBatchRecord;
+    totalGross: number;
+    totalNet: number;
+    totalVat: number;
+    totalReceived: number;
+    count: number;
+  } => {
+    const result = DataImportService.executeInvoiceBulkImport(
+      batchId,
+      summary,
+      options,
+      {
+        income,
+        projects
+      }
+    );
+
+    setIncome(result.updatedIncome);
+    setProjects(result.updatedProjects);
+    setImportBatches(prev => [result.batchRecord, ...(prev || [])]);
+
+    return {
+      batchRecord: result.batchRecord,
+      totalGross: result.totalGross,
+      totalNet: result.totalNet,
+      totalVat: result.totalVat,
+      totalReceived: result.totalReceived,
+      count: result.batchRecord.importedRows
+    };
+  };
+
   const bulkApproveExpenses = (expenseIds: string[], approverName?: string, remarks?: string) => {
     const approver = approverName || 'Administrator';
     const timestamp = new Date().toLocaleString('en-GB');
@@ -2650,6 +2749,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         bulkImportSupervisors,
         bulkImportProjects,
         bulkImportIncome,
+        bulkImportInvoices,
         bulkApproveExpenses,
         bulkRejectExpenses,
         approveImportBatch,
@@ -2678,7 +2778,8 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         bulkImportProjectsDirect,
         bulkImportSupervisorsDirect,
         bulkImportExpensesDirect,
-        bulkImportIncomeDirect
+        bulkImportIncomeDirect,
+        formatLKR
       }}
     >
       {children}

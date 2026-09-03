@@ -36,10 +36,12 @@ export type PaymentSource =
   | 'Cheque'
   | 'Other';
 
-export type CurrencyCode = 'AED' | 'LKR' | 'USD' | 'EUR' | 'GBP' | 'SAR' | 'QAR';
+export type CurrencyCode = 'LKR' | 'AED' | 'USD' | 'EUR' | 'GBP' | 'SAR' | 'QAR';
 
 export type PRVSubMenu =
   | 'vouchers'
+  | 'project_invoices'
+  | 'client_payments'
   | 'my_requests'
   | 'pending_approvals'
   | 'payment_approvals'

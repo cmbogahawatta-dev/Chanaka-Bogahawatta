@@ -321,7 +321,7 @@ export const TripModal: React.FC<TripModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Toll & Parking (Rs.)</label>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Toll & Parking (LKR)</label>
               <input
                 type="number"
                 placeholder="0"

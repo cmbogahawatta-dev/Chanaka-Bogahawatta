@@ -15,7 +15,9 @@ import {
   ShieldAlert,
   Clock,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  FileSpreadsheet,
+  Receipt
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePRV } from '../../context/PRVContext';
@@ -50,7 +52,7 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
 }) => {
   const { currentModule, setCurrentModule } = useEnterprise();
   const { paymentRequests = [] } = usePRV();
-  const { budgetAlerts = [] } = usePettyCash();
+  const { budgetAlerts = [], income = [] } = usePettyCash();
   const { vehicles = [] } = useFleet();
   const { leaveRequests = [] } = useLeave();
 
@@ -61,6 +63,17 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
   const pendingLeavesCount = (leaveRequests || []).filter(
     l => l.status === 'SUBMITTED' || l.status === 'COVER_UP_PENDING' || l.status === 'SUPERVISOR_PENDING' || l.status === 'MANAGER_PENDING' || l.status === 'HR_PENDING' || l.status === 'OWNER_PENDING'
   ).length;
+
+  const projectInvoices = (income || []).filter(i =>
+    i.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME' ||
+    Boolean(i.invoiceNumber) ||
+    i.INCOME_SOURCE === 'Project Income / Invoice'
+  );
+  const totalInvoicesCount = projectInvoices.length;
+  const overdueInvoicesCount = projectInvoices.filter(i => {
+    const bal = i.balanceDue !== undefined ? i.balanceDue : (Number(i.grossAmount ?? i.AMOUNT) - Number(i.amountReceived ?? 0));
+    return bal > 0.01;
+  }).length;
 
   const activeAlertsCount = (budgetAlerts || []).length;
   const activeFleetCount = (vehicles || []).filter(v => v.status === 'Active').length;
@@ -137,17 +150,42 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
       color: 'text-orange-400',
       activeBg: 'bg-orange-500/10 border-orange-500/30 text-orange-300',
       shortcut: 'Alt+7'
-    },
+    }
+  ];
+
+  const financeModules: NavItem[] = [
     {
       id: 'payments',
       label: 'Finance & PRV Vouchers',
-      shortLabel: 'Payments PRV',
+      shortLabel: 'Finance & PRV',
       icon: CreditCard,
       color: 'text-rose-400',
       activeBg: 'bg-rose-500/10 border-rose-500/30 text-rose-300',
       shortcut: 'Alt+8',
       badge: pendingPRVsCount > 0 ? pendingPRVsCount : undefined,
       badgeColor: 'bg-rose-500 text-white font-bold animate-pulse'
+    },
+    {
+      id: 'invoices',
+      label: 'Project Invoices (Inc)',
+      shortLabel: 'Invoices (Inc)',
+      icon: FileSpreadsheet,
+      color: 'text-indigo-400',
+      activeBg: 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300',
+      shortcut: 'Alt+I',
+      badge: totalInvoicesCount > 0 ? totalInvoicesCount : undefined,
+      badgeColor: 'bg-indigo-900 text-indigo-200 border border-indigo-700'
+    },
+    {
+      id: 'client-payments',
+      label: 'Client Payments',
+      shortLabel: 'Client Pay',
+      icon: Receipt,
+      color: 'text-emerald-400',
+      activeBg: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
+      shortcut: 'Alt+C',
+      badge: overdueInvoicesCount > 0 ? `${overdueInvoicesCount} Due` : undefined,
+      badgeColor: 'bg-emerald-900 text-emerald-200 border border-emerald-700'
     }
   ];
 
@@ -254,6 +292,8 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
         {renderModuleGroup('Core Operations', coreModules)}
         <div className="border-t border-slate-900 mx-1"></div>
         {renderModuleGroup('Workforce & Projects', projectModules)}
+        <div className="border-t border-slate-900 mx-1"></div>
+        {renderModuleGroup('Finance & Invoicing', financeModules)}
         <div className="border-t border-slate-900 mx-1"></div>
         {renderModuleGroup('Governance', governanceModules)}
       </div>

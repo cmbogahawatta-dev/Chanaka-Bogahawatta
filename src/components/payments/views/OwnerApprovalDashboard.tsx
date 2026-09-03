@@ -73,13 +73,13 @@ export const OwnerApprovalDashboard: React.FC = () => {
           <div className="p-3 rounded-xl bg-slate-950/80 border border-amber-800/60 text-right min-w-[170px]">
             <span className="text-[10px] text-amber-400 uppercase font-bold block">Authorized Sum Pending</span>
             <div className="text-lg font-mono font-black text-amber-300">
-              AED {totalPendingOwnerSum.toLocaleString()}
+              LKR {totalPendingOwnerSum.toLocaleString()}
             </div>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/80 border border-emerald-800/60 text-right min-w-[170px]">
             <span className="text-[10px] text-emerald-400 uppercase font-bold block">Awaiting Proof Scan</span>
             <div className="text-lg font-mono font-black text-emerald-300">
-              AED {totalProofPendingSum.toLocaleString()}
+              LKR {totalProofPendingSum.toLocaleString()}
             </div>
           </div>
         </div>

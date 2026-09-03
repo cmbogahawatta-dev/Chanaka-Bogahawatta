@@ -254,7 +254,7 @@ export const LogServiceModal: React.FC<LogServiceModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Total Service Cost (Rs.)</label>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Total Service Cost (LKR)</label>
               <input
                 type="number"
                 placeholder="0"

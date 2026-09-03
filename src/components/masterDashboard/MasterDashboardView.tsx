@@ -672,7 +672,7 @@ export const MasterDashboardView: React.FC<MasterDashboardViewProps> = ({
               <BarChart data={chartDataProjectCosts} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
                 <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 11 }} />
-                <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} tickFormatter={(val) => `Rs.${(val / 1000).toFixed(0)}k`} />
+                <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} tickFormatter={(val) => `LKR ${(val / 1000).toFixed(0)}k`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem', fontSize: '12px' }}
                   formatter={(value: any) => [`LKR ${Number(value).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`, '']}
@@ -823,7 +823,7 @@ export const MasterDashboardView: React.FC<MasterDashboardViewProps> = ({
                     <div className="w-24 ml-auto space-y-1">
                       <div className="flex justify-between text-[10px] text-slate-400">
                         <span>{p.budgetUtilizedPct}%</span>
-                        <span className="font-mono">{p.budget > 0 ? `Rs.${(p.budget / 1000000).toFixed(1)}M` : 'Open'}</span>
+                        <span className="font-mono">{p.budget > 0 ? `LKR ${(p.budget / 1000000).toFixed(1)}M` : 'Open'}</span>
                       </div>
                       <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
                         <div

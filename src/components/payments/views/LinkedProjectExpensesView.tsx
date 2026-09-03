@@ -67,7 +67,7 @@ export const LinkedProjectExpensesView: React.FC = () => {
         <div className="p-3 rounded-xl bg-slate-950 border border-emerald-800/80 text-right min-w-[210px]">
           <span className="text-[10px] text-emerald-400 uppercase font-bold block">Total Auto-Posted PRV Cost</span>
           <div className="text-lg font-mono font-black text-emerald-300">
-            AED {prvExpensesTotal.toLocaleString()}
+            LKR {prvExpensesTotal.toLocaleString()}
           </div>
         </div>
       </div>
@@ -163,7 +163,7 @@ export const LinkedProjectExpensesView: React.FC = () => {
                   </td>
 
                   <td className="py-3 px-3 text-right font-mono font-bold text-slate-100 whitespace-nowrap">
-                    <span className="text-[10px] text-slate-400 mr-1">{exp.CURRENCY || 'AED'}</span>
+                    <span className="text-[10px] text-slate-400 mr-1">{exp.CURRENCY || 'LKR'}</span>
                     {Number(exp.AMOUNT || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
 
