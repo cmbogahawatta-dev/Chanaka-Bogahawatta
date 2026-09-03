@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { Tag, PlusCircle, Folder, Trash2, Edit2 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
+import { ExpenseCategory } from '../../types/pettyCashTypes';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 export const MasterCategoriesView: React.FC = () => {
   const { categories, addCategory, updateCategory, deleteCategory, pivotMatrix } = usePettyCash();
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<ExpenseCategory | null>(null);
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [code, setCode] = useState<string>('');
   const [name, setName] = useState<string>('');
@@ -92,9 +95,7 @@ export const MasterCategoriesView: React.FC = () => {
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => {
-                              if (window.confirm(`Are you sure you want to delete expense category "${c.CATEGORY_NAME}" (${c.CATEGORY_CODE})?`)) {
-                                deleteCategory(c.id);
-                              }
+                              setCategoryToDelete(c);
                             }}
                             title="Delete Expense Category"
                             className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
@@ -111,6 +112,26 @@ export const MasterCategoriesView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Universal Authorized Delete Modal */}
+      {categoryToDelete && (
+        <UniversalDeleteModal
+          isOpen={!!categoryToDelete}
+          onClose={() => setCategoryToDelete(null)}
+          module="CATEGORIES"
+          recordId={categoryToDelete.id}
+          recordCode={categoryToDelete.CATEGORY_CODE}
+          recordName={categoryToDelete.CATEGORY_NAME}
+          additionalDetails={`Group: ${categoryToDelete.CATEGORY_GROUP} • GL Code: ${categoryToDelete.CATEGORY_CODE}`}
+          onDelete={async () => {
+            deleteCategory(categoryToDelete.id);
+            setCategoryToDelete(null);
+          }}
+          onDeactivate={async () => {
+            setCategoryToDelete(null);
+          }}
+        />
+      )}
 
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">

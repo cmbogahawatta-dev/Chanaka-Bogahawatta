@@ -5,12 +5,14 @@ import { useEnterprise } from '../../context/EnterpriseContext';
 import { useFleet } from '../../context/FleetContext';
 import { Supervisor } from '../../types/pettyCashTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
-import { BulkImportSupervisorsModal } from './BulkImportSupervisorsModal';
+import { UniversalBulkImportModal } from '../common/UniversalBulkImportModal';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 export const MasterSupervisorsView: React.FC = () => {
   const {
     supervisors,
     supervisorBalances,
+    addSupervisor,
     updateSupervisor,
     deleteSupervisor,
     clearSupervisorsDirectory
@@ -25,6 +27,7 @@ export const MasterSupervisorsView: React.FC = () => {
 
   const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
   const [editingSupervisor, setEditingSupervisor] = useState<Supervisor | null>(null);
+  const [supervisorToDelete, setSupervisorToDelete] = useState<Supervisor | null>(null);
   const [openingBalance, setOpeningBalance] = useState<string>('');
 
   const formatLKR = (amount: number): string => {
@@ -220,10 +223,7 @@ export const MasterSupervisorsView: React.FC = () => {
                               </button>
                               <button
                                 onClick={() => {
-                                  const name = sup.FULL_NAME || sup.SUPERVISOR_NAME;
-                                  if (window.confirm(`Are you sure you want to remove supervisor "${name}" (${sup.employeeCode || sup.SUPERVISOR_ID}) from the directory?`)) {
-                                    deleteSupervisor(sup.id);
-                                  }
+                                  setSupervisorToDelete(sup);
                                 }}
                                 title="Delete Supervisor Entry"
                                 className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
@@ -292,11 +292,58 @@ export const MasterSupervisorsView: React.FC = () => {
         </div>
       )}
 
-      {/* Bulk Import Supervisors Modal */}
-      <BulkImportSupervisorsModal
-        isOpen={isBulkImportOpen}
-        onClose={() => setIsBulkImportOpen(false)}
-      />
+      {/* Universal Authorized Delete Modal */}
+      {supervisorToDelete && (
+        <UniversalDeleteModal
+          isOpen={!!supervisorToDelete}
+          onClose={() => setSupervisorToDelete(null)}
+          module="SUPERVISORS"
+          recordId={supervisorToDelete.id}
+          recordCode={supervisorToDelete.employeeCode || supervisorToDelete.SUPERVISOR_ID}
+          recordName={supervisorToDelete.FULL_NAME || supervisorToDelete.SUPERVISOR_NAME}
+          additionalDetails={`Project: ${supervisorToDelete.PROJECT_NAME || supervisorToDelete.PROJECT_CODE || 'General'} • Float: ${formatLKR(supervisorToDelete.OPENING_PETTY_CASH || 0)}`}
+          onDelete={async () => {
+            deleteSupervisor(supervisorToDelete.id);
+            setSupervisorToDelete(null);
+          }}
+          onDeactivate={async () => {
+            setSupervisorToDelete(null);
+          }}
+        />
+      )}
+
+      {/* Universal Bulk Import Modal */}
+      {isBulkImportOpen && (
+        <UniversalBulkImportModal
+          isOpen={isBulkImportOpen}
+          onClose={() => setIsBulkImportOpen(false)}
+          importType="SUPERVISORS"
+          onImportComplete={(importedRows) => {
+            let count = 0;
+            importedRows.forEach((row: any) => {
+              addSupervisor({
+                SUPERVISOR_NAME: row.SUPERVISOR_NAME || row.FULL_NAME || 'Imported Supervisor',
+                FULL_NAME: row.FULL_NAME || row.SUPERVISOR_NAME || 'Imported Supervisor',
+                SUPERVISOR_ID: row.SUPERVISOR_ID || row.employeeCode || `SUP-${Date.now().toString().slice(-4)}`,
+                employeeCode: row.employeeCode || row.SUPERVISOR_ID || `SUP-${Date.now().toString().slice(-4)}`,
+                DESIGNATION: row.DESIGNATION || 'Site Supervisor',
+                PHONE: row.PHONE || '',
+                EMAIL: row.EMAIL || '',
+                PROJECT_CODE: row.PROJECT_CODE || 'ALL',
+                PROJECT_NAME: row.PROJECT_NAME || 'Road Project Package',
+                OPENING_PETTY_CASH: Number(row.OPENING_PETTY_CASH) || 0,
+                STATUS: 'Active',
+                IS_SITE_SUPERVISOR: true
+              });
+              count++;
+            });
+            return {
+              count,
+              batchId: `BATCH-SUP-${Date.now().toString().slice(-6)}`
+            };
+          }}
+        />
+      )}
     </div>
   );
 };

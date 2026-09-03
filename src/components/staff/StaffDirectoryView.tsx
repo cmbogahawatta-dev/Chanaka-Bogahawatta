@@ -42,6 +42,8 @@ import { StaffMember, Department, EmployeeRole, StaffStatus, EmploymentType } fr
 import { StaffProfileModal } from './StaffProfileModal';
 import { AddEditStaffModal } from './AddEditStaffModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
+import { UniversalBulkImportModal } from '../common/UniversalBulkImportModal';
 
 // HR Modules
 import { ProjectAllocationsView } from './ProjectAllocationsView';
@@ -78,7 +80,8 @@ export const StaffDirectoryView: React.FC = () => {
     setSelectedStaffMember,
     deleteStaffMember,
     resetStaffDirectory,
-    clearStaffDirectory
+    clearStaffDirectory,
+    bulkImportStaffMembers
   } = useStaff();
 
   const { currentRole } = useEnterprise();
@@ -90,6 +93,7 @@ export const StaffDirectoryView: React.FC = () => {
   // Local View States
   const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [staffToEdit, setStaffToEdit] = useState<StaffMember | null>(null);
   const [memberToDelete, setMemberToDelete] = useState<StaffMember | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -380,6 +384,18 @@ export const StaffDirectoryView: React.FC = () => {
                   <Download className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Export Excel</span>
                 </button>
+
+                {canManageStaff && (
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkImportOpen(true)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-indigo-950 text-indigo-300 hover:text-indigo-200 border border-indigo-800/80 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                    title="Bulk Import Staff from Excel/CSV"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Bulk Import</span>
+                  </button>
+                )}
 
                 {canManageStaff && (
                   <button
@@ -962,45 +978,41 @@ export const StaffDirectoryView: React.FC = () => {
         staffToEdit={staffToEdit}
       />
 
-      {/* Delete Confirmation Modal */}
+      {/* Universal Authorized Delete Modal */}
       {memberToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-400">
-              <div className="w-10 h-10 rounded-xl bg-rose-950 border border-rose-800 flex items-center justify-center">
-                <Trash2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-100 text-sm">Confirm Staff Removal</h3>
-                <p className="text-xs text-rose-400 font-mono">{memberToDelete.employeeCode}</p>
-              </div>
-            </div>
+        <UniversalDeleteModal
+          isOpen={!!memberToDelete}
+          onClose={() => setMemberToDelete(null)}
+          module="STAFF"
+          recordId={memberToDelete.id}
+          recordCode={memberToDelete.employeeCode}
+          recordName={memberToDelete.fullName}
+          additionalDetails={`${memberToDelete.designation} • ${memberToDelete.department}`}
+          onDelete={async () => {
+            deleteStaffMember(memberToDelete.id);
+            setMemberToDelete(null);
+          }}
+          onDeactivate={async () => {
+            // Optional deactivation / resignation toggle
+            setMemberToDelete(null);
+          }}
+        />
+      )}
 
-            <p className="text-xs text-slate-300">
-              Are you sure you want to remove <strong className="text-white">{memberToDelete.fullName}</strong> ({memberToDelete.designation}) from the corporate staff directory?
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setMemberToDelete(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  deleteStaffMember(memberToDelete.id);
-                  setMemberToDelete(null);
-                }}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-colors"
-              >
-                Confirm Delete
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Universal Bulk Import Modal */}
+      {isBulkImportOpen && (
+        <UniversalBulkImportModal
+          isOpen={isBulkImportOpen}
+          onClose={() => setIsBulkImportOpen(false)}
+          importType="STAFF"
+          onImportComplete={(importedRows) => {
+            bulkImportStaffMembers(importedRows as any);
+            return {
+              count: importedRows.length,
+              batchId: `BATCH-STAFF-${Date.now().toString().slice(-6)}`
+            };
+          }}
+        />
       )}
 
       {/* Admin Reset Directory Confirmation Modal */}

@@ -44,11 +44,11 @@ import { useEnterprise } from '../../context/EnterpriseContext';
 import { Project } from '../../types/pettyCashTypes';
 import { ProjectModal } from './ProjectModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
-import { BulkImportProjectsModal } from '../pettyCash/BulkImportProjectsModal';
-import { DeleteRequestModal } from '../common/DeleteRequestModal';
+import { UniversalBulkImportModal } from '../common/UniversalBulkImportModal';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 export const ProjectsView: React.FC = () => {
-  const { projects, expenses, income, userRole, deleteProject, clearProjectsHistory } = usePettyCash();
+  const { projects, expenses, income, userRole, addProject, deleteProject, clearProjectsHistory } = usePettyCash();
   const { vehicles, fuelRecords, maintenanceLogs } = useFleet();
   const { procurementOrders, paymentVouchers, navigateToModule, currentRole } = useEnterprise();
 
@@ -190,6 +190,17 @@ export const ProjectsView: React.FC = () => {
               preservedItemsDescription="Underlying transaction history in Petty Cash, Fuel, Maintenance, and Procurement will remain intact."
               onClear={() => clearProjectsHistory()}
             />
+          )}
+
+          {isAdmin && (
+            <button
+              onClick={() => setIsBulkImportOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-indigo-950 text-indigo-300 hover:text-indigo-200 border border-indigo-800/80 text-xs font-semibold shadow-sm transition-all"
+              title="Bulk Import Projects from Excel/CSV"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-indigo-400" />
+              <span>Bulk Import</span>
+            </button>
           )}
 
           {isAdmin && (
@@ -547,24 +558,53 @@ export const ProjectsView: React.FC = () => {
         projectToEdit={projectToEdit}
       />
 
-      {/* Safe Delete Request / Direct Delete Modal */}
+      {/* Universal Authorized Delete Modal */}
       {projectToDelete && (
-        <DeleteRequestModal
+        <UniversalDeleteModal
           isOpen={!!projectToDelete}
           onClose={() => setProjectToDelete(null)}
           module="PROJECTS"
-          recordType="Project"
           recordId={projectToDelete.id}
-          recordTitle={`${projectToDelete.PROJECT_CODE} - ${projectToDelete.PROJECT_NAME}`}
-          recordSummary={{
-            code: projectToDelete.PROJECT_CODE,
-            name: projectToDelete.PROJECT_NAME,
-            client: projectToDelete.CLIENT,
-            location: projectToDelete.LOCATION,
-            budget: projectToDelete.CONTRACT_VALUE || projectToDelete.BUDGET
-          }}
-          onDirectDeleteSuccess={() => {
+          recordCode={projectToDelete.PROJECT_CODE}
+          recordName={projectToDelete.PROJECT_NAME}
+          additionalDetails={`Client: ${projectToDelete.CLIENT || '—'} • Location: ${projectToDelete.LOCATION || '—'}`}
+          onDelete={async () => {
+            deleteProject(projectToDelete.id);
             setProjectToDelete(null);
+          }}
+          onDeactivate={async () => {
+            setProjectToDelete(null);
+          }}
+        />
+      )}
+
+      {/* Universal Bulk Import Modal */}
+      {isBulkImportOpen && (
+        <UniversalBulkImportModal
+          isOpen={isBulkImportOpen}
+          onClose={() => setIsBulkImportOpen(false)}
+          importType="PROJECTS"
+          onImportComplete={(importedRows) => {
+            let count = 0;
+            importedRows.forEach((row: any) => {
+              addProject({
+                PROJECT_CODE: row.PROJECT_CODE || `PRJ-${Date.now().toString().slice(-4)}`,
+                PROJECT_NAME: row.PROJECT_NAME || 'Imported Construction Package',
+                CLIENT: row.CLIENT || 'RDA / Provincial Highway',
+                LOCATION: row.LOCATION || 'Sri Lanka',
+                BUDGET: Number(row.BUDGET) || 0,
+                CONTRACT_VALUE: Number(row.CONTRACT_VALUE || row.BUDGET) || 0,
+                START_DATE: row.START_DATE || new Date().toISOString().slice(0, 10),
+                END_DATE: row.END_DATE || '',
+                STATUS: (row.STATUS as any) || 'In Progress',
+                DESCRIPTION: row.DESCRIPTION || 'Bulk imported project'
+              });
+              count++;
+            });
+            return {
+              count,
+              batchId: `BATCH-PROJ-${Date.now().toString().slice(-6)}`
+            };
           }}
         />
       )}

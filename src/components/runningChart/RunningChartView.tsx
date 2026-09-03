@@ -21,6 +21,8 @@ import { formatDate, formatCurrency } from '../../utils/helpers';
 import { RunningChartEntry } from '../../types';
 import { TripModal } from './TripModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalBulkImportModal } from '../common/UniversalBulkImportModal';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 interface RunningChartViewProps {
   onOpenNewTrip: () => void;
@@ -32,6 +34,7 @@ export const RunningChartView: React.FC<RunningChartViewProps> = ({ onOpenNewTri
     drivers,
     runningCharts,
     deleteRunningChart,
+    bulkImportRunningCharts,
     clearRunningChartHistory,
     selectedVehicleId,
     setSelectedVehicleId,
@@ -44,6 +47,8 @@ export const RunningChartView: React.FC<RunningChartViewProps> = ({ onOpenNewTri
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
   const [editingTrip, setEditingTrip] = useState<RunningChartEntry | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [tripToDelete, setTripToDelete] = useState<RunningChartEntry | null>(null);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
 
   // Filter running chart entries
   const filteredEntries = runningCharts.filter(entry => {
@@ -146,6 +151,15 @@ export const RunningChartView: React.FC<RunningChartViewProps> = ({ onOpenNewTri
               preservedItemsDescription="Vehicles and registered drivers remain intact."
               onClear={() => clearRunningChartHistory(selectedVehicleId)}
             />
+            <button
+              onClick={() => setIsBulkImportOpen(true)}
+              id="btn-bulk-import-running-charts"
+              className="p-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-semibold"
+              title="Bulk Import Excel / CSV Running Charts"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-indigo-400" />
+              <span className="hidden sm:inline">Bulk Import</span>
+            </button>
             <button
               onClick={handleExportCSV}
               className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-semibold"
@@ -329,11 +343,7 @@ export const RunningChartView: React.FC<RunningChartViewProps> = ({ onOpenNewTri
                       <span>Edit</span>
                     </button>
                     <button
-                      onClick={() => {
-                        if (window.confirm(`Admin: Are you sure you want to delete this running chart trip from ${entry.startLocation} to ${entry.endLocation} (${entry.totalDistanceKm} km)?`)) {
-                          deleteRunningChart(entry.id);
-                        }
-                      }}
+                      onClick={() => setTripToDelete(entry)}
                       className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 text-[11px]"
                       title="Admin: Delete trip entry"
                     >
@@ -357,6 +367,47 @@ export const RunningChartView: React.FC<RunningChartViewProps> = ({ onOpenNewTri
             setEditingTrip(null);
           }}
           tripToEdit={editingTrip}
+        />
+      )}
+
+      {/* Universal Delete Modal for Running Chart */}
+      {tripToDelete && (
+        <UniversalDeleteModal
+          isOpen={!!tripToDelete}
+          onClose={() => setTripToDelete(null)}
+          module="RUNNING_CHARTS"
+          recordType="Running Chart Trip"
+          recordId={tripToDelete.id}
+          recordCode={`TRIP-${tripToDelete.date.replace(/-/g, '')}-${tripToDelete.id.slice(-4)}`}
+          recordTitle={`${tripToDelete.purpose} (${tripToDelete.startLocation} ➔ ${tripToDelete.endLocation})`}
+          additionalDetails={`Vehicle: ${getVehicle(tripToDelete.vehicleId)?.registrationNumber || tripToDelete.vehicleId} • Driver: ${getDriver(tripToDelete.driverId)?.name || tripToDelete.driverId} • Distance: ${tripToDelete.distanceKm || 0} km • Date: ${formatDate(tripToDelete.date)}`}
+          recordSummary={{
+            date: formatDate(tripToDelete.date),
+            vehicle: getVehicle(tripToDelete.vehicleId)?.registrationNumber || tripToDelete.vehicleId,
+            driver: getDriver(tripToDelete.driverId)?.name || tripToDelete.driverId,
+            distance: `${tripToDelete.distanceKm || 0} km`,
+            route: `${tripToDelete.startLocation} ➔ ${tripToDelete.endLocation}`,
+            purpose: tripToDelete.purpose
+          }}
+          onDelete={async () => {
+            deleteRunningChart(tripToDelete.id);
+            setTripToDelete(null);
+          }}
+          onDeactivate={async () => {
+            setTripToDelete(null);
+          }}
+        />
+      )}
+
+      {/* Bulk Import Modal for Running Charts */}
+      {isBulkImportOpen && (
+        <UniversalBulkImportModal
+          isOpen={isBulkImportOpen}
+          onClose={() => setIsBulkImportOpen(false)}
+          importType="RUNNING_CHARTS"
+          onImportComplete={(importedRows) => {
+            return bulkImportRunningCharts(importedRows);
+          }}
         />
       )}
     </div>

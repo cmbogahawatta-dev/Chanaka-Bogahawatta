@@ -13,13 +13,16 @@ import {
   TrendingUp,
   Receipt,
   Gauge,
-  Edit2
+  Edit2,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useFleet } from '../../context/FleetContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { formatDate, formatCurrency } from '../../utils/helpers';
 import { FuelModal } from './FuelModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalBulkImportModal } from '../common/UniversalBulkImportModal';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 import { FuelRecord } from '../../types';
 
 interface FuelRecordViewProps {
@@ -32,6 +35,7 @@ export const FuelRecordView: React.FC<FuelRecordViewProps> = ({ onOpenNewFuel })
     drivers,
     fuelRecords,
     deleteFuelRecord,
+    bulkImportFuelRecords,
     clearFuelHistory,
     selectedVehicleId,
     isAdmin: isFleetAdmin
@@ -42,6 +46,8 @@ export const FuelRecordView: React.FC<FuelRecordViewProps> = ({ onOpenNewFuel })
   const [searchQuery, setSearchQuery] = useState('');
   const [stationFilter, setStationFilter] = useState('all');
   const [editingRecord, setEditingRecord] = useState<FuelRecord | null>(null);
+  const [fuelRecordToDelete, setFuelRecordToDelete] = useState<FuelRecord | null>(null);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
 
   // Filtered Fuel Records
   const filteredRecords = fuelRecords.filter(record => {
@@ -151,6 +157,15 @@ export const FuelRecordView: React.FC<FuelRecordViewProps> = ({ onOpenNewFuel })
               preservedItemsDescription="Vehicles and registered drivers remain intact."
               onClear={() => clearFuelHistory(selectedVehicleId)}
             />
+            <button
+              onClick={() => setIsBulkImportOpen(true)}
+              id="btn-bulk-import-fuel"
+              className="p-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-semibold"
+              title="Bulk Import Excel / CSV Fuel Logs"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">Bulk Import</span>
+            </button>
             <button
               onClick={handleExportCSV}
               className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-semibold"
@@ -338,11 +353,7 @@ export const FuelRecordView: React.FC<FuelRecordViewProps> = ({ onOpenNewFuel })
                     )}
                     {isAdmin && (
                       <button
-                        onClick={() => {
-                          if (window.confirm(`Admin: Are you sure you want to delete fuel record for ${formatCurrency(record.totalCost)} (${record.liters} L)?`)) {
-                            deleteFuelRecord(record.id);
-                          }
-                        }}
+                        onClick={() => setFuelRecordToDelete(record)}
                         className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors flex items-center gap-1 text-[10px]"
                         title="Admin: Delete fuel record"
                       >
@@ -364,6 +375,48 @@ export const FuelRecordView: React.FC<FuelRecordViewProps> = ({ onOpenNewFuel })
           isOpen={Boolean(editingRecord)}
           onClose={() => setEditingRecord(null)}
           fuelRecordToEdit={editingRecord}
+        />
+      )}
+
+      {/* Universal Delete Modal for Fuel Records */}
+      {fuelRecordToDelete && (
+        <UniversalDeleteModal
+          isOpen={!!fuelRecordToDelete}
+          onClose={() => setFuelRecordToDelete(null)}
+          module="FUEL"
+          recordType="Fuel Record"
+          recordId={fuelRecordToDelete.id}
+          recordCode={fuelRecordToDelete.invoiceNumber || `FUEL-${fuelRecordToDelete.date.replace(/-/g, '')}-${fuelRecordToDelete.id.slice(-4)}`}
+          recordTitle={`${formatCurrency(fuelRecordToDelete.totalCost)} (${fuelRecordToDelete.liters} L ${fuelRecordToDelete.fuelType})`}
+          additionalDetails={`Station: ${fuelRecordToDelete.stationName} • Vehicle: ${getVehicle(fuelRecordToDelete.vehicleId)?.registrationNumber || fuelRecordToDelete.vehicleId} • Driver: ${getDriver(fuelRecordToDelete.driverId)?.name || fuelRecordToDelete.driverId} • Odometer: ${fuelRecordToDelete.odometerKm.toLocaleString()} km`}
+          recordSummary={{
+            date: `${formatDate(fuelRecordToDelete.date)} ${fuelRecordToDelete.time || ''}`,
+            vehicle: getVehicle(fuelRecordToDelete.vehicleId)?.registrationNumber || fuelRecordToDelete.vehicleId,
+            driver: getDriver(fuelRecordToDelete.driverId)?.name || fuelRecordToDelete.driverId,
+            cost: formatCurrency(fuelRecordToDelete.totalCost),
+            volume: `${fuelRecordToDelete.liters} L`,
+            station: fuelRecordToDelete.stationName,
+            invoice: fuelRecordToDelete.invoiceNumber || 'N/A'
+          }}
+          onDelete={async () => {
+            deleteFuelRecord(fuelRecordToDelete.id);
+            setFuelRecordToDelete(null);
+          }}
+          onDeactivate={async () => {
+            setFuelRecordToDelete(null);
+          }}
+        />
+      )}
+
+      {/* Bulk Import Modal for Fuel Logs */}
+      {isBulkImportOpen && (
+        <UniversalBulkImportModal
+          isOpen={isBulkImportOpen}
+          onClose={() => setIsBulkImportOpen(false)}
+          importType="FUEL"
+          onImportComplete={(importedRows) => {
+            return bulkImportFuelRecords(importedRows);
+          }}
         />
       )}
     </div>

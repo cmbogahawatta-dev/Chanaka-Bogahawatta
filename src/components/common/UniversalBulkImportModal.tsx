@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Upload,
@@ -14,8 +14,16 @@ import {
   RefreshCw,
   Layers,
   ArrowRight,
-  Database
+  Database,
+  Lock,
+  Eye,
+  EyeOff,
+  ShieldAlert,
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
+import { adminSecurityService } from '../../services/adminSecurityService';
+import { useEnterprise } from '../../context/EnterpriseContext';
 
 export type DirectoryImportType =
   | 'VEHICLES'
@@ -498,12 +506,13 @@ export const UniversalBulkImportModal: React.FC<UniversalBulkImportModalProps> =
   importType,
   onImportComplete
 }) => {
+  const { currentUser, currentRole } = useEnterprise();
   const config = DIRECTORY_CONFIGS[importType] || DIRECTORY_CONFIGS.VEHICLES;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
   const [pasteContent, setPasteContent] = useState<string>('');
-  const [step, setStep] = useState<'input' | 'mapping' | 'preview'>('input');
+  const [step, setStep] = useState<'input' | 'mapping' | 'preview' | 'authorize'>('input');
   const [fileName, setFileName] = useState<string>('');
   
   // Raw parsed matrix
@@ -526,7 +535,44 @@ export const UniversalBulkImportModal: React.FC<UniversalBulkImportModalProps> =
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [importSuccessResult, setImportSuccessResult] = useState<{ count: number; batchId: string } | null>(null);
 
+  // Admin Security Authorization states
+  const [securityKey, setSecurityKey] = useState<string>('');
+  const [showKey, setShowKey] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string>('');
+  const [lockoutSec, setLockoutSec] = useState<number>(0);
+
+  useEffect(() => {
+    if (isOpen) {
+      const status = adminSecurityService.getSecurityStatus();
+      if (status.isLockedOut) {
+        setLockoutSec(status.lockoutRemainingSeconds);
+      } else {
+        setLockoutSec(0);
+      }
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (lockoutSec <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutSec(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutSec]);
+
   if (!isOpen) return null;
+
+  const activeUser = {
+    id: 'usr-admin',
+    name: currentUser || 'BUDDIKA',
+    role: currentRole || 'ADMIN'
+  };
 
   // Auto-map headers
   const autoMapColumns = (headers: string[]) => {
@@ -711,27 +757,99 @@ export const UniversalBulkImportModal: React.FC<UniversalBulkImportModalProps> =
     setStep('preview');
   };
 
-  // Commit Import
-  const handleExecuteImport = () => {
-    const validRows = processedRecords
-      .filter(r => r.status !== 'ERROR')
-      .map(r => r.data);
-
+  // Proceed to Step 4: Admin Authorization
+  const handleProceedToAuthorize = () => {
+    const validRows = processedRecords.filter(r => r.status !== 'ERROR');
     if (validRows.length === 0) {
       alert('No valid records to import. Please review mapping and errors.');
       return;
     }
 
+    const status = adminSecurityService.getSecurityStatus();
+    if (status.isLockedOut) {
+      setLockoutSec(status.lockoutRemainingSeconds);
+    } else {
+      setLockoutSec(0);
+    }
+    setSecurityKey('');
+    setAuthError('');
+    setShowKey(false);
+    setStep('authorize');
+  };
+
+  // Commit Import with Admin Security Key Authorization
+  const handleExecuteAuthorizedImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const validRows = processedRecords
+      .filter(r => r.status !== 'ERROR')
+      .map(r => r.data);
+
+    if (validRows.length === 0) {
+      setAuthError('No valid records found for import.');
+      return;
+    }
+
+    if (!securityKey.trim()) {
+      setAuthError('Admin Security Key is required.');
+      return;
+    }
+
     setIsProcessing(true);
+    setAuthError('');
+
+    const actionDescription = `Bulk import into ${config.directoryName} (${validRows.length} valid records from "${fileName || 'Tabular Data'}")`;
+
     try {
+      // 1. Verify key with centralized Admin Authorization Key service
+      const verification = await adminSecurityService.verifySecurityKey(
+        securityKey,
+        actionDescription,
+        activeUser
+      );
+
+      if (!verification.success) {
+        if (verification.isLockedOut && verification.lockoutRemainingSeconds) {
+          setLockoutSec(verification.lockoutRemainingSeconds);
+        }
+        setAuthError(verification.message || 'Invalid Admin Authorization Key. Import cancelled.');
+
+        // Record failed attempt audit
+        adminSecurityService.recordAuditEvent({
+          userId: activeUser.id,
+          userName: activeUser.name,
+          userRole: activeUser.role,
+          action: 'IMPORT_AUTHORIZATION_FAILED',
+          targetRecord: `${importType}:BULK_IMPORT`,
+          result: 'FAILED',
+          reason: `Failed authorization for bulk import into ${config.directoryName}. ${verification.message}`
+        });
+
+        setIsProcessing(false);
+        return;
+      }
+
+      // 2. Key is valid: execute import immediately
+      const batchId = `BATCH-${importType.slice(0, 4)}-${Date.now().toString().slice(-6)}`;
       const res = onImportComplete(validRows);
+
+      // 3. Record successful import audit event
+      adminSecurityService.recordAuditEvent({
+        userId: activeUser.id,
+        userName: activeUser.name,
+        userRole: activeUser.role,
+        action: 'IMPORT_EXECUTED',
+        targetRecord: `${importType}:${batchId}`,
+        result: 'SUCCESS',
+        reason: `Bulk import executed successfully: ${validRows.length} records imported into ${config.directoryName} from "${fileName || 'Tabular input'}". Skipped/error rows: ${processedRecords.length - validRows.length}. Strategy: ${duplicateStrategy}.`
+      });
+
       if (res && res.count !== undefined) {
         setImportSuccessResult(res);
       } else {
-        setImportSuccessResult({ count: validRows.length, batchId: `BATCH-${Date.now().toString().slice(-6)}` });
+        setImportSuccessResult({ count: validRows.length, batchId });
       }
     } catch (e: any) {
-      alert(`Import error: ${e?.message || 'Failed to complete import process.'}`);
+      setAuthError(`Import error: ${e?.message || 'Failed to complete import process.'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -778,20 +896,25 @@ export const UniversalBulkImportModal: React.FC<UniversalBulkImportModalProps> =
 
         {/* Step Indicator */}
         <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-6 text-sm">
-            <div className={`flex items-center gap-2 font-medium ${step === 'input' ? 'text-indigo-600 font-bold' : 'text-slate-500'}`}>
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step === 'input' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'}`}>1</span>
-              <span>Upload / Paste</span>
+          <div className="flex items-center gap-4 text-xs">
+            <div className={`flex items-center gap-1.5 font-medium ${step === 'input' ? 'text-indigo-600 font-bold' : 'text-slate-500'}`}>
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${step === 'input' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'}`}>1</span>
+              <span>Upload</span>
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-300" />
-            <div className={`flex items-center gap-2 font-medium ${step === 'mapping' ? 'text-indigo-600 font-bold' : 'text-slate-500'}`}>
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step === 'mapping' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'}`}>2</span>
-              <span>Column Mapping</span>
+            <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
+            <div className={`flex items-center gap-1.5 font-medium ${step === 'mapping' ? 'text-indigo-600 font-bold' : 'text-slate-500'}`}>
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${step === 'mapping' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'}`}>2</span>
+              <span>Mapping</span>
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-300" />
-            <div className={`flex items-center gap-2 font-medium ${step === 'preview' ? 'text-indigo-600 font-bold' : 'text-slate-500'}`}>
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step === 'preview' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'}`}>3</span>
-              <span>Validate & Review</span>
+            <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
+            <div className={`flex items-center gap-1.5 font-medium ${step === 'preview' ? 'text-indigo-600 font-bold' : 'text-slate-500'}`}>
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${step === 'preview' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'}`}>3</span>
+              <span>Validate</span>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
+            <div className={`flex items-center gap-1.5 font-medium ${step === 'authorize' ? 'text-amber-600 font-bold' : 'text-slate-500'}`}>
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${step === 'authorize' ? 'bg-amber-600 text-white' : 'bg-slate-200 text-slate-700'}`}>4</span>
+              <span>Authorize</span>
             </div>
           </div>
 
@@ -1059,7 +1182,7 @@ export const UniversalBulkImportModal: React.FC<UniversalBulkImportModalProps> =
                 </button>
               </div>
             </div>
-          ) : (
+          ) : step === 'preview' ? (
             /* STEP 3: PREVIEW & COMMIT */
             <div className="space-y-6">
               
@@ -1175,17 +1298,147 @@ export const UniversalBulkImportModal: React.FC<UniversalBulkImportModalProps> =
                     Cancel
                   </button>
                   <button
-                    onClick={handleExecuteImport}
+                    id="btn-bulk-import-proceed-auth"
+                    onClick={handleProceedToAuthorize}
                     disabled={isProcessing || validCount === 0}
                     className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors shadow-md inline-flex items-center gap-2"
                   >
                     <Database className="w-4 h-4" />
-                    <span>{isProcessing ? 'Importing Data...' : `Confirm & Bulk Import (${validCount} Records)`}</span>
+                    <span>Proceed to Admin Authorization ({validCount} Records)</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
             </div>
+          ) : (
+            /* STEP 4: ADMIN AUTHORIZATION */
+            <form onSubmit={handleExecuteAuthorizedImport} className="max-w-xl mx-auto py-4 space-y-5">
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl text-slate-100 space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+                      Elevated Data Management
+                    </span>
+                    <h3 className="text-sm font-bold text-white tracking-tight">
+                      Admin Authorization Required
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80 text-xs text-slate-300 space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Target Directory:</span>
+                    <strong className="text-white">{config.directoryName}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Valid Records:</span>
+                    <strong className="text-emerald-400 font-mono">{validCount} rows</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Data Source:</span>
+                    <span className="text-slate-300 truncate max-w-[240px]">{fileName || 'Pasted Tabular Data'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Merge Strategy:</span>
+                    <span className="text-indigo-300 font-semibold">{duplicateStrategy}</span>
+                  </div>
+                </div>
+              </div>
+
+              {lockoutSec > 0 && (
+                <div className="p-3.5 bg-rose-950/60 border border-rose-700 rounded-xl text-rose-300 text-xs flex items-start gap-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Security Lockout Active</p>
+                    <p className="text-[11px] text-rose-200/80 mt-0.5">
+                      Too many incorrect authorization attempts. Access unlocked in <strong>{lockoutSec}s</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Enter Admin Security Key
+                </label>
+                <div className="relative">
+                  <input
+                    id="input-bulk-import-security-key"
+                    type={showKey ? 'text' : 'password'}
+                    placeholder="••••••••••••"
+                    value={securityKey}
+                    onChange={(e) => {
+                      setSecurityKey(e.target.value);
+                      if (authError) setAuthError('');
+                    }}
+                    disabled={lockoutSec > 0}
+                    autoFocus
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 font-mono tracking-widest placeholder:tracking-normal placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all pr-12 disabled:opacity-50 text-center shadow-inner"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                    tabIndex={-1}
+                  >
+                    {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {authError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-1">
+                <span>Authorized Admin: <strong className="text-slate-700">{activeUser.name}</strong></span>
+                <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Audit Vault Logged</span>
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setStep('preview')}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors"
+                >
+                  Back to Preview
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    id="btn-authorize-and-import"
+                    type="submit"
+                    disabled={isProcessing || !securityKey.trim() || lockoutSec > 0}
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md inline-flex items-center gap-2 active:scale-95"
+                  >
+                    {isProcessing ? (
+                      <span>Verifying & Importing...</span>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Authorize & Import</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
           )}
 
         </div>

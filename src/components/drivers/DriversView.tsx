@@ -21,6 +21,10 @@ import { useFleet } from '../../context/FleetContext';
 import { formatDate, isDriverLicenseExpiringSoon } from '../../utils/helpers';
 import { Driver } from '../../types';
 import { DriverModal } from './DriverModal';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
+import { UniversalBulkImportModal } from '../common/UniversalBulkImportModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { FileSpreadsheet } from 'lucide-react';
 
 export const DriversView: React.FC = () => {
   const {
@@ -28,12 +32,16 @@ export const DriversView: React.FC = () => {
     vehicles,
     runningCharts,
     transfers,
-    deleteDriver
+    deleteDriver,
+    clearDriversHistory,
+    bulkImportDrivers
   } = useFleet();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [driverToDelete, setDriverToDelete] = useState<Driver | null>(null);
 
   const filteredDrivers = drivers.filter(driver => {
     if (!searchQuery.trim()) return true;
@@ -73,16 +81,38 @@ export const DriversView: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              setEditingDriver(null);
-              setShowModal(true);
-            }}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Driver</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <AdminClearHistoryButton
+              id="btn-admin-clear-drivers-registry"
+              moduleName="Driver Registry & Profiles"
+              itemCount={drivers.length}
+              itemDescription="registered professional drivers in the fleet database"
+              preservedItemsDescription="Historical trip logs, fuel transactions, and vehicle condition transfers remain safely preserved."
+              buttonText="Clear Registry"
+              onClear={() => clearDriversHistory()}
+            />
+
+            <button
+              id="btn-bulk-import-drivers"
+              onClick={() => setIsBulkImportOpen(true)}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-indigo-950 text-indigo-300 hover:text-indigo-200 border border-indigo-800/80 text-xs font-bold px-3 py-2 rounded-xl shadow transition-colors"
+              title="Bulk Import Drivers from Excel/CSV"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-indigo-400" />
+              <span>Bulk Import</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setEditingDriver(null);
+                setShowModal(true);
+              }}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Driver</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-800 text-center text-xs">
@@ -267,11 +297,10 @@ export const DriversView: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                        if (window.confirm(`Delete driver profile for ${driver.name}?`)) {
-                          deleteDriver(driver.id);
-                        }
+                        setDriverToDelete(driver);
                       }}
                       className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                      title="Delete Driver Profile"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -281,6 +310,38 @@ export const DriversView: React.FC = () => {
             );
           })}
         </div>
+      )}
+
+      {/* Universal Authorized Delete Modal */}
+      {driverToDelete && (
+        <UniversalDeleteModal
+          isOpen={!!driverToDelete}
+          onClose={() => setDriverToDelete(null)}
+          module="DRIVERS"
+          recordId={driverToDelete.id}
+          recordCode={driverToDelete.employeeId}
+          recordName={driverToDelete.name}
+          additionalDetails={`License: ${driverToDelete.licenseNumber} (${driverToDelete.licenseClasses}) • Phone: ${driverToDelete.phone}`}
+          onDelete={async () => {
+            deleteDriver(driverToDelete.id);
+            setDriverToDelete(null);
+          }}
+          onDeactivate={async () => {
+            setDriverToDelete(null);
+          }}
+        />
+      )}
+
+      {/* Universal Bulk Import Modal */}
+      {isBulkImportOpen && (
+        <UniversalBulkImportModal
+          isOpen={isBulkImportOpen}
+          onClose={() => setIsBulkImportOpen(false)}
+          importType="DRIVERS"
+          onImportComplete={(importedRows) => {
+            return bulkImportDrivers(importedRows as any);
+          }}
+        />
       )}
 
       {/* Driver Modal */}

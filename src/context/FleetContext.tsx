@@ -1537,22 +1537,62 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const batchId = `BATCH-RC-${Date.now().toString().slice(-6)}`;
     const newItems: RunningChartEntry[] = imported.map((r, i) => {
       const startKm = Number(r.startOdometerKm || (r as any).startKm) || 0;
-      const endKm = Number(r.endOdometerKm || (r as any).endKm) || startKm + 10;
+      const endKm = Number(r.endOdometerKm || (r as any).endKm) || (startKm > 0 ? startKm + (Number(r.distanceKm) || 25) : 100);
+      const distance = Number(r.distanceKm) || Math.max(0, endKm - startKm);
+
+      // Match vehicle
+      const regInput = String((r as any).vehicleRegistration || r.vehicleId || '').trim();
+      const normReg = regInput.toLowerCase().replace(/[\s-_]/g, '');
+      const matchedVeh = vehicles.find(v => 
+        v.registrationNumber.toLowerCase().replace(/[\s-_]/g, '') === normReg ||
+        v.id.toLowerCase() === normReg ||
+        v.registrationNumber.toLowerCase().includes(normReg)
+      ) || vehicles[0];
+
+      // Match driver
+      const drvInput = String((r as any).driverName || r.driverId || '').trim();
+      const normDrv = drvInput.toLowerCase();
+      const matchedDrv = drivers.find(d => 
+        d.name.toLowerCase().includes(normDrv) ||
+        d.employeeId.toLowerCase() === normDrv ||
+        d.id.toLowerCase() === normDrv
+      ) || drivers[0];
+
+      // Match locations / route
+      let startLoc = r.startLocation || '';
+      let endLoc = r.endLocation || '';
+      const route = String((r as any).route || '').trim();
+      if (route && (!startLoc || !endLoc)) {
+        const parts = route.split(/\s*(?:to|->|-|–)\s*/i);
+        if (parts.length >= 2) {
+          startLoc = parts[0].trim();
+          endLoc = parts[1].trim();
+        } else {
+          startLoc = startLoc || 'Head Office Depot';
+          endLoc = endLoc || route;
+        }
+      }
+      if (!startLoc) startLoc = 'Head Office Depot';
+      if (!endLoc) endLoc = 'Project Site';
+
       return {
         id: r.id || `rc-imp-${Date.now()}-${i}`,
-        vehicleId: r.vehicleId || vehicles[0]?.id || 'veh-1',
-        driverId: r.driverId || drivers[0]?.id || 'drv-1',
+        vehicleId: matchedVeh?.id || vehicles[0]?.id || 'veh-1',
+        driverId: matchedDrv?.id || drivers[0]?.id || 'drv-1',
         date: r.date || new Date().toISOString().slice(0, 10),
         startTime: r.startTime || '08:00',
         endTime: r.endTime || '17:00',
-        purpose: r.purpose || 'Site Visit to Factory',
-        startLocation: r.startLocation || 'Head Office',
-        endLocation: r.endLocation || 'Project Site',
+        purpose: r.purpose || 'Official site logistics & inspection',
+        startLocation: startLoc,
+        endLocation: endLoc,
         startOdometerKm: startKm,
         endOdometerKm: endKm,
-        distanceKm: Number(r.distanceKm) || Math.max(0, endKm - startKm),
+        distanceKm: distance,
+        routeDescription: (r as any).route || `${startLoc} to ${endLoc}`,
+        tollOrParkingCost: Number(r.tollOrParkingCost || (r as any).tollCost) || 0,
+        passengers: r.passengers || (r as any).passengersList || '',
         status: r.status || 'completed',
-        remarks: r.remarks,
+        remarks: r.remarks || (r as any).notes || `Bulk imported via batch ${batchId}`,
         createdAt: new Date().toISOString()
       };
     });
@@ -1577,23 +1617,45 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const bulkImportFuelRecords = (imported: Partial<FuelRecord>[]): { count: number; batchId: string } => {
     const batchId = `BATCH-FUEL-${Date.now().toString().slice(-6)}`;
     const newItems: FuelRecord[] = imported.map((f, i) => {
-      const liters = Number(f.liters) || 30;
-      const totalCost = Number(f.totalCost || (f as any).cost) || 12000;
-      const pricePerLiter = Number(f.pricePerLiter) || (liters > 0 ? totalCost / liters : 400);
+      const liters = Number(f.liters || (f as any).quantity) || 30;
+      const totalCost = Number(f.totalCost || (f as any).cost || (f as any).amount) || 12000;
+      const pricePerLiter = Number(f.pricePerLiter) || (liters > 0 ? Math.round(totalCost / liters) : 400);
+
+      // Match vehicle
+      const regInput = String((f as any).vehicleRegistration || f.vehicleId || '').trim();
+      const normReg = regInput.toLowerCase().replace(/[\s-_]/g, '');
+      const matchedVeh = vehicles.find(v => 
+        v.registrationNumber.toLowerCase().replace(/[\s-_]/g, '') === normReg ||
+        v.id.toLowerCase() === normReg ||
+        v.registrationNumber.toLowerCase().includes(normReg)
+      ) || vehicles[0];
+
+      // Match driver
+      const drvInput = String((f as any).driverName || f.driverId || '').trim();
+      const normDrv = drvInput.toLowerCase();
+      const matchedDrv = drivers.find(d => 
+        d.name.toLowerCase().includes(normDrv) ||
+        d.employeeId.toLowerCase() === normDrv ||
+        d.id.toLowerCase() === normDrv
+      ) || drivers[0];
+
+      const odo = Number(f.odometerKm || (f as any).odometerReading) || matchedVeh?.currentOdometerKm || 0;
+
       return {
         id: f.id || `fuel-imp-${Date.now()}-${i}`,
-        vehicleId: f.vehicleId || vehicles[0]?.id || 'veh-1',
-        driverId: f.driverId || drivers[0]?.id || 'drv-1',
+        vehicleId: matchedVeh?.id || vehicles[0]?.id || 'veh-1',
+        driverId: matchedDrv?.id || drivers[0]?.id || 'drv-1',
         date: f.date || new Date().toISOString().slice(0, 10),
         time: f.time || '09:00',
-        odometerKm: Number(f.odometerKm || (f as any).odometerReading) || 0,
-        fuelType: f.fuelType || 'Diesel',
+        odometerKm: odo,
+        fuelType: f.fuelType || matchedVeh?.fuelType || 'Diesel',
         liters,
         pricePerLiter,
         totalCost,
         stationName: f.stationName || (f as any).fuelStation || 'Ceypetco Fuel Station',
         isFullTank: f.isFullTank !== undefined ? f.isFullTank : (f as any).fullTank !== false,
         invoiceNumber: f.invoiceNumber || (f as any).receiptNumber || `RCP-${Date.now().toString().slice(-6)}-${i}`,
+        notes: f.notes || (f as any).remarks || `Bulk imported via batch ${batchId}`,
         createdAt: new Date().toISOString()
       };
     });

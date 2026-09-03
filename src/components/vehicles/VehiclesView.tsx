@@ -17,7 +17,8 @@ import {
   Radio,
   X,
   ShieldAlert,
-  Info
+  Info,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useFleet } from '../../context/FleetContext';
 import { Vehicle } from '../../types';
@@ -25,6 +26,8 @@ import { formatDate } from '../../utils/helpers';
 import { VehicleModal } from './VehicleModal';
 import { PairGPSTrackerModal } from '../gps/PairGPSTrackerModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
+import { UniversalBulkImportModal } from '../common/UniversalBulkImportModal';
 
 interface VehiclesViewProps {
   onOpenTransfer: (vehicleId: string) => void;
@@ -42,12 +45,14 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
     serviceSchedules,
     deleteVehicle,
     clearVehiclesHistory,
+    bulkImportVehicles,
     setSelectedVehicleId,
     getVehicleTelemetry
   } = useFleet();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [pairingVehicle, setPairingVehicle] = useState<Vehicle | null>(null);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
@@ -100,6 +105,16 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
               buttonText="Clear Registry"
               onClear={() => clearVehiclesHistory()}
             />
+
+            <button
+              id="btn-bulk-import-vehicles"
+              onClick={() => setIsBulkImportOpen(true)}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-indigo-950 text-indigo-300 hover:text-indigo-200 border border-indigo-800/80 text-xs font-bold px-3 py-2 rounded-xl shadow transition-colors"
+              title="Bulk Import Vehicles from Excel/CSV"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-indigo-400" />
+              <span>Bulk Import</span>
+            </button>
 
             <button
               id="btn-add-vehicle-top"
@@ -337,89 +352,36 @@ export const VehiclesView: React.FC<VehiclesViewProps> = ({
         </div>
       )}
 
-      {/* Individual Vehicle Delete Confirmation Modal */}
+      {/* Universal Authorized Delete Modal */}
       {vehicleToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-5">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
-                  <Trash2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Remove Vehicle Asset</h3>
-                  <p className="text-xs text-slate-400">Delete vehicle from active registry</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setVehicleToDelete(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <UniversalDeleteModal
+          isOpen={!!vehicleToDelete}
+          onClose={() => setVehicleToDelete(null)}
+          module="VEHICLES"
+          recordId={vehicleToDelete.id}
+          recordCode={vehicleToDelete.registrationNumber}
+          recordName={`${vehicleToDelete.make} ${vehicleToDelete.model}`}
+          additionalDetails={`Type: ${vehicleToDelete.type} • Dept: ${vehicleToDelete.department} • Odometer: ${vehicleToDelete.currentOdometerKm.toLocaleString()} km`}
+          onDelete={async () => {
+            deleteVehicle(vehicleToDelete.id);
+            setVehicleToDelete(null);
+          }}
+          onDeactivate={async () => {
+            setVehicleToDelete(null);
+          }}
+        />
+      )}
 
-            {/* Vehicle Details Card */}
-            <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-white text-sm">{vehicleToDelete.registrationNumber}</span>
-                <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
-                  {vehicleToDelete.type}
-                </span>
-              </div>
-              <p className="text-slate-300">
-                {vehicleToDelete.make} {vehicleToDelete.model} ({vehicleToDelete.year}) • {vehicleToDelete.department}
-              </p>
-              <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono pt-1">
-                <span>Odometer: {vehicleToDelete.currentOdometerKm.toLocaleString()} km</span>
-                <span>Fuel: {vehicleToDelete.fuelType} ({vehicleToDelete.tankCapacityLiters}L)</span>
-              </div>
-            </div>
-
-            {/* Impact Warnings */}
-            <div className="space-y-2 text-xs">
-              {activeDriverForDeleting && (
-                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" />
-                  <div>
-                    <span className="font-bold block">Assigned Driver: {activeDriverForDeleting.name}</span>
-                    <span className="text-[11px] text-amber-400/80">
-                      Deleting this vehicle will automatically unassign driver {activeDriverForDeleting.name} ({activeDriverForDeleting.employeeId}).
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-300 flex items-start gap-2 text-[11px]">
-                <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-400" />
-                <span>
-                  Historical trip logs ({tripsCountForDeleting} trips) and maintenance logs remain archived for audit compliance.
-                </span>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setVehicleToDelete(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                id="btn-confirm-delete-vehicle"
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg transition-colors flex items-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Confirm Delete</span>
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Universal Bulk Import Modal */}
+      {isBulkImportOpen && (
+        <UniversalBulkImportModal
+          isOpen={isBulkImportOpen}
+          onClose={() => setIsBulkImportOpen(false)}
+          importType="VEHICLES"
+          onImportComplete={(importedRows) => {
+            return bulkImportVehicles(importedRows as any);
+          }}
+        />
       )}
 
       {/* Vehicle Modal */}

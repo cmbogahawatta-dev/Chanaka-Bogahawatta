@@ -31,6 +31,7 @@ import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { AddExpenseModal } from './AddExpenseModal';
 import { BulkImportExpensesModal } from './BulkImportExpensesModal';
 import { AdminSecurityService } from '../../services/adminSecurityService';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 interface ExpensesListViewProps {
   onOpenAddExpense: () => void;
@@ -54,6 +55,7 @@ export const ExpensesListView: React.FC<ExpensesListViewProps> = ({
   const isAdmin = userRole === 'ADMIN' || currentRole === 'ADMIN' || AdminSecurityService.isVerified();
 
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
 
   // Multi-selection state for batch admin actions
@@ -429,9 +431,7 @@ export const ExpensesListView: React.FC<ExpensesListViewProps> = ({
                               </button>
                               <button
                                 onClick={() => {
-                                  if (window.confirm(`Admin: Are you sure you want to delete expense voucher "${exp.EXPENSES_ID}" (${exp.EXPENSES_DESCRIPTION})?`)) {
-                                    deleteExpense(exp.id);
-                                  }
+                                  setExpenseToDelete(exp);
                                 }}
                                 className="p-1.5 rounded bg-slate-800 hover:bg-rose-950/60 text-slate-300 hover:text-rose-400 transition-colors"
                                 title="Admin: Delete Expense"
@@ -457,6 +457,26 @@ export const ExpensesListView: React.FC<ExpensesListViewProps> = ({
           isOpen={Boolean(editingExpense)}
           onClose={() => setEditingExpense(null)}
           expenseToEdit={editingExpense}
+        />
+      )}
+
+      {/* Universal Authorized Delete Modal */}
+      {expenseToDelete && (
+        <UniversalDeleteModal
+          isOpen={!!expenseToDelete}
+          onClose={() => setExpenseToDelete(null)}
+          module="PETTY_CASH"
+          recordId={expenseToDelete.id}
+          recordCode={expenseToDelete.EXPENSES_ID}
+          recordName={expenseToDelete.EXPENSES_DESCRIPTION}
+          additionalDetails={`Supervisor: ${expenseToDelete.SUPERVISOR_NAME} • Amount: ${formatLKR(expenseToDelete.AMOUNT)} • Project: ${expenseToDelete.PROJECT_CODE}`}
+          onDelete={async () => {
+            deleteExpense(expenseToDelete.id);
+            setExpenseToDelete(null);
+          }}
+          onDeactivate={async () => {
+            setExpenseToDelete(null);
+          }}
         />
       )}
 
