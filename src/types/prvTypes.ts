@@ -40,6 +40,7 @@ export type CurrencyCode = 'LKR' | 'AED' | 'USD' | 'EUR' | 'GBP' | 'SAR' | 'QAR'
 
 export type PRVSubMenu =
   | 'vouchers'
+  | 'tax_invoices'
   | 'project_invoices'
   | 'client_payments'
   | 'my_requests'

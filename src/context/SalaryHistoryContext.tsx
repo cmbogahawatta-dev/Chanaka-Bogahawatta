@@ -60,6 +60,7 @@ interface SalaryHistoryContextType {
   ) => SalaryHistoryEntry;
   updatePayrollRates: (updates: Partial<PayrollRateSettings>) => void;
   resetSalaryHistory: () => void;
+  clearSalaryHistory: () => void;
 }
 
 const SalaryHistoryContext = createContext<SalaryHistoryContextType | undefined>(undefined);
@@ -217,6 +218,15 @@ export const SalaryHistoryProvider: React.FC<{ children: ReactNode }> = ({ child
     setPayrollRates(initialPayrollRateSettings);
   };
 
+  const clearSalaryHistory = () => {
+    try {
+      localStorage.setItem(SALARY_HISTORY_KEY, JSON.stringify([]));
+    } catch (e) {
+      console.error('Failed to clear salary history:', e);
+    }
+    setSalaryHistory([]);
+  };
+
   return (
     <SalaryHistoryContext.Provider
       value={{
@@ -227,7 +237,8 @@ export const SalaryHistoryProvider: React.FC<{ children: ReactNode }> = ({ child
         getHistoryForEmployee,
         createSalaryRevision,
         updatePayrollRates,
-        resetSalaryHistory
+        resetSalaryHistory,
+        clearSalaryHistory
       }}
     >
       {children}

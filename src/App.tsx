@@ -16,6 +16,13 @@ import { SalaryHistoryProvider } from './context/SalaryHistoryContext';
 import { PayrollProvider } from './context/PayrollContext';
 import { DataManagementProvider } from './context/DataManagementContext';
 
+// Corporate Suite Context Providers
+import { EnterpriseCompanyProvider } from './context/EnterpriseCompanyContext';
+import { EnterpriseBankingProvider } from './context/EnterpriseBankingContext';
+import { EnterpriseComplianceProvider } from './context/EnterpriseComplianceContext';
+import { EnterpriseCorrespondenceProvider } from './context/EnterpriseCorrespondenceContext';
+import { TaxInvoiceProvider } from './context/TaxInvoiceContext';
+
 // Global Navigation Shell
 import { EnterpriseTopUtilityBar } from './components/navigation/EnterpriseTopUtilityBar';
 import { EnterpriseCommandRail } from './components/navigation/EnterpriseCommandRail';
@@ -32,6 +39,14 @@ import { EnterpriseReportsView } from './components/reports/EnterpriseReportsVie
 import { DocumentsView } from './components/documents/DocumentsView';
 import { AdministrationView } from './components/admin/AdministrationView';
 import { StaffDirectoryView } from './components/staff/StaffDirectoryView';
+import { EnterpriseProfileView } from './components/enterpriseProfile/EnterpriseProfileView';
+import { EnterpriseBankingView } from './components/banking/EnterpriseBankingView';
+import { EnterpriseComplianceView } from './components/compliance/EnterpriseComplianceView';
+import { EnterpriseCorrespondenceView } from './components/correspondence/EnterpriseCorrespondenceView';
+import { TaxInvoiceRegisterView } from './components/invoices/TaxInvoiceRegisterView';
+import { ClientPaymentsView } from './components/payments/views/ClientPaymentsView';
+import { ProjectIncomeView } from './components/projectIncome/ProjectIncomeView';
+import { FinancialInsightsView } from './components/financialInsights/FinancialInsightsView';
 
 // Petty Cash Components
 import { PettyCashDashboardView } from './components/pettyCash/PettyCashDashboardView';
@@ -169,10 +184,14 @@ const EnterpriseAppContent: React.FC = () => {
           '6': 'projects',
           '7': 'procurement',
           '8': 'payments',
-          'i': 'invoices',
-          'I': 'invoices',
+          'i': 'project-income',
+          'I': 'project-income',
+          'f': 'financial-insights',
+          'F': 'financial-insights',
           'c': 'client-payments',
           'C': 'client-payments',
+          't': 'tax-invoices',
+          'T': 'tax-invoices',
           '9': 'reports',
           '0': 'documents',
           'p': 'admin',
@@ -557,10 +576,20 @@ const EnterpriseAppContent: React.FC = () => {
             {/* MODULE 5: PROCUREMENT & MATERIALS */}
             {currentModule === 'procurement' && <ProcurementView />}
 
-            {/* MODULE 6: FINANCE & PRV VOUCHERS, INVOICES & CLIENT PAYMENTS */}
+            {/* MODULE 6: PROJECT INCOME (TAX INVOICES & CLIENT PAYMENTS WITH COMBINED HORIZONTAL NAVIGATION PANE) */}
+            {(currentModule === 'project-income' || currentModule === 'tax-invoices' || currentModule === 'client-payments' || currentModule === 'invoices') && (
+              <ProjectIncomeView
+                initialTab={
+                  currentModule === 'client-payments' ? 'client_payments' : 'tax_invoices'
+                }
+              />
+            )}
+
+            {/* MODULE 6.5: FINANCE / PRV DISBURSEMENTS & AUDIT */}
             {currentModule === 'payments' && <PaymentsView initialTab="vouchers" />}
-            {currentModule === 'invoices' && <PaymentsView initialTab="project_invoices" />}
-            {currentModule === 'client-payments' && <PaymentsView initialTab="client_payments" />}
+
+            {/* MODULE 6.8: FINANCIAL INSIGHTS & ANALYTICS */}
+            {currentModule === 'financial-insights' && <FinancialInsightsView />}
 
             {/* MODULE 7: CONSOLIDATED REPORTS */}
             {currentModule === 'reports' && <EnterpriseReportsView />}
@@ -570,6 +599,18 @@ const EnterpriseAppContent: React.FC = () => {
 
             {/* MODULE 9: ADMINISTRATION & MASTER DATA */}
             {currentModule === 'admin' && <AdministrationView />}
+
+            {/* MODULE 10: CORPORATE IDENTITY & LEGAL */}
+            {currentModule === 'enterprise-profile' && <EnterpriseProfileView />}
+
+            {/* MODULE 11: CORPORATE BANK ACCOUNTS & GL */}
+            {currentModule === 'bank-accounts' && <EnterpriseBankingView />}
+
+            {/* MODULE 12: COMPLIANCE & EXPIRY RADAR */}
+            {currentModule === 'compliance' && <EnterpriseComplianceView />}
+
+            {/* MODULE 13: OFFICIAL CORRESPONDENCE */}
+            {currentModule === 'correspondence' && <EnterpriseCorrespondenceView />}
           </div>
         </main>
       </div>
@@ -660,7 +701,17 @@ export default function App() {
                           <SalaryHistoryProvider>
                             <PayrollProvider>
                               <DataManagementProvider>
-                                <EnterpriseAppContent />
+                                <EnterpriseCompanyProvider>
+                                  <EnterpriseBankingProvider>
+                                    <EnterpriseComplianceProvider>
+                                      <EnterpriseCorrespondenceProvider>
+                                        <TaxInvoiceProvider>
+                                          <EnterpriseAppContent />
+                                        </TaxInvoiceProvider>
+                                      </EnterpriseCorrespondenceProvider>
+                                    </EnterpriseComplianceProvider>
+                                  </EnterpriseBankingProvider>
+                                </EnterpriseCompanyProvider>
                               </DataManagementProvider>
                             </PayrollProvider>
                           </SalaryHistoryProvider>

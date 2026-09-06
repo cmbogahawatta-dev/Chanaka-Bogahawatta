@@ -24,7 +24,16 @@ import {
   Clock,
   Trash2,
   FileSpreadsheet,
-  Receipt
+  Receipt,
+  Landmark,
+  ShieldAlert,
+  Mail,
+  ShieldCheck,
+  UserCheck,
+  CheckCircle2,
+  Camera,
+  LayoutDashboard,
+  Coins
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
@@ -61,7 +70,7 @@ export const GlobalCommandPaletteModal: React.FC<GlobalCommandPaletteModalProps>
   const { setCurrentModule, navigateToModule } = useEnterprise();
   const { expenses = [], projects = [], supervisors = [] } = usePettyCash();
   const { vehicles = [] } = useFleet();
-  const { paymentRequests = [] } = usePRV();
+  const { paymentRequests = [], setActiveSubTab } = usePRV();
   const { staffMembers = [] } = useStaff();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -140,32 +149,118 @@ export const GlobalCommandPaletteModal: React.FC<GlobalCommandPaletteModalProps>
       color: 'text-orange-400',
       action: () => { setCurrentModule('procurement'); onClose(); }
     },
+    // 1. PROJECT INCOME (Incoming money)
     {
-      id: 'nav-payments',
+      id: 'nav-project-income',
       type: 'Navigation',
-      title: 'Finance & PRV Vouchers',
-      subtitle: 'Payment Request Vouchers, Director sign-offs, payment proof scanner',
-      icon: CreditCard,
-      color: 'text-rose-400',
-      action: () => { setCurrentModule('payments'); onClose(); }
+      title: 'Project Income Hub',
+      subtitle: 'Combined Tax Invoices, Client Payments, Receipts History & Billing Matrix',
+      icon: Coins,
+      color: 'text-emerald-400',
+      action: () => { setCurrentModule('project-income'); onClose(); }
     },
     {
-      id: 'nav-invoices',
+      id: 'nav-tax-invoices',
       type: 'Navigation',
-      title: 'Project Invoices (Inc)',
-      subtitle: 'Client tax invoices, progress billings, advance receipts, VAT & retentions',
-      icon: FileSpreadsheet,
-      color: 'text-indigo-400',
-      action: () => { setCurrentModule('invoices'); onClose(); }
+      title: 'Project Income: Tax Invoice',
+      subtitle: 'Official IRD Section 60 tax invoices, 18% Output VAT register & QBO sync',
+      icon: ShieldCheck,
+      color: 'text-cyan-400',
+      action: () => { setCurrentModule('tax-invoices'); onClose(); }
     },
     {
       id: 'nav-client-payments',
       type: 'Navigation',
-      title: 'Client Payments & Receipts',
+      title: 'Project Income: Client Payments',
       subtitle: 'Milestone collections, client payments ledger, bank deposits & receivables',
       icon: Receipt,
       color: 'text-emerald-400',
       action: () => { setCurrentModule('client-payments'); onClose(); }
+    },
+
+    // 2. PRV & DISBURSEMENTS (Outgoing money)
+    {
+      id: 'nav-payments',
+      type: 'Navigation',
+      title: 'PRV & Disbursements: Payment Request Vouchers (PRV)',
+      subtitle: 'Payment Request Vouchers, requisition status, and corporate payment tracking',
+      icon: CreditCard,
+      color: 'text-rose-400',
+      action: () => { setCurrentModule('payments'); setActiveSubTab('vouchers'); onClose(); }
+    },
+    {
+      id: 'nav-my-prvs',
+      type: 'Navigation',
+      title: 'PRV & Disbursements: My Payment Requests',
+      subtitle: 'Requisitions initiated by current user profile',
+      icon: UserCheck,
+      color: 'text-cyan-400',
+      action: () => { setCurrentModule('payments'); setActiveSubTab('my_requests'); onClose(); }
+    },
+    {
+      id: 'nav-pending-approvals',
+      type: 'Navigation',
+      title: 'PRV & Disbursements: Pending Approvals (L1 / L2)',
+      subtitle: 'Accounts and finance verification queues awaiting review',
+      icon: Clock,
+      color: 'text-blue-400',
+      action: () => { setCurrentModule('payments'); setActiveSubTab('pending_approvals'); onClose(); }
+    },
+    {
+      id: 'nav-director-signoff',
+      type: 'Navigation',
+      title: 'PRV & Disbursements: Director Sign-Off (Owner)',
+      subtitle: 'Managing Director executive sign-off queue for payment release',
+      icon: ShieldCheck,
+      color: 'text-amber-400',
+      action: () => { setCurrentModule('payments'); setActiveSubTab('payment_approvals'); onClose(); }
+    },
+    {
+      id: 'nav-completed-payments',
+      type: 'Navigation',
+      title: 'PRV & Disbursements: Completed Payments',
+      subtitle: 'Settled vouchers with attached banking slips and confirmation proofs',
+      icon: CheckCircle2,
+      color: 'text-teal-400',
+      action: () => { setCurrentModule('payments'); setActiveSubTab('completed_payments'); onClose(); }
+    },
+
+    // 3. FINANCIAL INSIGHTS
+    {
+      id: 'nav-financial-insights',
+      type: 'Navigation',
+      title: 'Financial Insights Hub',
+      subtitle: 'Combined Payment Proofs, Project Expenses, and Payment Analytics',
+      icon: LayoutDashboard,
+      color: 'text-amber-400',
+      action: () => { setCurrentModule('financial-insights'); onClose(); }
+    },
+    {
+      id: 'nav-proof-documents',
+      type: 'Navigation',
+      title: 'Financial Insights: Payment Proof Documents',
+      subtitle: 'OCR bank slips, cheques, and wire transfer documents archive',
+      icon: Camera,
+      color: 'text-rose-400',
+      action: () => { setCurrentModule('financial-insights'); onClose(); }
+    },
+    {
+      id: 'nav-linked-project-expenses',
+      type: 'Navigation',
+      title: 'Financial Insights: Linked Project Expenses',
+      subtitle: 'PRV line items mapped directly to site project budgets',
+      icon: Layers,
+      color: 'text-sky-400',
+      action: () => { setCurrentModule('financial-insights'); onClose(); }
+    },
+    {
+      id: 'nav-payment-analytics',
+      type: 'Navigation',
+      title: 'Financial Insights: Payment Analytics Dashboard',
+      subtitle: 'Income vs disbursements, cash flow forecasting, category and payee charts',
+      icon: LayoutDashboard,
+      color: 'text-amber-400',
+      action: () => { setCurrentModule('financial-insights'); onClose(); }
     },
     {
       id: 'nav-reports',
@@ -193,6 +288,42 @@ export const GlobalCommandPaletteModal: React.FC<GlobalCommandPaletteModalProps>
       icon: Settings,
       color: 'text-slate-300',
       action: () => { setCurrentModule('admin'); onClose(); }
+    },
+    {
+      id: 'nav-enterprise-profile',
+      type: 'Navigation',
+      title: 'Corporate Identity & Legal Registry',
+      subtitle: 'Statutory registration numbers, board of directors, shareholders, client profiles',
+      icon: Building2,
+      color: 'text-emerald-400',
+      action: () => { setCurrentModule('enterprise-profile'); onClose(); }
+    },
+    {
+      id: 'nav-bank-accounts',
+      type: 'Navigation',
+      title: 'Corporate Banking & General Ledger',
+      subtitle: 'Multi-currency bank accounts, statements upload, GL audit logs & reconciliations',
+      icon: Landmark,
+      color: 'text-blue-400',
+      action: () => { setCurrentModule('bank-accounts'); onClose(); }
+    },
+    {
+      id: 'nav-compliance',
+      type: 'Navigation',
+      title: 'Compliance & Expiry Radar',
+      subtitle: 'ISO certifications, insurance policies, statutory licences & external audits',
+      icon: ShieldAlert,
+      color: 'text-amber-400',
+      action: () => { setCurrentModule('compliance'); onClose(); }
+    },
+    {
+      id: 'nav-correspondence',
+      type: 'Navigation',
+      title: 'Official Correspondence & Letterhead Studio',
+      subtitle: 'AI-assisted letters, tone adaptation, approval workflow & consultant-grade PDFs',
+      icon: Mail,
+      color: 'text-purple-400',
+      action: () => { setCurrentModule('correspondence'); onClose(); }
     }
   ], [setCurrentModule, onClose]);
 

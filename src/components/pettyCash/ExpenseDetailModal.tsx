@@ -19,6 +19,7 @@ import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { Expense, PaymentStatus } from '../../types/pettyCashTypes';
 import { AddExpenseModal } from './AddExpenseModal';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 interface ExpenseDetailModalProps {
   expense: Expense | null;
@@ -38,6 +39,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
   const [rejectRemarks, setRejectRemarks] = useState<string>('');
   const [showRejectBox, setShowRejectBox] = useState<boolean>(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
 
   if (!isOpen || !expense) return null;
 
@@ -70,10 +72,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
   };
 
   const handleDelete = () => {
-    if (confirm(`Are you sure you want to permanently delete expense ${expense.EXPENSES_ID}?`)) {
-      deleteExpense(expense.id);
-      onClose();
-    }
+    setShowDeleteModal(true);
   };
 
   return (
@@ -330,6 +329,26 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             onClose();
           }}
           expenseToEdit={expense}
+        />
+      )}
+
+      {/* Strict Security Key Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <UniversalDeleteModal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          recordType="Expense Voucher"
+          recordTitle={`${expense.EXPENSES_ID} - ${expense.PROJECT_CODE}`}
+          recordCode={expense.EXPENSES_ID}
+          recordName={expense.DESCRIPTION}
+          recordId={expense.id}
+          additionalDetails={`Amount: ${formatLKR(expense.AMOUNT)} • Category: ${expense.CATEGORY_NAME} • Paid To: ${expense.PAID_TO}`}
+          module="EXPENSES"
+          onDelete={async () => {
+            deleteExpense(expense.id);
+            setShowDeleteModal(false);
+            onClose();
+          }}
         />
       )}
     </div>

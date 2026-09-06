@@ -16,6 +16,7 @@ import { useSalaryHistory } from '../../context/SalaryHistoryContext';
 import { useStaff } from '../../context/StaffContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { SalaryHistoryEntry, SalaryComponent } from '../../types/salaryHistoryTypes';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 
 export const SalaryHistoryView: React.FC = () => {
   const {
@@ -24,7 +25,8 @@ export const SalaryHistoryView: React.FC = () => {
     getCurrentSalary,
     getHistoryForEmployee,
     createSalaryRevision,
-    updatePayrollRates
+    updatePayrollRates,
+    clearSalaryHistory
   } = useSalaryHistory();
 
   const { staffMembers } = useStaff();
@@ -180,6 +182,15 @@ export const SalaryHistoryView: React.FC = () => {
         <div className="flex items-center gap-3">
           {isHRorAdmin && (
             <>
+              <AdminClearHistoryButton
+                id="btn-admin-clear-salary-history"
+                moduleName="Salary Revision History"
+                itemCount={salaryHistory.length}
+                itemDescription="historical salary revision snapshots, increment logs, and allowance records"
+                preservedItemsDescription="Base employee profiles in the Staff Directory will remain intact."
+                buttonText="Clear History"
+                onClear={() => clearSalaryHistory()}
+              />
               <button
                 onClick={() => setIsRatesModalOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700 transition-all"

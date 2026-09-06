@@ -6,11 +6,18 @@ export type EnterpriseModule =
   | 'staff'
   | 'projects'
   | 'procurement'
+  | 'project-income'
   | 'payments'
+  | 'financial-insights'
   | 'invoices'
   | 'client-payments'
+  | 'tax-invoices'
   | 'reports'
   | 'documents'
+  | 'enterprise-profile'
+  | 'compliance'
+  | 'bank-accounts'
+  | 'correspondence'
   | 'admin';
 
 export type EnterpriseRole =
@@ -69,10 +76,58 @@ export interface EnterpriseDocument {
   id: string;
   DOC_REF: string; // e.g. "DOC-2026-089"
   TITLE: string;
-  MODULE: 'Petty Cash' | 'FleetTrack' | 'Projects' | 'Procurement' | 'Payments' | 'General';
-  CATEGORY: 'Receipt' | 'Invoice' | 'Vehicle Insurance' | 'Revenue License' | 'Inspection Certificate' | 'Site Contract' | 'Site Permit' | 'Running Chart Proof' | 'Other';
-  LINKED_ENTITY_TYPE: 'EXPENSE' | 'INCOME' | 'VEHICLE' | 'PROJECT' | 'PROCUREMENT' | 'PAYMENT';
-  LINKED_ENTITY_ID: string; // e.g. "EXP-1001", "VEH-001", "PRJ-001"
+  MODULE:
+    | 'Petty Cash'
+    | 'FleetTrack'
+    | 'Projects'
+    | 'Procurement'
+    | 'Payments'
+    | 'General'
+    | 'Enterprise Compliance'
+    | 'Banking'
+    | 'Correspondence';
+  CATEGORY:
+    | 'Receipt'
+    | 'Invoice'
+    | 'Vehicle Insurance'
+    | 'Revenue License'
+    | 'Inspection Certificate'
+    | 'Site Contract'
+    | 'Site Permit'
+    | 'Running Chart Proof'
+    | 'Other'
+    | 'Statutory Registration'
+    | 'VAT/Tax'
+    | 'CIDA'
+    | 'Director/Shareholder'
+    | 'ISO Certificate'
+    | 'ISO Audit Report'
+    | 'Auditor Report'
+    | 'Insurance Policy'
+    | 'Licence/Permit'
+    | 'Bank Confirmation'
+    | 'Bank Statement'
+    | 'Board Resolution'
+    | 'Incoming Letter'
+    | 'Outgoing Letter'
+    | 'Letterhead';
+  LINKED_ENTITY_TYPE:
+    | 'EXPENSE'
+    | 'INCOME'
+    | 'VEHICLE'
+    | 'PROJECT'
+    | 'PROCUREMENT'
+    | 'PAYMENT'
+    | 'ENTERPRISE_PROFILE'
+    | 'REGISTRATION'
+    | 'BANK_ACCOUNT'
+    | 'BANK_STATEMENT'
+    | 'ISO_CERTIFICATE'
+    | 'AUDITOR_REPORT'
+    | 'INSURANCE_POLICY'
+    | 'LICENCE'
+    | 'LETTER';
+  LINKED_ENTITY_ID: string; // e.g. "EXP-1001", "VEH-001", "PRJ-001", "BANK-01", etc.
   FILE_NAME: string;
   FILE_TYPE: 'image/jpeg' | 'image/png' | 'application/pdf';
   FILE_DATA: string; // Base64 or URL
@@ -85,7 +140,21 @@ export interface EnterpriseDocument {
 export interface EnterpriseNotification {
   id: string;
   TIMESTAMP: string;
-  MODULE: 'Petty Cash' | 'FleetTrack' | 'Projects' | 'Procurement' | 'Payments' | 'System' | 'HR' | 'Attendance' | 'Leave' | 'Payroll' | 'Staff';
+  MODULE:
+    | 'Petty Cash'
+    | 'FleetTrack'
+    | 'Projects'
+    | 'Procurement'
+    | 'Payments'
+    | 'System'
+    | 'HR'
+    | 'Attendance'
+    | 'Leave'
+    | 'Payroll'
+    | 'Staff'
+    | 'Compliance'
+    | 'Banking'
+    | 'Correspondence';
   SEVERITY: 'info' | 'warning' | 'urgent' | 'success';
   TITLE: string;
   MESSAGE: string;

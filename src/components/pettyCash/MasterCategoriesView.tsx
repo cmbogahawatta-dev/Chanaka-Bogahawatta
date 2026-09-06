@@ -3,9 +3,10 @@ import { Tag, PlusCircle, Folder, Trash2, Edit2 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { ExpenseCategory } from '../../types/pettyCashTypes';
 import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 
 export const MasterCategoriesView: React.FC = () => {
-  const { categories, addCategory, updateCategory, deleteCategory, pivotMatrix } = usePettyCash();
+  const { categories, addCategory, updateCategory, deleteCategory, clearCategoriesHistory, pivotMatrix } = usePettyCash();
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [categoryToDelete, setCategoryToDelete] = useState<ExpenseCategory | null>(null);
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
@@ -44,13 +45,24 @@ export const MasterCategoriesView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all active:scale-95"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>New Category</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <AdminClearHistoryButton
+            id="btn-admin-clear-categories"
+            moduleName="Expense Categories Directory"
+            itemCount={categories.length}
+            itemDescription="registered GL expense categories and cost codes"
+            preservedItemsDescription="Existing expense transactions and voucher logs will remain safely recorded."
+            buttonText="Clear Categories"
+            onClear={() => clearCategoriesHistory()}
+          />
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all active:scale-95"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>New Category</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-md">

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { X, FolderPlus, Edit3, Building2, MapPin, DollarSign, Calendar, User, FileText, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, FolderPlus, Edit3, Building2, MapPin, DollarSign, Calendar, User, FileText, CheckCircle2, ChevronDown } from 'lucide-react';
 import { Project } from '../../types/pettyCashTypes';
 import { usePettyCash } from '../../context/PettyCashContext';
+import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -14,11 +15,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   onClose,
   projectToEdit
 }) => {
-  const { addProject, updateProject } = usePettyCash();
+  const { addProject, updateProject, projects } = usePettyCash();
+  const { clients, updateClient } = useEnterpriseCompany();
 
   const [projectCode, setProjectCode] = useState('');
   const [projectName, setProjectName] = useState('');
   const [client, setClient] = useState('');
+  const [isCustomClient, setIsCustomClient] = useState(false);
   const [location, setLocation] = useState('');
   const [contractValue, setContractValue] = useState<number>(10000000);
   const [budgetPettyCash, setBudgetPettyCash] = useState<number>(2000000);
@@ -31,11 +34,62 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [remarks, setRemarks] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // Distinct Client List Options from EnterpriseCompanyContext & PettyCash Projects
+  const clientOptions = useMemo(() => {
+    const list: string[] = [];
+    const seen = new Set<string>();
+
+    // 1. From Registered Clients in EnterpriseCompanyContext
+    clients.forEach(c => {
+      const name = c.name?.trim();
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        list.push(name);
+      }
+    });
+
+    // 2. From Existing Projects in PettyCash
+    projects.forEach(p => {
+      const cName = (p.CLIENT || p.CLIENT_NAME)?.trim();
+      if (cName && !seen.has(cName.toLowerCase())) {
+        seen.add(cName.toLowerCase());
+        list.push(cName);
+      }
+    });
+
+    // 3. Common Default Infrastructure Clients in Sri Lanka
+    const defaults = [
+      'Road Development Authority (RDA)',
+      'Central Engineering Consultancy Bureau (CECB)',
+      'Sri Lanka Ports Authority (SLPA)',
+      'National Water Supply and Drainage Board (NWSDB)',
+      'Urban Development Authority (UDA)',
+      'Ceylon Electricity Board (CEB)',
+      'Airport and Aviation Services (Sri Lanka) Ltd',
+      'Ministry of Transport and Highways'
+    ];
+
+    defaults.forEach(d => {
+      if (!seen.has(d.toLowerCase())) {
+        seen.add(d.toLowerCase());
+        list.push(d);
+      }
+    });
+
+    return list;
+  }, [clients, projects]);
+
+  const matchedRegisteredClient = useMemo(() => {
+    if (!client) return null;
+    return clients.find(c => c.name?.trim().toLowerCase() === client.trim().toLowerCase()) || null;
+  }, [client, clients]);
+
   useEffect(() => {
     if (projectToEdit) {
+      const existingClient = projectToEdit.CLIENT || '';
       setProjectCode(projectToEdit.PROJECT_CODE || '');
       setProjectName(projectToEdit.PROJECT_NAME || '');
-      setClient(projectToEdit.CLIENT || '');
+      setClient(existingClient);
       setLocation(projectToEdit.LOCATION || '');
       setContractValue(projectToEdit.CONTRACT_VALUE || 0);
       setBudgetPettyCash(projectToEdit.BUDGET_PETTY_CASH || 0);
@@ -44,10 +98,18 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setStatus(projectToEdit.STATUS || 'Active');
       setProjectManager(projectToEdit.PROJECT_MANAGER || '');
       setRemarks(projectToEdit.REMARKS || '');
+
+      if (existingClient && !clientOptions.some(opt => opt.toLowerCase() === existingClient.toLowerCase())) {
+        setIsCustomClient(true);
+      } else {
+        setIsCustomClient(false);
+      }
     } else {
       setProjectCode('');
       setProjectName('');
-      setClient('Road Development Authority (RDA)');
+      const defaultClient = clientOptions[0] || 'Road Development Authority (RDA)';
+      setClient(defaultClient);
+      setIsCustomClient(false);
       setLocation('');
       setContractValue(15000000);
       setBudgetPettyCash(2500000);
@@ -58,7 +120,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setRemarks('');
     }
     setError(null);
-  }, [projectToEdit, isOpen]);
+  }, [projectToEdit, isOpen, clientOptions]);
 
   if (!isOpen) return null;
 
@@ -91,8 +153,17 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         PROJECT_MANAGER: projectManager.trim() || 'Site Resident Engineer',
         REMARKS: remarks.trim()
       });
+
+      if (matchedRegisteredClient) {
+        const currentIds = matchedRegisteredClient.assignedProjectIds || [];
+        if (!currentIds.includes(projectToEdit.id)) {
+          updateClient(matchedRegisteredClient.id, {
+            assignedProjectIds: [...currentIds, projectToEdit.id]
+          });
+        }
+      }
     } else {
-      addProject({
+      const created = addProject({
         PROJECT_CODE: projectCode.trim().toUpperCase(),
         PROJECT_NAME: projectName.trim(),
         CLIENT: client.trim(),
@@ -105,6 +176,15 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         PROJECT_MANAGER: projectManager.trim() || 'Site Resident Engineer',
         REMARKS: remarks.trim()
       });
+
+      if (matchedRegisteredClient && created) {
+        const currentIds = matchedRegisteredClient.assignedProjectIds || [];
+        if (!currentIds.includes(created.id)) {
+          updateClient(matchedRegisteredClient.id, {
+            assignedProjectIds: [...currentIds, created.id]
+          });
+        }
+      }
     }
 
     onClose();
@@ -194,19 +274,96 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Client */}
+            {/* Client / Authority */}
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">
-                Client / Authority <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Road Development Authority (RDA)"
-                value={client}
-                onChange={e => setClient(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-purple-400" />
+                  <span>
+                    Client / Authority <span className="text-rose-400">*</span>
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomClient(!isCustomClient);
+                    if (isCustomClient && !client && clientOptions.length > 0) {
+                      setClient(clientOptions[0]);
+                    }
+                  }}
+                  className="text-[11px] text-purple-400 hover:text-purple-300 underline underline-offset-2 flex items-center gap-1 transition-colors"
+                  tabIndex={-1}
+                >
+                  {isCustomClient ? 'Select from Client List' : '+ Type Custom Client'}
+                </button>
+              </div>
+
+              {!isCustomClient ? (
+                <div className="relative">
+                  <select
+                    id="project-client-dropdown"
+                    required
+                    value={client}
+                    onChange={e => {
+                      if (e.target.value === '__CUSTOM__') {
+                        setIsCustomClient(true);
+                        setClient('');
+                      } else {
+                        setClient(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500 appearance-none pr-9 cursor-pointer text-xs"
+                  >
+                    <option value="" disabled>
+                      -- Select Client from Client List ({clientOptions.length} available) --
+                    </option>
+                    {clientOptions.map(cliName => (
+                      <option key={cliName} value={cliName}>
+                        {cliName}
+                      </option>
+                    ))}
+                    <option value="__CUSTOM__">+ Type Custom / Unlisted Client...</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Road Development Authority (RDA)"
+                    value={client}
+                    onChange={e => setClient(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500 text-xs"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomClient(false);
+                      if (!client && clientOptions.length > 0) {
+                        setClient(clientOptions[0]);
+                      }
+                    }}
+                    className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium whitespace-nowrap transition-colors border border-slate-700"
+                    title="Switch to Client List dropdown"
+                  >
+                    Client List
+                  </button>
+                </div>
+              )}
+
+              {/* Registered Client link indicator */}
+              {matchedRegisteredClient && (
+                <p className="mt-1 text-[10px] text-purple-400/90 truncate flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-purple-400 shrink-0" />
+                  <span>
+                    Linked to Client Directory: {matchedRegisteredClient.contactPerson || matchedRegisteredClient.industry || 'Registered Client'}
+                  </span>
+                </p>
+              )}
             </div>
 
             {/* Location */}

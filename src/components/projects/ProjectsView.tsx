@@ -23,7 +23,8 @@ import {
   Edit2,
   Trash2,
   LayoutGrid,
-  List
+  List,
+  Mail
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -46,6 +47,8 @@ import { ProjectModal } from './ProjectModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { UniversalBulkImportModal } from '../common/UniversalBulkImportModal';
 import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
+import { CorrespondenceComposeModal } from '../correspondence/CorrespondenceComposeModal';
+import { extractClientAffix, extractProjectAffix } from '../../utils/correspondenceUtils';
 
 export const ProjectsView: React.FC = () => {
   const { projects, expenses, income, userRole, addProject, deleteProject, clearProjectsHistory } = usePettyCash();
@@ -61,6 +64,8 @@ export const ProjectsView: React.FC = () => {
   const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [projectForCorrespondence, setProjectForCorrespondence] = useState<Project | null>(null);
+  const [correspondenceSuccessMessage, setCorrespondenceSuccessMessage] = useState<string | null>(null);
 
   const handleOpenAddProject = () => {
     setProjectToEdit(null);
@@ -417,6 +422,13 @@ export const ProjectsView: React.FC = () => {
                     <td className="py-3 px-3.5 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
+                          onClick={() => setProjectForCorrespondence(proj)}
+                          title="Draft Official Correspondence for this Project"
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-blue-900/60 text-slate-300 hover:text-blue-300 transition-colors"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                        </button>
+                        <button
                           onClick={() => handleOpenEditProject(proj)}
                           title="Edit Project Details"
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-purple-300 transition-colors"
@@ -516,6 +528,13 @@ export const ProjectsView: React.FC = () => {
 
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => setProjectForCorrespondence(proj)}
+                    title="Draft Official Correspondence for this Project"
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-blue-900/60 text-slate-300 hover:text-blue-300 transition-colors"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                  </button>
+                  <button
                     onClick={() => handleOpenEditProject(proj)}
                     title="Edit Project Details"
                     className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-purple-300 transition-colors"
@@ -603,6 +622,41 @@ export const ProjectsView: React.FC = () => {
             };
           }}
         />
+      )}
+
+      {/* Correspondence Compose Modal */}
+      {projectForCorrespondence && (
+        <CorrespondenceComposeModal
+          isOpen={true}
+          onClose={() => setProjectForCorrespondence(null)}
+          initialProjectCode={projectForCorrespondence.PROJECT_CODE}
+          initialProjectName={projectForCorrespondence.PROJECT_NAME}
+          initialProjectAffix={extractProjectAffix(projectForCorrespondence.PROJECT_CODE)}
+          initialClientName={projectForCorrespondence.CLIENT || projectForCorrespondence.CLIENT_NAME}
+          initialClientAffix={extractClientAffix(projectForCorrespondence.CLIENT || projectForCorrespondence.CLIENT_NAME)}
+          onLetterCreated={(createdLetter) => {
+            setCorrespondenceSuccessMessage(`Letter created: ${createdLetter.letterNumber}`);
+            setTimeout(() => setCorrespondenceSuccessMessage(null), 6000);
+          }}
+        />
+      )}
+
+      {/* Toast Notification */}
+      {correspondenceSuccessMessage && (
+        <div className="fixed bottom-6 right-6 z-50 p-4 rounded-xl bg-slate-900 border border-emerald-500/50 text-emerald-300 shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-slate-100">Correspondence Created Successfully</p>
+            <p className="text-[11px] font-mono text-emerald-400">{correspondenceSuccessMessage}</p>
+          </div>
+          <button
+            onClick={() => setCorrespondenceSuccessMessage(null)}
+            className="text-slate-400 hover:text-slate-200 ml-2"
+          >
+            <Trash2 className="w-3.5 h-3.5 hidden" />
+            <span className="text-xs font-bold text-slate-400">×</span>
+          </button>
+        </div>
       )}
     </div>
   );

@@ -8,8 +8,11 @@ import {
   EnterpriseDocument,
   EnterpriseNotification
 } from '../types/enterpriseTypes';
+import { Enterprise } from '../types';
+import { initialEnterprises } from '../data/enterpriseData';
 
 interface EnterpriseContextType {
+  currentEnterprise?: Enterprise;
   currentModule: EnterpriseModule;
   setCurrentModule: (module: EnterpriseModule) => void;
   activeSubTab: string;
@@ -639,6 +642,7 @@ export const EnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   return (
     <EnterpriseContext.Provider
       value={{
+        currentEnterprise: initialEnterprises[0],
         currentModule,
         setCurrentModule,
         activeSubTab,

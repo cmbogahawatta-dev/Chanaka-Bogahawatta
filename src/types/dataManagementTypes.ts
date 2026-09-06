@@ -25,7 +25,9 @@ export type DataManagementModule =
   | 'DOCUMENTS'
   | 'GEOFENCES'
   | 'APPROVAL_WORKFLOWS'
-  | 'EXPENSE_CATEGORIES';
+  | 'EXPENSE_CATEGORIES'
+  | 'TAX_INVOICES'
+  | 'CLIENT_PAYMENTS';
 
 export type DeleteRequestStatus =
   | 'DRAFT'

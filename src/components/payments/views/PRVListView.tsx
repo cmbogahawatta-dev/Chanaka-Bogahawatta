@@ -24,6 +24,7 @@ import { usePettyCash } from '../../../context/PettyCashContext';
 import { useEnterprise } from '../../../context/EnterpriseContext';
 import { PaymentRequestVoucher, PRVStatus } from '../../../types/prvTypes';
 import { AdminClearHistoryButton } from '../../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../../common/UniversalDeleteModal';
 
 export const PRVListView: React.FC = () => {
   const {
@@ -44,6 +45,8 @@ export const PRVListView: React.FC = () => {
   const { projects, categories } = usePettyCash();
   const { currentUser, currentRole } = useEnterprise();
   const isAdmin = currentRole === 'ADMIN' || currentRole === 'OWNER';
+
+  const [deleteTarget, setDeleteTarget] = React.useState<PaymentRequestVoucher | null>(null);
 
   const handleRowClick = (prv: PaymentRequestVoucher) => {
     setSelectedPRV(prv);
@@ -386,13 +389,9 @@ export const PRVListView: React.FC = () => {
 
                         {isAdmin && (
                           <button
-                            onClick={() => {
-                              if (window.confirm(`Admin: Are you sure you want to delete Payment Request Voucher ${prv.prvNumber} (${prv.currency} ${prv.totalAmount.toLocaleString()}) for "${prv.purpose}"?`)) {
-                                deletePaymentRequest(prv.id);
-                              }
-                            }}
+                            onClick={() => setDeleteTarget(prv)}
                             className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-transparent hover:border-rose-800 transition-colors"
-                            title="Admin: Delete PRV"
+                            title="Delete PRV (Admin Security Key Required)"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -406,6 +405,25 @@ export const PRVListView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Strict Security Key Delete Confirmation Modal */}
+      {deleteTarget && (
+        <UniversalDeleteModal
+          isOpen={Boolean(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+          recordType="Payment Request Voucher"
+          recordTitle={`${deleteTarget.prvNumber} - ${deleteTarget.purpose}`}
+          recordCode={deleteTarget.prvNumber}
+          recordName={deleteTarget.purpose}
+          recordId={deleteTarget.id}
+          additionalDetails={`Amount: ${deleteTarget.currency} ${deleteTarget.totalAmount.toLocaleString()} • Requested by: ${deleteTarget.requestedBy}`}
+          module="PRV & Disbursements"
+          onDelete={async () => {
+            deletePaymentRequest(deleteTarget.id);
+            setDeleteTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 };

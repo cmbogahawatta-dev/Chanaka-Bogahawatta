@@ -26,6 +26,7 @@ import { useSiteRecords } from '../../../context/SiteRecordContext';
 import { usePettyCash } from '../../../context/PettyCashContext';
 import { useEnterprise } from '../../../context/EnterpriseContext';
 import { AdminClearHistoryButton } from '../../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../../common/UniversalDeleteModal';
 
 interface DSRRegistryTabProps {
   onOpenCreateModal: () => void;
@@ -54,14 +55,13 @@ export const DSRRegistryTab: React.FC<DSRRegistryTabProps> = ({
   const { currentRole } = useEnterprise();
 
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [recordToDelete, setRecordToDelete] = useState<DailySiteRecord | null>(null);
 
   const isAdminOrEngineer =
     currentRole === 'ADMIN' || currentRole === 'SITE_ENGINEER' || currentRole === 'PROJECT_MANAGER' || currentRole === 'OWNER';
 
   const handleDelete = (r: DailySiteRecord) => {
-    if (window.confirm(`Are you sure you want to delete ${r.dsrNumber} (${r.date})?`)) {
-      deleteRecord(r.id);
-    }
+    setRecordToDelete(r);
   };
 
   const handleClone = (r: DailySiteRecord) => {
@@ -401,6 +401,15 @@ export const DSRRegistryTab: React.FC<DSRRegistryTabProps> = ({
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
+                        {isAdminOrEngineer && (
+                          <button
+                            onClick={() => handleDelete(r)}
+                            title="Delete Daily Site Report (Admin Security Key Required)"
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-rose-400"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -409,6 +418,25 @@ export const DSRRegistryTab: React.FC<DSRRegistryTabProps> = ({
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Strict Security Key Delete Confirmation Modal */}
+      {recordToDelete && (
+        <UniversalDeleteModal
+          isOpen={Boolean(recordToDelete)}
+          onClose={() => setRecordToDelete(null)}
+          recordType="Daily Site Report"
+          recordTitle={`${recordToDelete.dsrNumber} (${recordToDelete.date})`}
+          recordCode={recordToDelete.dsrNumber}
+          recordName={recordToDelete.projectName}
+          recordId={recordToDelete.id}
+          additionalDetails={`Project: ${recordToDelete.projectCode} • Prepared by: ${recordToDelete.signOff.preparedBy || 'N/A'}`}
+          module="Daily Site Records"
+          onDelete={async () => {
+            deleteRecord(recordToDelete.id);
+            setRecordToDelete(null);
+          }}
+        />
       )}
     </div>
   );

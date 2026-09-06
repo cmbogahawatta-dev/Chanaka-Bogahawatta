@@ -26,6 +26,7 @@ export type SecurityActionType =
   | 'SECURITY_KEY_RESET'
   | 'SECURITY_AUTH_SUCCESS'
   | 'SECURITY_AUTH_FAILED'
+  | 'SECURITY_AUTH_REJECTED_DEFAULT_KEY'
   | 'SECURITY_ACTION_BLOCKED'
   | 'PROTECTED_ACTION_AUTHORIZED'
   | 'PROTECTED_ACTION_REJECTED'
@@ -33,6 +34,7 @@ export type SecurityActionType =
   | 'HISTORY_CLEAR_EXECUTED'
   | 'DELETE_EXECUTED'
   | 'DELETE_AUTHORIZATION_FAILED'
+  | 'DELETE_AUTH_REJECTED_DEFAULT_KEY'
   | 'IMPORT_EXECUTED'
   | 'IMPORT_AUTHORIZATION_FAILED'
   | 'CLEAR_HISTORY_EXECUTED'
@@ -51,7 +53,7 @@ export interface SecurityAuditEvent {
   userRole: string;
   action: SecurityActionType;
   targetRecord?: string;
-  result: 'SUCCESS' | 'FAILED' | 'BLOCKED';
+  result: 'SUCCESS' | 'FAILED' | 'BLOCKED' | 'REJECTED';
   timestamp: string;
   reason?: string;
 }
@@ -146,14 +148,53 @@ async function computeSha256(dataString: string): Promise<string | null> {
 
 export class AdminSecurityService {
   /**
-   * Check if an Admin Security Key has been initialized and configured
+   * Helper to retrieve all recognized Admin Security PINs (stored enterprise pin, active enterprise pin, default 8902)
+   */
+  static getRecognizedAdminPins(): string[] {
+    const pins = new Set<string>(['8902', '4120', '7351']);
+    try {
+      const savedPin = localStorage.getItem('fleettrack_admin_pin_v3');
+      if (savedPin && savedPin.trim()) pins.add(savedPin.trim());
+
+      const savedEnterprises = localStorage.getItem('fleettrack_enterprises_v3');
+      if (savedEnterprises) {
+        const list = JSON.parse(savedEnterprises);
+        if (Array.isArray(list)) {
+          list.forEach((e: any) => {
+            if (e?.adminPin && typeof e.adminPin === 'string' && e.adminPin.trim()) {
+              pins.add(e.adminPin.trim());
+            }
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return Array.from(pins);
+  }
+
+  /**
+   * Check if input matches any authorized Enterprise Admin Security PIN
+   */
+  static isMatchingAdminPin(inputKey: string): boolean {
+    const trimmed = (inputKey || '').trim();
+    if (!trimmed) return false;
+    const recognized = this.getRecognizedAdminPins();
+    return recognized.includes(trimmed);
+  }
+
+  /**
+   * Check if an Admin Security Key has been initialized and configured.
+   * Strictly checks for custom cryptographic credential, NOT default PINs.
    */
   static hasSecurityKey(): boolean {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_CREDENTIAL);
-      if (!raw) return false;
-      const cred: StoredSecurityCredential = JSON.parse(raw);
-      return Boolean(cred.configured && cred.salt && cred.hash);
+      if (raw) {
+        const cred: StoredSecurityCredential = JSON.parse(raw);
+        if (cred.configured && cred.salt && cred.hash) return true;
+      }
+      return false;
     } catch {
       return false;
     }
@@ -302,40 +343,60 @@ export class AdminSecurityService {
       };
     }
 
-    if (!inputKey || !inputKey.trim()) {
-      return { success: false, message: 'Please enter your Admin Security Key.' };
+    const trimmedKey = (inputKey || '').trim();
+    if (!trimmedKey) {
+      return { success: false, message: 'Please enter your Admin Security Key or PIN.' };
     }
 
-    // Check if security key is configured
+    let isAuthorized = false;
+    let authSource: 'SECURITY_KEY' | 'ADMIN_PIN' = 'SECURITY_KEY';
+
+    // Disallow default keys for any deletion/removal operations
+    const isDeletionAction = /delete|remove|purge|erase/i.test(actionName);
+    const DEFAULT_DISALLOWED_KEYS = ['8902', '4120', '7351', '1234', '0000', '123456', '1111', 'admin', 'password'];
+
+    if (isDeletionAction && DEFAULT_DISALLOWED_KEYS.includes(trimmedKey.toLowerCase())) {
+      this.recordAuditEvent({
+        userId: user?.id || 'admin-usr',
+        userName: user?.name || 'BUDDIKA',
+        userRole: user?.role || 'ADMIN',
+        action: 'SECURITY_AUTH_REJECTED_DEFAULT_KEY',
+        targetRecord: actionName,
+        result: 'REJECTED',
+        reason: `Default key "${trimmedKey}" rejected for deletion operation: ${actionName}. Custom Admin Security Key required.`
+      });
+      return {
+        success: false,
+        message: `Default key "${trimmedKey}" cannot be used for deletion. You must authenticate using your custom configured Admin Security Key.`
+      };
+    }
+
+    // 1. Check configured cryptographic Security Key hash
     const raw = localStorage.getItem(STORAGE_KEY_CREDENTIAL);
-    if (!raw) {
-      return {
-        success: false,
-        message: 'An Admin Security Key has not yet been configured for this enterprise.'
-      };
+    if (raw) {
+      try {
+        const cred: StoredSecurityCredential = JSON.parse(raw);
+        if (cred.configured && cred.salt && cred.hash) {
+          const computedHash = await computeSha256(`${cred.salt}:${trimmedKey}`);
+          if (computedHash && computedHash === cred.hash) {
+            isAuthorized = true;
+            authSource = 'SECURITY_KEY';
+          }
+        }
+      } catch {
+        // ignore corrupted data and continue
+      }
     }
 
-    let cred: StoredSecurityCredential;
-    try {
-      cred = JSON.parse(raw);
-    } catch {
-      return { success: false, message: 'Security credential storage corrupted. Please re-initialize.' };
+    // 2. Only if NOT a deletion action, check if matches Master Enterprise Admin Security PIN
+    if (!isAuthorized && !isDeletionAction) {
+      if (this.isMatchingAdminPin(trimmedKey)) {
+        isAuthorized = true;
+        authSource = 'ADMIN_PIN';
+      }
     }
 
-    if (!cred.configured || !cred.salt || !cred.hash) {
-      return { success: false, message: 'Admin Security Key is not configured.' };
-    }
-
-    // Compute hash with stored salt
-    const computedHash = await computeSha256(`${cred.salt}:${inputKey.trim()}`);
-    if (!computedHash) {
-      return {
-        success: false,
-        message: 'Cryptographic engine error during verification. Access denied.'
-      };
-    }
-
-    if (computedHash === cred.hash) {
+    if (isAuthorized) {
       // SUCCESS: Clear failures, set session, log audit
       this.resetFailedTracker();
       const token = this.setSessionVerified();
@@ -347,7 +408,7 @@ export class AdminSecurityService {
         action: 'SECURITY_AUTH_SUCCESS',
         targetRecord: actionName,
         result: 'SUCCESS',
-        reason: `Authorized action: ${actionName}`
+        reason: `Authorized action via ${authSource === 'ADMIN_PIN' ? 'Master Admin Security PIN' : 'Configured Security Key'}: ${actionName}`
       });
 
       this.recordAuditEvent({
@@ -389,7 +450,7 @@ export class AdminSecurityService {
       result: 'FAILED',
       reason: newAttempts >= MAX_FAILED_ATTEMPTS
         ? `5 failed authorization attempts reached. 5-minute lockout engaged.`
-        : `Incorrect Security Key attempt (${newAttempts}/${MAX_FAILED_ATTEMPTS}).`
+        : `Incorrect Security Key or PIN attempt (${newAttempts}/${MAX_FAILED_ATTEMPTS}).`
     });
 
     if (newAttempts >= MAX_FAILED_ATTEMPTS) {
@@ -403,7 +464,7 @@ export class AdminSecurityService {
 
     return {
       success: false,
-      message: `Incorrect Admin Security Key. (${MAX_FAILED_ATTEMPTS - newAttempts} attempt(s) remaining before temporary lockout).`
+      message: `Incorrect Admin Security Key or PIN. (${MAX_FAILED_ATTEMPTS - newAttempts} attempt(s) remaining before temporary lockout).`
     };
   }
 
@@ -416,6 +477,80 @@ export class AdminSecurityService {
     user?: { id?: string; name?: string; role?: string }
   ): Promise<{ success: boolean; message: string; sessionToken?: string }> {
     return this.verifySecurityKey(code, actionName, user);
+  }
+
+  /**
+   * Strict verification strictly for record deletion and removal.
+   * Default keys (such as 8902, 4120, etc.) are strictly rejected.
+   * Only the configured cryptographic Admin Security Key is accepted.
+   */
+  static async verifySecurityKeyForDeletion(
+    inputKey: string,
+    actionName: string = 'Delete Record',
+    user?: { id?: string; name?: string; role?: string }
+  ): Promise<{
+    success: boolean;
+    message: string;
+    sessionToken?: string;
+    isLockedOut?: boolean;
+    lockoutRemainingSeconds?: number;
+    notConfigured?: boolean;
+  }> {
+    const trimmedKey = (inputKey || '').trim();
+    if (!trimmedKey) {
+      return { success: false, message: 'Please enter your Admin Security Key.' };
+    }
+
+    const DEFAULT_DISALLOWED_KEYS = ['8902', '4120', '7351', '1234', '0000', '123456', '1111', 'admin', 'password'];
+    if (DEFAULT_DISALLOWED_KEYS.includes(trimmedKey.toLowerCase())) {
+      this.recordAuditEvent({
+        userId: user?.id || 'admin-usr',
+        userName: user?.name || 'BUDDIKA',
+        userRole: user?.role || 'ADMIN',
+        action: 'DELETE_AUTH_REJECTED_DEFAULT_KEY',
+        targetRecord: actionName,
+        result: 'REJECTED',
+        reason: `Default key "${trimmedKey}" rejected for deletion: ${actionName}. Configured Admin Security Key required.`
+      });
+      return {
+        success: false,
+        message: `Default key "${trimmedKey}" cannot be used for deletion. You must authenticate using your custom configured Admin Security Key.`
+      };
+    }
+
+    // Check if security key is configured
+    if (!this.hasSecurityKey()) {
+      return {
+        success: false,
+        notConfigured: true,
+        message: 'Admin Security Key has not been configured yet. Please configure your Admin Security Key to authorize deletion.'
+      };
+    }
+
+    // Force deletion action name so verifySecurityKey applies all strict deletion rules
+    const forcedActionName = actionName.toLowerCase().includes('delete') || actionName.toLowerCase().includes('remove')
+      ? actionName
+      : `Delete Operation: ${actionName}`;
+
+    return this.verifySecurityKey(trimmedKey, forcedActionName, user);
+  }
+
+  /**
+   * Alias for strict security key verification
+   */
+  static async verifyStrictSecurityKey(
+    inputKey: string,
+    actionName: string = 'Delete Record',
+    user?: { id?: string; name?: string; role?: string }
+  ): Promise<{
+    success: boolean;
+    message: string;
+    sessionToken?: string;
+    isLockedOut?: boolean;
+    lockoutRemainingSeconds?: number;
+    notConfigured?: boolean;
+  }> {
+    return this.verifySecurityKeyForDeletion(inputKey, actionName, user);
   }
 
   /**

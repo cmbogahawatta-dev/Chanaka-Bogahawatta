@@ -171,6 +171,8 @@ export interface VehicleTransfer {
   createdAt: string;
 }
 
+import { EnterpriseProfileDetails } from './types/enterpriseProfileTypes';
+
 export type UserRole = 'admin' | 'dispatcher' | 'driver' | 'viewer';
 
 export interface Enterprise {
@@ -187,6 +189,7 @@ export interface Enterprise {
   autoApproveJoiners?: boolean; // Whether users joining with code are immediately active
   city?: string;
   country?: string;
+  profile?: EnterpriseProfileDetails;
 }
 
 export interface EnterpriseUser {
@@ -233,7 +236,30 @@ export type Permission =
   | 'MANAGE_ENTERPRISE'
   | 'VIEW_AUDIT_LOGS'
   | 'EXPORT_DATA'
-  | 'ADMIN_OVERRIDE';
+  | 'ADMIN_OVERRIDE'
+  | 'ENTERPRISE_PROFILE_VIEW'
+  | 'ENTERPRISE_PROFILE_EDIT'
+  | 'REGISTRATION_MANAGE'
+  | 'DIRECTOR_MANAGE'
+  | 'SHAREHOLDER_MANAGE'
+  | 'BANK_ACCOUNT_VIEW'
+  | 'BANK_ACCOUNT_VIEW_FULL_NUMBER'
+  | 'BANK_ACCOUNT_EDIT'
+  | 'BANK_STATEMENT_UPLOAD'
+  | 'BANK_STATEMENT_DOWNLOAD'
+  | 'BANK_RECONCILE'
+  | 'COMPLIANCE_MANAGE'
+  | 'CORPORATE_DOCUMENT_UPLOAD'
+  | 'CORPORATE_DOCUMENT_DOWNLOAD'
+  | 'LETTER_CREATE'
+  | 'LETTER_EDIT'
+  | 'LETTER_APPROVE'
+  | 'LETTER_ISSUE'
+  | 'LETTER_DELETE_ARCHIVE'
+  | 'AI_LETTER_ASSISTANT_USE'
+  | 'RESTRICTED_CORRESPONDENCE_VIEW'
+  | 'CORPORATE_IMPORT'
+  | 'CORPORATE_EXPORT';
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
@@ -248,7 +274,30 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_ENTERPRISE',
     'VIEW_AUDIT_LOGS',
     'EXPORT_DATA',
-    'ADMIN_OVERRIDE'
+    'ADMIN_OVERRIDE',
+    'ENTERPRISE_PROFILE_VIEW',
+    'ENTERPRISE_PROFILE_EDIT',
+    'REGISTRATION_MANAGE',
+    'DIRECTOR_MANAGE',
+    'SHAREHOLDER_MANAGE',
+    'BANK_ACCOUNT_VIEW',
+    'BANK_ACCOUNT_VIEW_FULL_NUMBER',
+    'BANK_ACCOUNT_EDIT',
+    'BANK_STATEMENT_UPLOAD',
+    'BANK_STATEMENT_DOWNLOAD',
+    'BANK_RECONCILE',
+    'COMPLIANCE_MANAGE',
+    'CORPORATE_DOCUMENT_UPLOAD',
+    'CORPORATE_DOCUMENT_DOWNLOAD',
+    'LETTER_CREATE',
+    'LETTER_EDIT',
+    'LETTER_APPROVE',
+    'LETTER_ISSUE',
+    'LETTER_DELETE_ARCHIVE',
+    'AI_LETTER_ASSISTANT_USE',
+    'RESTRICTED_CORRESPONDENCE_VIEW',
+    'CORPORATE_IMPORT',
+    'CORPORATE_EXPORT'
   ],
   dispatcher: [
     'VIEW_FLEET',
@@ -258,7 +307,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_FUEL',
     'MANAGE_MAINTENANCE',
     'MANAGE_TRANSFERS',
-    'EXPORT_DATA'
+    'EXPORT_DATA',
+    'ENTERPRISE_PROFILE_VIEW',
+    'BANK_ACCOUNT_VIEW',
+    'LETTER_CREATE',
+    'LETTER_EDIT'
   ],
   driver: [
     'VIEW_FLEET',
@@ -267,7 +320,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_TRANSFERS'
   ],
   viewer: [
-    'VIEW_FLEET'
+    'VIEW_FLEET',
+    'ENTERPRISE_PROFILE_VIEW',
+    'BANK_ACCOUNT_VIEW'
   ]
 };
 
@@ -295,7 +350,11 @@ export type AuditLogAction =
   | 'BULK_APPROVE'
   | 'OVERRIDE'
   | 'CORRECTION'
-  | 'PAYROLL_LOCK';
+  | 'PAYROLL_LOCK'
+  | 'ISSUE'
+  | 'REPLACE'
+  | 'LOCK'
+  | 'RECONCILE';
 
 export type AuditLogModule =
   | 'VEHICLES'
@@ -319,7 +378,11 @@ export type AuditLogModule =
   | 'GEOFENCE'
   | 'WORKFLOW'
   | 'ALLOCATION'
-  | 'SALARY';
+  | 'SALARY'
+  | 'ENTERPRISE_PROFILE'
+  | 'BANKING'
+  | 'COMPLIANCE'
+  | 'CORRESPONDENCE';
 
 export interface AuditLogEntry {
   id: string;
@@ -406,3 +469,7 @@ export interface GPSGatewayConfig {
 
 // Re-export Staff Directory & HR Types
 export * from './types/staffTypes';
+export * from './types/enterpriseProfileTypes';
+export * from './types/bankingTypes';
+export * from './types/complianceTypes';
+export * from './types/correspondenceTypes';

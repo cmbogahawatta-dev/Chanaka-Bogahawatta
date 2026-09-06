@@ -23,6 +23,7 @@ import { Income } from '../../types/pettyCashTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { AddIncomeModal } from './AddIncomeModal';
 import { BulkImportIncomeModal } from './BulkImportIncomeModal';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 interface IncomeListViewProps {
   onOpenAddIncome: () => void;
@@ -40,6 +41,7 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
   const [selectedIncome, setSelectedIncome] = useState<Income | null>(null);
   const [editingIncome, setEditingIncome] = useState<Income | null>(null);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
+  const [deleteTarget, setDeleteTarget] = useState<Income | null>(null);
 
   const formatLKR = (amount: number): string => {
     return new Intl.NumberFormat('en-LK', {
@@ -251,13 +253,9 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => {
-                                if (window.confirm(`Admin: Are you sure you want to delete income voucher "${inc.INCOME_ID}" for ${inc.SUPERVISOR} (${formatLKR(inc.AMOUNT)})?`)) {
-                                  deleteIncome(inc.id);
-                                }
-                              }}
+                              onClick={() => setDeleteTarget(inc)}
                               className="p-1.5 rounded bg-slate-800 hover:bg-rose-950/60 text-slate-300 hover:text-rose-400 transition-colors"
-                              title="Admin: Delete Income"
+                              title="Delete Income (Admin Security Key Required)"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -366,10 +364,7 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
                     </button>
                     <button
                       onClick={() => {
-                        if (window.confirm(`Admin: Are you sure you want to delete income voucher "${selectedIncome.INCOME_ID}"?`)) {
-                          deleteIncome(selectedIncome.id);
-                          setSelectedIncome(null);
-                        }
+                        setDeleteTarget(selectedIncome);
                       }}
                       className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 text-xs font-medium border border-slate-700 flex items-center gap-1"
                     >
@@ -404,6 +399,28 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
         isOpen={isBulkImportOpen}
         onClose={() => setIsBulkImportOpen(false)}
       />
+
+      {/* Strict Security Key Delete Confirmation Modal */}
+      {deleteTarget && (
+        <UniversalDeleteModal
+          isOpen={Boolean(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+          recordType="Income / Top-Up Voucher"
+          recordTitle={`${deleteTarget.INCOME_ID} - ${deleteTarget.SUPERVISOR}`}
+          recordCode={deleteTarget.INCOME_ID}
+          recordName={deleteTarget.SUPERVISOR}
+          recordId={deleteTarget.id}
+          additionalDetails={`Amount: ${formatLKR(deleteTarget.AMOUNT)} • Project: ${deleteTarget.PROJECT} • Source: ${deleteTarget.INCOME_SOURCE}`}
+          module="Income & Replenishments"
+          onDelete={async () => {
+            deleteIncome(deleteTarget.id);
+            if (selectedIncome?.id === deleteTarget.id) {
+              setSelectedIncome(null);
+            }
+            setDeleteTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 };

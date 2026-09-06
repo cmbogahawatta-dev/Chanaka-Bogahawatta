@@ -20,6 +20,7 @@ import { usePettyCash } from '../../context/PettyCashContext';
 import { useFleet } from '../../context/FleetContext';
 import { EnterpriseDocument } from '../../types/enterpriseTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 export const DocumentsView: React.FC = () => {
   const { documents, addDocument, updateDocument, deleteDocument, clearDocumentsHistory, currentUser, currentRole } = useEnterprise();
@@ -32,6 +33,9 @@ export const DocumentsView: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<EnterpriseDocument | null>(null);
+
+  // Deletion Target State for Strict Admin Security Key Authorization
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
   // Form State
   const [docTitle, setDocTitle] = useState('');
@@ -229,12 +233,13 @@ export const DocumentsView: React.FC = () => {
                 {isAdmin && (
                   <button
                     onClick={() => {
-                      if (window.confirm(`Admin: Are you sure you want to delete document "${doc.TITLE}" (${doc.DOC_REF})?`)) {
-                        deleteDocument(doc.id);
-                      }
+                      setDeleteTarget({
+                        id: doc.id,
+                        title: `${doc.TITLE} (${doc.DOC_REF})`
+                      });
                     }}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400"
-                    title="Admin: Delete Document"
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 transition-colors"
+                    title="Delete Document (Admin Security Key Required)"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -282,7 +287,21 @@ export const DocumentsView: React.FC = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+              {isAdmin ? (
+                <button
+                  onClick={() => {
+                    setDeleteTarget({
+                      id: previewDoc.id,
+                      title: `${previewDoc.TITLE} (${previewDoc.DOC_REF})`
+                    });
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-semibold text-xs flex items-center gap-1.5 transition-colors border border-rose-500/20"
+                  title="Delete Document (Admin Security Key Required)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete Document
+                </button>
+              ) : <div />}
               <button
                 onClick={() => setPreviewDoc(null)}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs"
@@ -391,6 +410,25 @@ export const DocumentsView: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Strict Security Key Delete Confirmation Modal */}
+      {deleteTarget && (
+        <UniversalDeleteModal
+          isOpen={Boolean(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+          recordType="Enterprise Document"
+          recordTitle={deleteTarget.title}
+          recordId={deleteTarget.id}
+          module="Documents Vault"
+          onDelete={async () => {
+            deleteDocument(deleteTarget.id);
+            if (previewDoc?.id === deleteTarget.id) {
+              setPreviewDoc(null);
+            }
+            setDeleteTarget(null);
+          }}
+        />
       )}
     </div>
   );

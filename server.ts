@@ -247,6 +247,202 @@ Extract all technical, identification, and compliance details into structured JS
   }
 });
 
+// AI Corporate Letter Assistant: Draft Letter
+app.post('/api/ai/draft-letter', async (req: Request, res: Response) => {
+  try {
+    const {
+      purpose,
+      background,
+      position,
+      tone = 'Contractual & Formal',
+      recipientName,
+      recipientOrg,
+      subject,
+      projectCode,
+      clientName,
+      referencedLetterIds = [],
+      referencedDocumentIds = [],
+      referencedContext = ''
+    } = req.body;
+
+    if (!purpose && !subject) {
+      res.status(400).json({ error: 'Letter purpose or subject is required.' });
+      return;
+    }
+
+    const ai = getGeminiClient();
+
+    if (!ai) {
+      // Graceful fallback draft if GEMINI_API_KEY is not set
+      const fallbackDraft = `<p>Dear Sir / Madam,</p>
+<p><strong>RE: ${subject || purpose || 'FORMAL CONTRACTUAL NOTIFICATION'}</strong></p>
+<p>We write with reference to the aforementioned project${projectCode ? ` (Project Ref: ${projectCode})` : ''} and our ongoing contractual obligations with ${recipientOrg || clientName || 'your esteemed organization'}.</p>
+<p>${purpose || 'We wish to formally notify you regarding the progress and schedule compliance.'}</p>
+<p>${background ? `${background}` : 'In accordance with our contractual specifications, all relevant preliminary actions have been instituted.'}</p>
+<p>${position ? `Our position remains that ${position}` : 'We request your formal acknowledgement and response within 14 calendar days from the date of this letter.'}</p>
+<p>Should any further clarification or substantiating documentation be required, please do not hesitate to contact the undersigned.</p>
+<p>Yours faithfully,<br/><strong>Authorized Signatory</strong><br/>EMA Enterprise Corporate Suite</p>`;
+
+      res.json({
+        success: true,
+        source: 'fallback_ai_assistant',
+        data: {
+          draftBodyHtml: fallbackDraft,
+          sourcesUsed: referencedLetterIds.map((id: string) => `Letter Ref: ${id}`).concat(
+            projectCode ? [`Project: ${projectCode}`] : []
+          ),
+          missingInfoFlags: ['[Information Required: Specific Clause Number]', '[Information Required: Certified Value]'],
+          recommendedSubject: subject || `Notification Regarding ${purpose?.slice(0, 40) || 'Project Works'}`
+        }
+      });
+      return;
+    }
+
+    const promptText = `You are a high-level construction corporate counsel and executive letter drafter for "EMA Enterprise Corporate Suite".
+Draft an official, consultant-grade corporate letter based strictly on the parameters below.
+
+STRICT FACT PROTECTION MANDATE:
+"You must never invent contract clauses, dates, amounts, references, project facts, payment information, legal conclusions, or technical facts. If a required fact is not present in the supplied context, output the literal placeholder [Information Required] instead of guessing."
+
+PARAMETERS:
+- Purpose: ${purpose || 'Not specified'}
+- Background: ${background || 'None provided'}
+- Company Stance / Position: ${position || 'None provided'}
+- Desired Tone: ${tone} (e.g. Contractual, Diplomatic, Urgent, Formal, Firm)
+- Recipient: ${recipientName || 'Managing Director / Resident Engineer'} (${recipientOrg || 'Client Organization'})
+- Project: ${projectCode || 'General'} | Client: ${clientName || 'General'}
+- Contextual references provided:
+${referencedContext || 'None provided'}
+
+Return JSON strictly matching:
+- draftBodyHtml: HTML formatted string using <p>, <strong>, <ul>, <li> tags suitable for an official letter. Always status as Draft.
+- recommendedSubject: A concise, capitalized professional subject line.
+- sourcesUsed: List of specific sources from the context used.
+- missingInfoFlags: Array of any facts that were missing and thus replaced with [Information Required].`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.7-flash',
+      contents: promptText,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            draftBodyHtml: { type: Type.STRING, description: 'Formatted HTML letter body' },
+            recommendedSubject: { type: Type.STRING, description: 'Recommended official subject line' },
+            sourcesUsed: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'List of context references cited'
+            },
+            missingInfoFlags: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'Missing facts replaced with [Information Required]'
+            }
+          },
+          required: ['draftBodyHtml', 'recommendedSubject']
+        }
+      }
+    });
+
+    const textOutput = response.text?.trim() || '{}';
+    const parsedData = JSON.parse(textOutput);
+
+    res.json({
+      success: true,
+      source: 'gemini_flash',
+      data: parsedData
+    });
+  } catch (error: any) {
+    console.error('Error in draft-letter:', error);
+    res.status(500).json({
+      error: error?.message || 'Failed to generate letter draft.',
+      details: String(error)
+    });
+  }
+});
+
+// AI Corporate Letter Assistant: Transform Letter
+app.post('/api/ai/transform-letter', async (req: Request, res: Response) => {
+  try {
+    const { bodyHtml, action, tone, targetWordCount } = req.body;
+
+    if (!bodyHtml) {
+      res.status(400).json({ error: 'Body HTML is required for transformation.' });
+      return;
+    }
+
+    const ai = getGeminiClient();
+
+    if (!ai) {
+      // Fallback transformation
+      res.json({
+        success: true,
+        source: 'fallback_transformer',
+        data: {
+          transformedHtml: bodyHtml + `<p><em>[Edited per ${action || 'Refinement'} in ${tone || 'Formal'} Tone]</em></p>`,
+          summary: 'Transformed successfully using local refinement template.',
+          extractedIssues: ['Verification of exact submission date recommended.']
+        }
+      });
+      return;
+    }
+
+    const promptText = `Transform the following letter draft according to the requested action.
+ACTION: ${action || 'Improve'}
+TARGET TONE: ${tone || 'Contractual & Formal'}
+${targetWordCount ? `Target length: approximately ${targetWordCount} words` : ''}
+
+STRICT GUARDRAIL:
+Do not fabricate new numerical amounts, names, or clauses not present in original text. If new details are logically needed, use [Information Required].
+
+ORIGINAL LETTER BODY:
+${bodyHtml}
+
+Return JSON with:
+- transformedHtml: Updated HTML string with formatting.
+- summary: Brief explanation of modifications made.
+- extractedIssues: Any contractual liabilities, aggressive phrasings, or missing details flagged.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.7-flash',
+      contents: promptText,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            transformedHtml: { type: Type.STRING, description: 'Transformed HTML body' },
+            summary: { type: Type.STRING, description: 'Summary of changes' },
+            extractedIssues: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'Flagged issues or observations'
+            }
+          },
+          required: ['transformedHtml', 'summary']
+        }
+      }
+    });
+
+    const textOutput = response.text?.trim() || '{}';
+    const parsedData = JSON.parse(textOutput);
+
+    res.json({
+      success: true,
+      source: 'gemini_flash',
+      data: parsedData
+    });
+  } catch (error: any) {
+    console.error('Error in transform-letter:', error);
+    res.status(500).json({
+      error: error?.message || 'Failed to transform letter.',
+      details: String(error)
+    });
+  }
+});
+
 // GPS Integration API: Test Connection with Protrack / Traccar / Custom Gateway
 app.post('/api/gps/test-connection', async (req: Request, res: Response) => {
   try {
@@ -429,6 +625,138 @@ app.post('/api/jibble/sync-leave', async (req: Request, res: Response) => {
   }
 });
 
+
+// AI Official Corporate Letter Drafting
+app.post('/api/ai/draft-letter', async (req: Request, res: Response) => {
+  try {
+    const { enterpriseId, recipientOrganization, purpose, category, tone = 'Formal' } = req.body;
+
+    if (!purpose) {
+      res.status(400).json({ error: 'Purpose or prompt is required for drafting.' });
+      return;
+    }
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      // High-grade fallback template
+      const fallbackSubject = `Official Correspondence: ${purpose.slice(0, 55)}`;
+      const fallbackHtml = `<p>Dear Sir / Madam,</p>
+<p><strong>RE: ${fallbackSubject.toUpperCase()}</strong></p>
+<p>We write on behalf of Apex Global Logistics Corp regarding ${purpose}.</p>
+<p>Please review our official submission and contemporaneous records enclosed herewith. Should further clarification or site inspection be required, please do not hesitate to contact our executive project secretariat.</p>
+<p>We appreciate your prompt attention and look forward to your formal response.</p>
+<p>Yours faithfully,<br/><strong>Apex Global Logistics Corp</strong><br/>Executive Project Operations</p>`;
+
+      res.json({
+        success: true,
+        source: 'template_fallback',
+        subject: fallbackSubject,
+        bodyHtml: fallbackHtml
+      });
+      return;
+    }
+
+    const systemPrompt = `You are a corporate legal secretary and contracts specialist for an enterprise logistics and engineering corporation ("Apex Global Logistics Corp").
+Draft a formal corporate business letter based on the following:
+- Recipient: ${recipientOrganization || 'Valued Client / Authority'}
+- Category: ${category || 'Official Business'}
+- Tone: ${tone}
+- Purpose: ${purpose}
+
+Requirements:
+Return clean valid JSON with:
+- "subject": A professional, concise subject line with reference header
+- "bodyHtml": The letter body in clean semantic HTML (<p>, <strong>, <ul>, <li>). Do not include full HTML/body tags. Include professional opening, context, contractual/operational details, action required, and formal closing.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: systemPrompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            subject: { type: Type.STRING },
+            bodyHtml: { type: Type.STRING }
+          },
+          required: ['subject', 'bodyHtml']
+        }
+      }
+    });
+
+    const textOutput = response.text?.trim() || '{}';
+    const parsed = JSON.parse(textOutput);
+
+    res.json({
+      success: true,
+      source: 'gemini',
+      subject: parsed.subject,
+      bodyHtml: parsed.bodyHtml
+    });
+  } catch (error: any) {
+    console.error('AI letter draft failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to generate draft'
+    });
+  }
+});
+
+// AI Letter Tone Transformation
+app.post('/api/ai/transform-letter', async (req: Request, res: Response) => {
+  try {
+    const { bodyHtml, tone } = req.body;
+
+    if (!bodyHtml) {
+      res.status(400).json({ error: 'Body HTML is required.' });
+      return;
+    }
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      res.json({
+        success: true,
+        source: 'simulated',
+        transformedBodyHtml: `<p><em>[Tone adapted to ${tone}]</em></p>${bodyHtml}`
+      });
+      return;
+    }
+
+    const prompt = `Rewrite the following corporate letter body in a strictly "${tone}" tone while preserving all factual names, dates, amounts, and contractual commitments.
+Letter body:
+${bodyHtml}
+
+Return clean JSON with a single key "transformedBodyHtml" containing semantic HTML paragraphs.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            transformedBodyHtml: { type: Type.STRING }
+          },
+          required: ['transformedBodyHtml']
+        }
+      }
+    });
+
+    const parsed = JSON.parse(response.text?.trim() || '{}');
+    res.json({
+      success: true,
+      source: 'gemini',
+      transformedBodyHtml: parsed.transformedBodyHtml || bodyHtml
+    });
+  } catch (error: any) {
+    console.error('AI transform tone failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to transform letter'
+    });
+  }
+});
 
 async function startServer() {
   // Vite middleware for development

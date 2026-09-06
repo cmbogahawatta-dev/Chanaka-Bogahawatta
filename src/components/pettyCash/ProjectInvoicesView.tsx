@@ -33,6 +33,8 @@ import { ProjectInvoiceModal } from './ProjectInvoiceModal';
 import { RecordInvoicePaymentModal } from './RecordInvoicePaymentModal';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
 import { BulkImportInvoicesModal } from './BulkImportInvoicesModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 interface ProjectInvoicesViewProps {
   initialProjectCode?: string;
@@ -50,6 +52,7 @@ export const ProjectInvoicesView: React.FC<ProjectInvoicesViewProps> = ({
     expenses,
     projects,
     deleteIncome,
+    clearInvoicesHistory,
     exportToCsv,
     userRole
   } = usePettyCash();
@@ -70,6 +73,7 @@ export const ProjectInvoicesView: React.FC<ProjectInvoicesViewProps> = ({
   const [invoiceToEdit, setInvoiceToEdit] = useState<Income | null>(null);
   const [invoiceForPayment, setInvoiceForPayment] = useState<Income | null>(null);
   const [invoiceForDetail, setInvoiceForDetail] = useState<Income | null>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<Income | null>(null);
 
   // All Invoices (filtered to TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME' or records with invoiceNumber)
   const projectInvoices = useMemo(() => {
@@ -241,10 +245,7 @@ export const ProjectInvoicesView: React.FC<ProjectInvoicesViewProps> = ({
 
   // Handle Delete Invoice
   const handleDeleteInvoice = (inv: Income) => {
-    const num = inv.invoiceNumber || inv.INCOME_ID;
-    if (window.confirm(`Are you sure you want to permanently delete Invoice "${num}" for ${inv.PROJECT}?\n\nThis will remove the billing record and associated VAT calculations.`)) {
-      deleteIncome(inv.id);
-    }
+    setInvoiceToDelete(inv);
   };
 
   return (
@@ -311,6 +312,16 @@ export const ProjectInvoicesView: React.FC<ProjectInvoicesViewProps> = ({
 
           {(userRole === 'ADMIN' || userRole === 'FINANCE') && (
             <>
+              <AdminClearHistoryButton
+                id="btn-admin-clear-invoices"
+                moduleName="Project Invoices Directory"
+                itemCount={projectInvoices.length}
+                itemDescription="issued billing invoices, certified milestone claims, and VAT records"
+                preservedItemsDescription="Master projects and petty cash accounts will remain intact."
+                buttonText="Clear Invoices"
+                onClear={() => clearInvoicesHistory(selectedProject !== 'ALL' ? selectedProject : undefined)}
+              />
+
               <button
                 id="btn-bulk-import-invoices"
                 onClick={() => setIsBulkImportOpen(true)}
@@ -928,6 +939,25 @@ export const ProjectInvoicesView: React.FC<ProjectInvoicesViewProps> = ({
         isOpen={isBulkImportOpen}
         onClose={() => setIsBulkImportOpen(false)}
       />
+
+      {/* Strict Security Key Delete Confirmation Modal */}
+      {invoiceToDelete && (
+        <UniversalDeleteModal
+          isOpen={Boolean(invoiceToDelete)}
+          onClose={() => setInvoiceToDelete(null)}
+          recordType="Tax / Project Invoice"
+          recordTitle={`${invoiceToDelete.invoiceNumber || invoiceToDelete.INCOME_ID} - ${invoiceToDelete.PROJECT}`}
+          recordCode={invoiceToDelete.invoiceNumber || invoiceToDelete.INCOME_ID}
+          recordName={invoiceToDelete.PROJECT}
+          recordId={invoiceToDelete.id}
+          additionalDetails={`Gross Amount: ${formatLkr(Number(invoiceToDelete.grossAmount || invoiceToDelete.AMOUNT))} • Client: ${invoiceToDelete.clientName || 'N/A'}`}
+          module="Tax Invoices & Revenue"
+          onDelete={async () => {
+            deleteIncome(invoiceToDelete.id);
+            setInvoiceToDelete(null);
+          }}
+        />
+      )}
     </div>
   );
 };

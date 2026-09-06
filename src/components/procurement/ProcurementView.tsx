@@ -20,6 +20,7 @@ import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { ProcurementOrder } from '../../types/enterpriseTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 export const ProcurementView: React.FC = () => {
   const {
@@ -34,6 +35,8 @@ export const ProcurementView: React.FC = () => {
   } = useEnterprise();
   const { projects } = usePettyCash();
   const isAdmin = currentRole === 'ADMIN' || currentRole === 'OWNER';
+
+  const [deleteTarget, setDeleteTarget] = useState<ProcurementOrder | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -342,13 +345,9 @@ export const ProcurementView: React.FC = () => {
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => {
-                                if (window.confirm(`Admin: Are you sure you want to delete purchase order ${order.PO_NUMBER} for "${order.ITEM_DESCRIPTION}" (${formatLKR(order.TOTAL_AMOUNT)})?`)) {
-                                  deleteProcurementOrder(order.id);
-                                }
-                              }}
+                              onClick={() => setDeleteTarget(order)}
                               className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
-                              title="Admin: Delete Purchase Order"
+                              title="Delete Purchase Order (Admin Security Key Required)"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -363,6 +362,25 @@ export const ProcurementView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Strict Security Key Delete Confirmation Modal */}
+      {deleteTarget && (
+        <UniversalDeleteModal
+          isOpen={Boolean(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+          recordType="Purchase Order"
+          recordTitle={`${deleteTarget.PO_NUMBER} - ${deleteTarget.ITEM_DESCRIPTION}`}
+          recordCode={deleteTarget.PO_NUMBER}
+          recordName={deleteTarget.ITEM_DESCRIPTION}
+          recordId={deleteTarget.id}
+          additionalDetails={`Supplier: ${deleteTarget.SUPPLIER_NAME} • Amount: ${formatLKR(deleteTarget.TOTAL_AMOUNT)} • Status: ${deleteTarget.STATUS}`}
+          module="Procurement (PO)"
+          onDelete={async () => {
+            deleteProcurementOrder(deleteTarget.id);
+            setDeleteTarget(null);
+          }}
+        />
+      )}
 
       {/* 5. Modal: Create/Edit Purchase Order */}
       {isNewOrderModalOpen && (

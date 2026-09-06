@@ -9,7 +9,9 @@ import {
   CheckCircle2,
   HelpCircle,
   FileCheck2,
-  Layers
+  Layers,
+  DollarSign,
+  FileText
 } from 'lucide-react';
 import { dataImportService } from '../../../services/dataImportService';
 import { ImportType } from '../../../types/pettyCashTypes';
@@ -80,7 +82,7 @@ export const DownloadTemplatesModal: React.FC<DownloadTemplatesModalProps> = ({
                   Full Migration Starter Pack
                 </h4>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  Download all 3 official Excel templates (Expenses, Projects, Supervisors) in 1-click.
+                  Download all 5 official Excel templates (Expenses, Projects, Supervisors, Income, Invoices) in 1-click.
                 </p>
               </div>
             </div>
@@ -91,12 +93,12 @@ export const DownloadTemplatesModal: React.FC<DownloadTemplatesModalProps> = ({
               className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-md shadow-emerald-950/40 transition-all shrink-0 cursor-pointer"
             >
               <Download className="w-4 h-4" />
-              <span>Download All 3 (.xlsx)</span>
+              <span>Download All 5 (.xlsx)</span>
             </button>
           </div>
 
-          {/* 3 Entity Template Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* 5 Entity Template Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* 1. Historical Expenses Template */}
             <div
               className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
@@ -281,6 +283,134 @@ export const DownloadTemplatesModal: React.FC<DownloadTemplatesModalProps> = ({
                 </button>
                 <button
                   onClick={() => handleDownload('SUPERVISOR_DIRECTORY', 'csv')}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition-colors cursor-pointer"
+                  title="Download CSV version"
+                >
+                  <span>CSV</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4. Historical Income Template */}
+            <div
+              className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
+                defaultType === 'HISTORICAL_INCOME'
+                  ? 'bg-slate-900/90 border-teal-500 shadow-lg shadow-teal-950/30'
+                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-bold text-teal-400 bg-teal-950 px-2 py-0.5 rounded border border-teal-800">
+                    Income & Floats
+                  </span>
+                </div>
+
+                <h4 className="text-sm font-bold text-slate-100">
+                  Historical Income Template
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  For bulk importing head office top-ups, float allocations, bank transfers, and miscellaneous cash receipts.
+                </p>
+
+                {/* Validation Requirements */}
+                <div className="mt-3 p-2.5 rounded-lg bg-slate-900 border border-slate-800/80 space-y-1.5 text-[11px]">
+                  <div className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                    Validation Requirements:
+                  </div>
+                  <div className="flex items-start gap-1.5 text-slate-300">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-teal-400 shrink-0 mt-0.5" />
+                    <span><strong className="text-teal-300">Required:</strong> Date, Project Code, Amount (LKR)</span>
+                  </div>
+                  <div className="flex items-start gap-1.5 text-slate-400">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+                    <span><strong className="text-slate-300">Optional:</strong> Source/Bank, Category, Supervisor, Notes</span>
+                  </div>
+                  <div className="flex items-start gap-1.5 text-slate-400">
+                    <FileCheck2 className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                    <span>Includes embedded validation rules sheet</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-800 flex items-center gap-2">
+                <button
+                  id="btn-download-income-xlsx"
+                  onClick={() => handleDownload('HISTORICAL_INCOME', 'xlsx')}
+                  className="flex-1 px-3 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Excel (.xlsx)</span>
+                </button>
+                <button
+                  onClick={() => handleDownload('HISTORICAL_INCOME', 'csv')}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition-colors cursor-pointer"
+                  title="Download CSV version"
+                >
+                  <span>CSV</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 5. Project Invoices & IPCs Template */}
+            <div
+              className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
+                defaultType === 'PROJECT_INVOICES'
+                  ? 'bg-slate-900/90 border-indigo-500 shadow-lg shadow-indigo-950/30'
+                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-bold text-indigo-400 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800">
+                    Billing & IPCs
+                  </span>
+                </div>
+
+                <h4 className="text-sm font-bold text-slate-100">
+                  Project Invoices & IPCs Template
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  For bulk migrating certified project bills, interim payment certificates (IPCs), VAT treatment, and receivables.
+                </p>
+
+                {/* Validation Requirements */}
+                <div className="mt-3 p-2.5 rounded-lg bg-slate-900 border border-slate-800/80 space-y-1.5 text-[11px]">
+                  <div className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                    Validation Requirements:
+                  </div>
+                  <div className="flex items-start gap-1.5 text-slate-300">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                    <span><strong className="text-indigo-300">Required:</strong> Invoice #, Project Code, Invoice Date, Net Amount</span>
+                  </div>
+                  <div className="flex items-start gap-1.5 text-slate-400">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+                    <span><strong className="text-slate-300">Optional:</strong> VAT Rate (18%), Client, Amount Received, Payment Status</span>
+                  </div>
+                  <div className="flex items-start gap-1.5 text-slate-400">
+                    <FileCheck2 className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                    <span>Includes embedded validation rules sheet</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-800 flex items-center gap-2">
+                <button
+                  id="btn-download-invoices-xlsx"
+                  onClick={() => handleDownload('PROJECT_INVOICES', 'xlsx')}
+                  className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Excel (.xlsx)</span>
+                </button>
+                <button
+                  onClick={() => handleDownload('PROJECT_INVOICES', 'csv')}
                   className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition-colors cursor-pointer"
                   title="Download CSV version"
                 >

@@ -14,7 +14,28 @@ export const initialEnterprises: Enterprise[] = [
     country: 'Sri Lanka & Asia-Pacific',
     createdAt: '2024-01-15',
     autoApproveJoiners: false,
-    logoUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=150&auto=format&fit=crop&q=80'
+    logoUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=150&auto=format&fit=crop&q=80',
+    profile: {
+      legalName: 'Apex Global Logistics Corporation (Pvt) Ltd',
+      tradingName: 'Apex Global Logistics & Works',
+      shortName: 'Apex Global',
+      companyType: 'Private Limited Company',
+      registrationNumber: 'PV-00284918',
+      incorporationDate: '2016-05-18',
+      registeredAddress: 'Level 14, World Trade Centre, Echelon Square, Colombo 01, Sri Lanka',
+      businessAddress: 'No. 45/2, Baseline Road, Dematagoda, Colombo 09, Sri Lanka',
+      headOfficeAddress: 'Level 14, World Trade Centre, Colombo 01, Sri Lanka',
+      postalAddress: 'P.O. Box 1420, Colombo, Sri Lanka',
+      telephone: '+94 11 289 4000',
+      mobile: '+94 77 123 4567',
+      website: 'https://apexlogistics.lk',
+      companyStatus: 'Active',
+      vatNumber: '102849182-7000',
+      tinNumber: '209184910',
+      cidaRegistrationNumber: 'CIDA/EM/2022/9481',
+      cidaGrade: 'C1 / EM1 (Electro-Mechanical & Civil Works)',
+      cidaSpeciality: 'Heavy Infrastructure, Logistics Systems & Industrial Works'
+    }
   },
   {
     id: 'ent-metro',

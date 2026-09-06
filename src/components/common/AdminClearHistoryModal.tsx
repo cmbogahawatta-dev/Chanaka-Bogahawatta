@@ -118,7 +118,7 @@ export const AdminClearHistoryModal: React.FC<AdminClearHistoryModalProps> = ({
     setErrorMessage(null);
 
     try {
-      const res = await adminSecurityService.verifySecurityKey(
+      const res = await adminSecurityService.verifySecurityKeyForDeletion(
         securityKeyInput.trim(),
         `Clear History: ${moduleName}`,
         {

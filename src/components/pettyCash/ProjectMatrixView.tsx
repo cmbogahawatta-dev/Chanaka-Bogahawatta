@@ -20,6 +20,8 @@ import { usePettyCash } from '../../context/PettyCashContext';
 import { PettyCashFilterBar } from './PettyCashFilterBar';
 import { Project, Expense } from '../../types/pettyCashTypes';
 import { BulkImportProjectsModal } from './BulkImportProjectsModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 interface ProjectMatrixViewProps {
   onSelectExpenseForDetail: (expense: Expense) => void;
@@ -40,6 +42,7 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
     addProject,
     updateProject,
     deleteProject,
+    clearProjectsHistory,
     userRole,
     income
   } = usePettyCash();
@@ -56,6 +59,7 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
 
   // Add / Edit Project Modal State
   const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState<boolean>(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [newProjectCode, setNewProjectCode] = useState<string>('');
   const [newProjectName, setNewProjectName] = useState<string>('');
@@ -92,9 +96,7 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
   };
 
   const handleDeleteProjectEntry = (p: Project) => {
-    if (window.confirm(`Are you sure you want to permanently delete Project "${p.PROJECT_CODE} - ${p.PROJECT_NAME}"?\n\nThis action will remove it from the directory.`)) {
-      deleteProject(p.id);
-    }
+    setProjectToDelete(p);
   };
 
   const handleAddProjectSubmit = (e: React.FormEvent) => {
@@ -441,6 +443,16 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <AdminClearHistoryButton
+              id="btn-admin-clear-projects-matrix-tab"
+              moduleName="Master Projects Directory"
+              itemCount={projects.length}
+              itemDescription="registered road packages, construction projects, and cost budgets"
+              preservedItemsDescription="Existing expense vouchers and fleet logs will remain intact."
+              buttonText="Clear Projects"
+              onClear={() => clearProjectsHistory()}
+            />
+
             <button
               id="btn-projects-section-bulk-import"
               onClick={() => setIsBulkImportOpen(true)}
@@ -633,6 +645,25 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
         isOpen={isBulkImportOpen}
         onClose={() => setIsBulkImportOpen(false)}
       />
+
+      {/* Strict Security Key Delete Confirmation Modal */}
+      {projectToDelete && (
+        <UniversalDeleteModal
+          isOpen={Boolean(projectToDelete)}
+          onClose={() => setProjectToDelete(null)}
+          recordType="Project"
+          recordTitle={`${projectToDelete.PROJECT_CODE} - ${projectToDelete.PROJECT_NAME}`}
+          recordCode={projectToDelete.PROJECT_CODE}
+          recordName={projectToDelete.PROJECT_NAME}
+          recordId={projectToDelete.id}
+          additionalDetails={`Client: ${projectToDelete.CLIENT_NAME || projectToDelete.CLIENT || 'N/A'} • Budget: LKR ${projectToDelete.BUDGET?.toLocaleString() || projectToDelete.budget?.toLocaleString() || '0'}`}
+          module="Projects Directory"
+          onDelete={async () => {
+            deleteProject(projectToDelete.id);
+            setProjectToDelete(null);
+          }}
+        />
+      )}
     </div>
   );
 };

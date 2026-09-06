@@ -138,6 +138,7 @@ interface PettyCashContextType {
     paymentDateOrOptions?: string | { paymentDate?: string; paymentReference?: string; reference?: string; notes?: string; paymentMethod?: string; proofDocument?: string; proofDocName?: string },
     reference?: string
   ) => void;
+  revertInvoicePayment: (incomeId: string, amountToRevert?: number) => void;
 
   // CRUD Operations
   addExpense: (expense: Omit<Expense, 'id' | 'EXPENSES_ID' | 'CREATED_DATE'>) => Expense;
@@ -303,6 +304,9 @@ interface PettyCashContextType {
   clearTransfersHistory: () => void;
   clearSupervisorsDirectory: () => void;
   clearProjectsHistory: (projectCode?: string) => void;
+  clearInvoicesHistory: (projectCode?: string) => void;
+  clearClientReceiptsHistory: (projectCode?: string) => void;
+  clearCategoriesHistory: () => void;
   clearAllPettyCashHistory: () => void;
 
   // Direct Array Bulk Import helpers for universal import modals
@@ -1566,6 +1570,34 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
   };
 
+  const revertInvoicePayment = (incomeId: string, amountToRevert?: number) => {
+    setIncome(prev => prev.map(inc => {
+      if (inc.id !== incomeId && inc.invoiceNumber !== incomeId && inc.INCOME_ID !== incomeId) return inc;
+      const gross = Number(inc.grossAmount ?? inc.AMOUNT) || 0;
+      const currentReceived = Number(inc.amountReceived) || 0;
+      const revertAmt = amountToRevert !== undefined ? Number(amountToRevert) : currentReceived;
+      const newReceived = round2(Math.max(0, currentReceived - revertAmt));
+      const newBalance = round2(Math.max(0, gross - newReceived));
+      const newStatus = newBalance <= 0.01 ? 'Paid' : (newReceived > 0 ? 'Partially Paid' : 'Pending');
+
+      const revertNote = `[REVERTED PAYMENT] Payment receipt of LKR ${revertAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })} deleted/reversed by Admin on ${new Date().toLocaleDateString('en-GB')}. Restored balance due to LKR ${newBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}.`;
+      const updatedRemarks = inc.REMARKS ? `${inc.REMARKS} | ${revertNote}` : revertNote;
+
+      return {
+        ...inc,
+        amountReceived: newReceived,
+        balanceDue: newBalance,
+        paymentStatus: newStatus as any,
+        paymentDate: newReceived > 0 ? inc.paymentDate : undefined,
+        paymentReference: newReceived > 0 ? inc.paymentReference : undefined,
+        PROOF_DOCUMENT: newReceived > 0 ? inc.PROOF_DOCUMENT : undefined,
+        PROOF_DOCUMENT_NAME: newReceived > 0 ? inc.PROOF_DOCUMENT_NAME : undefined,
+        REMARKS: updatedRemarks,
+        UPDATED_DATE: new Date().toLocaleString('en-GB')
+      };
+    }));
+  };
+
   // CRUD Implementations
   const addExpense = (newExpData: Omit<Expense, 'id' | 'EXPENSES_ID' | 'CREATED_DATE'>): Expense => {
     const dateObj = new Date();
@@ -2169,6 +2201,51 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  const clearInvoicesHistory = (projectCode?: string) => {
+    setIncome(prev => {
+      const next = prev.filter(i => {
+        if (!i.isInvoice) return true; // keep non-invoice petty cash top-ups
+        if (projectCode && (i.PROJECT !== projectCode && i.PROJECT_CODE !== projectCode)) return true;
+        return false;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const clearClientReceiptsHistory = (projectCode?: string) => {
+    setIncome(prev => {
+      const next = prev.map(inv => {
+        if (!inv.isInvoice) return inv;
+        if (projectCode && inv.PROJECT !== projectCode && inv.PROJECT_CODE !== projectCode) return inv;
+        const gross = inv.grossAmount ?? inv.AMOUNT ?? 0;
+        return {
+          ...inv,
+          amountReceived: 0,
+          balanceDue: gross,
+          paymentStatus: 'Unpaid' as const,
+          paymentDate: undefined,
+          paymentReference: undefined,
+          PROOF_DOCUMENT: undefined,
+          PROOF_DOCUMENT_NAME: undefined
+        };
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const clearCategoriesHistory = () => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify([]));
+    } catch {}
+    setCategories([]);
+  };
+
   const clearAllPettyCashHistory = () => {
     try {
       localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
@@ -2726,6 +2803,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isInvoiceNumberTaken,
         generateNextInvoiceNumber,
         recordInvoicePayment,
+        revertInvoicePayment,
         addExpense,
         updateExpense,
         deleteExpense,
@@ -2774,6 +2852,9 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         clearTransfersHistory,
         clearSupervisorsDirectory,
         clearProjectsHistory,
+        clearInvoicesHistory,
+        clearClientReceiptsHistory,
+        clearCategoriesHistory,
         clearAllPettyCashHistory,
         bulkImportProjectsDirect,
         bulkImportSupervisorsDirect,

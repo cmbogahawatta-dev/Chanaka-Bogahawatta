@@ -2,6 +2,7 @@ import React from 'react';
 import {
   DollarSign,
   TrendingUp,
+  TrendingDown,
   CreditCard,
   Building2,
   PieChart as PieIcon,
@@ -9,7 +10,12 @@ import {
   ShieldCheck,
   CheckCircle2,
   Layers,
-  ArrowUpRight
+  ArrowUpRight,
+  FileSpreadsheet,
+  Receipt,
+  Coins,
+  AlertTriangle,
+  Scale
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -26,12 +32,43 @@ import {
 } from 'recharts';
 import { usePRV } from '../../../context/PRVContext';
 import { usePettyCash } from '../../../context/PettyCashContext';
+import { formatLKR } from '../../../utils/helpers';
 
 const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6'];
 
 export const PaymentAnalyticsDashboard: React.FC = () => {
   const { paymentRequests, metrics } = usePRV();
-  const { projects } = usePettyCash();
+  const { projects, income = [] } = usePettyCash();
+
+  // Project Income calculations
+  const projectInvoices = (income || []).filter(i =>
+    i.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME' ||
+    Boolean(i.invoiceNumber) ||
+    i.INCOME_SOURCE === 'Project Income / Invoice'
+  );
+
+  const totalInvoiced = projectInvoices.reduce(
+    (sum, i) => sum + Number(i.grossAmount ?? i.AMOUNT ?? 0),
+    0
+  );
+
+  const totalCollected = projectInvoices.reduce(
+    (sum, i) => sum + Number(i.amountReceived ?? 0),
+    0
+  );
+
+  const outstandingReceivables = Math.max(0, totalInvoiced - totalCollected);
+
+  const overdueInvoicesCount = projectInvoices.filter(i => {
+    const bal = i.balanceDue !== undefined ? i.balanceDue : (Number(i.grossAmount ?? i.AMOUNT) - Number(i.amountReceived ?? 0));
+    return bal > 0.01;
+  }).length;
+
+  const collectionRate = totalInvoiced > 0 ? ((totalCollected / totalInvoiced) * 100).toFixed(1) : '0.0';
+
+  // PRV & Disbursement calculations
+  const pendingPRVsCount = metrics.pendingAccountsL1Count + metrics.pendingAccountsL2Count + metrics.pendingOwnerCount;
+  const approvedPRVsCount = paymentRequests.filter(p => p.status === 'OWNER_APPROVED' || p.status === 'PAYMENT_PROOF_PENDING').length;
 
   // 1. Project-wise spending breakdown
   const projectSpendingMap: { [key: string]: number } = {};
@@ -100,59 +137,135 @@ export const PaymentAnalyticsDashboard: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Comprehensive disbursement metrics, budget consumption by project, category breakdown, and settlement velocity.
+            Segregated analytics for incoming Project Income vs outgoing PRV Disbursements with budget consumption, category breakdown, and settlement velocity.
           </p>
         </div>
       </div>
 
-      {/* KPI Cards Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1.5 shadow-md">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] uppercase font-bold tracking-wider">Total PRV Volume</span>
-            <DollarSign className="w-4 h-4 text-purple-400" />
+      {/* SEPARATED FINANCIAL DUAL PANELS (Section 11 Requirement) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* PANEL 1: PROJECT INCOME */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/20 border border-emerald-900/50 shadow-lg space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-emerald-900/60">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <Coins className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 tracking-wide">PROJECT INCOME</h3>
+                <p className="text-[10px] text-emerald-400">Client billings, tax invoices & milestone collections</p>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+              {collectionRate}% Collected
+            </span>
           </div>
-          <div className="text-base sm:text-lg font-mono font-bold text-slate-100">
-            LKR {metrics.totalAmountRequested.toLocaleString()}
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Total Invoiced</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-emerald-300 block mt-0.5">
+                {formatLKR(totalInvoiced)}
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Total Collected</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-cyan-300 block mt-0.5">
+                {formatLKR(totalCollected)}
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Outstanding Due</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-amber-300 block mt-0.5">
+                {formatLKR(outstandingReceivables)}
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Number of Invoices</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-slate-200 block mt-0.5">
+                {projectInvoices.length} Invoices
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Overdue Invoices</span>
+              <span className={`text-xs sm:text-sm font-mono font-bold block mt-0.5 ${overdueInvoicesCount > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                {overdueInvoicesCount} Overdue
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Collection Rate</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-emerald-400 block mt-0.5">
+                {collectionRate}%
+              </span>
+            </div>
           </div>
-          <p className="text-[10px] text-slate-500 font-mono">{metrics.totalRequests} Total Vouchers</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1.5 shadow-md">
-          <div className="flex items-center justify-between text-emerald-400">
-            <span className="text-[10px] uppercase font-bold tracking-wider">Paid & Settled</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        {/* PANEL 2: PRV & DISBURSEMENTS */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-purple-950/20 border border-purple-900/50 shadow-lg space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-purple-900/60">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                <CreditCard className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 tracking-wide">PRV & DISBURSEMENTS</h3>
+                <p className="text-[10px] text-purple-400">Payment Request Vouchers, Approvals & Settled payments</p>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-purple-950 text-purple-300 border border-purple-800">
+              {metrics.totalRequests} PRVs Total
+            </span>
           </div>
-          <div className="text-base sm:text-lg font-mono font-bold text-emerald-400">
-            LKR {metrics.totalAmountPaid.toLocaleString()}
-          </div>
-          <p className="text-[10px] text-emerald-400/70 font-mono">
-            {metrics.totalAmountRequested > 0 ? Math.round((metrics.totalAmountPaid / metrics.totalAmountRequested) * 100) : 0}% of Total Volume
-          </p>
-        </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1.5 shadow-md">
-          <div className="flex items-center justify-between text-amber-400">
-            <span className="text-[10px] uppercase font-bold tracking-wider">In Pipeline / Approval</span>
-            <Clock className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-base sm:text-lg font-mono font-bold text-amber-400">
-            LKR {metrics.totalAmountPending.toLocaleString()}
-          </div>
-          <p className="text-[10px] text-amber-400/70 font-mono">
-            {metrics.pendingAccountsL1Count + metrics.pendingAccountsL2Count + metrics.pendingOwnerCount} Active in Queue
-          </p>
-        </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Total PRVs</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-purple-300 block mt-0.5">
+                {metrics.totalRequests} PRVs
+              </span>
+            </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1.5 shadow-md">
-          <div className="flex items-center justify-between text-blue-400">
-            <span className="text-[10px] uppercase font-bold tracking-wider">Avg Settlement Time</span>
-            <TrendingUp className="w-4 h-4 text-blue-400" />
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Pending PRVs</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-amber-300 block mt-0.5">
+                {pendingPRVsCount} in Queue
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Pending Approval Amount</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-amber-400 block mt-0.5">
+                {formatLKR(metrics.totalAmountPending)}
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Approved PRVs</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-blue-300 block mt-0.5">
+                {approvedPRVsCount} Approved
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Completed Payments</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-teal-300 block mt-0.5">
+                {metrics.paidCount} Settled
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+              <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">Total Disbursement</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-rose-400 block mt-0.5">
+                {formatLKR(metrics.totalAmountPaid)}
+              </span>
+            </div>
           </div>
-          <div className="text-base sm:text-lg font-mono font-bold text-blue-300">
-            1.2 Days
-          </div>
-          <p className="text-[10px] text-slate-500 font-mono">From Request to Paid Slip</p>
         </div>
       </div>
 

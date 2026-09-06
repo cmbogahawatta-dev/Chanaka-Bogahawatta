@@ -23,7 +23,7 @@ export interface ApprovalWorkflowLevel {
 export interface ApprovalWorkflow {
   id: string;
   name: string;
-  appliesTo: 'LEAVE' | 'PAYROLL' | 'ATTENDANCE_CORRECTION';
+  appliesTo: 'LEAVE' | 'PAYROLL' | 'ATTENDANCE_CORRECTION' | 'CORRESPONDENCE';
   description?: string;
   levels: ApprovalWorkflowLevel[];
   active: boolean;

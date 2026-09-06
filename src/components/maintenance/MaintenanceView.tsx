@@ -24,6 +24,7 @@ import { ServiceSchedule, MaintenanceLog } from '../../types';
 import { LogServiceModal } from './LogServiceModal';
 import { NewScheduleModal } from './NewScheduleModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 export const MaintenanceView: React.FC = () => {
   const {
@@ -38,6 +39,14 @@ export const MaintenanceView: React.FC = () => {
   } = useFleet();
   const { currentRole } = useEnterprise();
   const isAdmin = isFleetAdmin || currentRole === 'ADMIN';
+
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: 'SCHEDULE' | 'LOG';
+    id: string;
+    title: string;
+    code?: string;
+    details?: string;
+  } | null>(null);
 
   const [activeSubTab, setActiveSubTab] = useState<'reminders' | 'schedules' | 'history'>('reminders');
   const [showLogModal, setShowLogModal] = useState(false);
@@ -396,12 +405,16 @@ export const MaintenanceView: React.FC = () => {
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm(`Admin: Are you sure you want to delete service schedule for "${schedule.serviceType}"?`)) {
-                              deleteServiceSchedule(schedule.id);
-                            }
+                            setDeleteTarget({
+                              type: 'SCHEDULE',
+                              id: schedule.id,
+                              title: `${schedule.serviceType} (Every ${schedule.intervalKm.toLocaleString()} km)`,
+                              code: schedule.vehicleId,
+                              details: `Interval: ${schedule.intervalKm.toLocaleString()} km / ${schedule.intervalMonths} months • Last Performed: ${formatDate(schedule.lastPerformedDate)}`
+                            });
                           }}
                           className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 text-[10px]"
-                          title="Admin: Delete service schedule"
+                          title="Delete service schedule (Admin Security Key Required)"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                           <span>Delete</span>
@@ -495,12 +508,16 @@ export const MaintenanceView: React.FC = () => {
                             </button>
                             <button
                               onClick={() => {
-                                if (window.confirm(`Admin: Are you sure you want to delete maintenance log for "${log.serviceType}" (${formatCurrency(log.cost)})?`)) {
-                                  deleteMaintenanceLog(log.id);
-                                }
+                                setDeleteTarget({
+                                  type: 'LOG',
+                                  id: log.id,
+                                  title: `${log.serviceType} (${formatCurrency(log.cost)})`,
+                                  code: log.vehicleId,
+                                  details: `Date: ${formatDate(log.date)} • Service Center: ${log.serviceCenter || 'N/A'} • Invoice: ${log.invoiceNumber || 'N/A'}`
+                                });
                               }}
                               className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors flex items-center gap-1 text-[10px]"
-                              title="Admin: Delete maintenance log"
+                              title="Delete maintenance log (Admin Security Key Required)"
                             >
                               <Trash2 className="w-3 h-3" />
                               <span>Delete</span>
@@ -566,6 +583,28 @@ export const MaintenanceView: React.FC = () => {
             setEditingSchedule(null);
           }}
           scheduleToEdit={editingSchedule}
+        />
+      )}
+
+      {/* Strict Security Key Delete Confirmation Modal */}
+      {deleteTarget && (
+        <UniversalDeleteModal
+          isOpen={Boolean(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+          recordType={deleteTarget.type === 'SCHEDULE' ? 'Service Schedule' : 'Maintenance Log'}
+          recordTitle={deleteTarget.title}
+          recordCode={deleteTarget.code}
+          recordId={deleteTarget.id}
+          additionalDetails={deleteTarget.details}
+          module="Fleet Maintenance"
+          onDelete={async () => {
+            if (deleteTarget.type === 'SCHEDULE') {
+              deleteServiceSchedule(deleteTarget.id);
+            } else {
+              deleteMaintenanceLog(deleteTarget.id);
+            }
+            setDeleteTarget(null);
+          }}
         />
       )}
     </div>

@@ -61,6 +61,9 @@ export const UniversalDeleteModal: React.FC<UniversalDeleteModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [lockoutSec, setLockoutSec] = useState(0);
+  const [hasConfiguredKey, setHasConfiguredKey] = useState(true);
+  const [newKey, setNewKey] = useState('');
+  const [confirmNewKey, setConfirmNewKey] = useState('');
 
   // Dependency analysis
   const [dependencyInfo, setDependencyInfo] = useState<{
@@ -79,11 +82,14 @@ export const UniversalDeleteModal: React.FC<UniversalDeleteModalProps> = ({
       setStep('CONFIRM');
       setSelectedAction(onDeactivate ? 'DEACTIVATE' : 'HARD_DELETE');
       setSecurityKey('');
+      setNewKey('');
+      setConfirmNewKey('');
       setShowKey(false);
       setErrorMsg('');
       setIsProcessing(false);
 
       const status = adminSecurityService.getSecurityStatus();
+      setHasConfiguredKey(status.configured);
       if (status.isLockedOut) {
         setLockoutSec(status.lockoutRemainingSeconds);
       } else {
@@ -175,18 +181,47 @@ export const UniversalDeleteModal: React.FC<UniversalDeleteModalProps> = ({
 
   const handleExecuteDeletion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!securityKey.trim()) {
-      setErrorMsg('Admin Security Key is required.');
-      return;
-    }
-
     setIsProcessing(true);
     setErrorMsg('');
 
     try {
-      // 1. Verify key with centralized Admin Authorization Key Service
-      const verification = await adminSecurityService.verifySecurityKey(
-        securityKey,
+      // 1. If key is not configured yet, configure it first
+      if (!hasConfiguredKey) {
+        if (!newKey.trim()) {
+          setErrorMsg('Please enter a new Admin Security Key (minimum 6 characters).');
+          setIsProcessing(false);
+          return;
+        }
+        if (newKey !== confirmNewKey) {
+          setErrorMsg('New Security Key and Confirmation do not match.');
+          setIsProcessing(false);
+          return;
+        }
+        const strength = adminSecurityService.calculateKeyStrength(newKey);
+        if (!strength.valid) {
+          setErrorMsg(strength.message || 'Key does not meet security requirements.');
+          setIsProcessing(false);
+          return;
+        }
+        const initRes = await adminSecurityService.initializeSecurityKey(newKey, activeUser);
+        if (!initRes.success) {
+          setErrorMsg(initRes.message);
+          setIsProcessing(false);
+          return;
+        }
+        setHasConfiguredKey(true);
+      } else {
+        if (!securityKey.trim()) {
+          setErrorMsg('Admin Security Key is required.');
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // 2. Verify key with strict deletion check (strictly rejects default keys like 8902)
+      const keyToVerify = hasConfiguredKey ? securityKey : newKey;
+      const verification = await adminSecurityService.verifySecurityKeyForDeletion(
+        keyToVerify,
         actionDescription,
         activeUser
       );
@@ -195,7 +230,7 @@ export const UniversalDeleteModal: React.FC<UniversalDeleteModalProps> = ({
         if (verification.isLockedOut && verification.lockoutRemainingSeconds) {
           setLockoutSec(verification.lockoutRemainingSeconds);
         }
-        setErrorMsg(verification.message || 'Invalid Admin Authorization Key. Deletion cancelled.');
+        setErrorMsg(verification.message || 'Invalid Admin Security Key. Deletion cancelled.');
         
         // Log failed attempt audit
         adminSecurityService.recordAuditEvent({
@@ -212,7 +247,7 @@ export const UniversalDeleteModal: React.FC<UniversalDeleteModalProps> = ({
         return;
       }
 
-      // 2. Execute deletion / deactivation immediately
+      // 3. Execute deletion / deactivation immediately
       if (selectedAction === 'DEACTIVATE' && onDeactivate) {
         await onDeactivate();
       } else {
@@ -418,34 +453,85 @@ export const UniversalDeleteModal: React.FC<UniversalDeleteModalProps> = ({
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-bold text-slate-200 uppercase tracking-wider mb-2">
-                Enter Admin Security Key
-              </label>
-              <div className="relative">
-                <input
-                  id="input-delete-security-key"
-                  type={showKey ? 'text' : 'password'}
-                  placeholder="••••••••••••"
-                  value={securityKey}
-                  onChange={(e) => {
-                    setSecurityKey(e.target.value);
-                    if (errorMsg) setErrorMsg('');
-                  }}
-                  disabled={lockoutSec > 0}
-                  autoFocus
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 font-mono tracking-widest placeholder:tracking-normal placeholder-slate-600 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all pr-12 disabled:opacity-50 text-center"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
-                  tabIndex={-1}
-                >
-                  {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+            {hasConfiguredKey ? (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-slate-200 uppercase tracking-wider">
+                    Enter Admin Security Key
+                  </label>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 font-semibold border border-rose-500/20">
+                    Default keys (e.g. 8902) prohibited
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    id="input-delete-security-key"
+                    type={showKey ? 'text' : 'password'}
+                    placeholder="Enter custom Admin Security Key..."
+                    value={securityKey}
+                    onChange={(e) => {
+                      setSecurityKey(e.target.value);
+                      if (errorMsg) setErrorMsg('');
+                    }}
+                    disabled={lockoutSec > 0}
+                    autoFocus
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 font-mono tracking-widest placeholder:tracking-normal placeholder-slate-600 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all pr-12 disabled:opacity-50 text-center"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                    tabIndex={-1}
+                  >
+                    {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Deletion authorization strictly requires your custom Admin Security Key. Default keys are rejected.</span>
+                </p>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3 p-3.5 bg-amber-950/40 rounded-xl border border-amber-800/60 text-xs">
+                <div className="flex items-center gap-2 font-bold text-amber-300">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>CONFIGURE ADMIN SECURITY KEY TO PROCEED</span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  No cryptographic Admin Security Key has been configured yet. Deletions cannot use default keys (such as 8902). Establish your custom Admin Security Key below:
+                </p>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    New Admin Security Key (min 6 characters)
+                  </label>
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    placeholder="Enter new strong Admin Security Key..."
+                    value={newKey}
+                    onChange={(e) => {
+                      setNewKey(e.target.value);
+                      if (errorMsg) setErrorMsg('');
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Confirm Admin Security Key
+                  </label>
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    placeholder="Re-enter Admin Security Key to confirm..."
+                    value={confirmNewKey}
+                    onChange={(e) => {
+                      setConfirmNewKey(e.target.value);
+                      if (errorMsg) setErrorMsg('');
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
 
             {errorMsg && (
               <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl flex items-center gap-2 text-rose-300 text-xs animate-in fade-in">

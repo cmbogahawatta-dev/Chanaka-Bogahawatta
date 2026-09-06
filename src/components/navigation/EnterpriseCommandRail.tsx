@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Building2,
   Wallet,
@@ -12,12 +12,24 @@ import {
   ClipboardList,
   Users,
   ChevronRight,
+  ChevronDown,
   ShieldAlert,
   Clock,
   Sparkles,
   AlertCircle,
   FileSpreadsheet,
-  Receipt
+  Receipt,
+  Landmark,
+  Mail,
+  Award,
+  ShieldCheck,
+  TrendingUp,
+  UserCheck,
+  CheckCircle2,
+  Camera,
+  Layers,
+  LayoutDashboard,
+  Coins
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePRV } from '../../context/PRVContext';
@@ -26,6 +38,7 @@ import { useFleet } from '../../context/FleetContext';
 import { useStaff } from '../../context/StaffContext';
 import { useLeave } from '../../context/LeaveContext';
 import { EnterpriseModule } from '../../types/enterpriseTypes';
+import { PRVSubMenu } from '../../types/prvTypes';
 
 interface EnterpriseCommandRailProps {
   isCollapsed: boolean;
@@ -50,14 +63,22 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
   onToggleCollapse,
   onOpenCommandPalette
 }) => {
-  const { currentModule, setCurrentModule } = useEnterprise();
-  const { paymentRequests = [] } = usePRV();
+  const { currentModule, setCurrentModule, currentUser } = useEnterprise();
+  const { paymentRequests = [], paymentProofs = [], activeSubTab, setActiveSubTab } = usePRV();
   const { budgetAlerts = [], income = [] } = usePettyCash();
   const { vehicles = [] } = useFleet();
   const { leaveRequests = [] } = useLeave();
 
   const pendingPRVsCount = (paymentRequests || []).filter(
     p => p.status === 'SUBMITTED' || p.status === 'ACCOUNTS_L1_APPROVED' || p.status === 'ACCOUNTS_L2_APPROVED' || p.status === 'PAYMENT_PROOF_PENDING'
+  ).length;
+
+  const pendingL1Count = (paymentRequests || []).filter(p => p.status === 'SUBMITTED').length;
+  const pendingL2Count = (paymentRequests || []).filter(p => p.status === 'ACCOUNTS_L1_APPROVED').length;
+  const pendingOwnerCount = (paymentRequests || []).filter(p => p.status === 'ACCOUNTS_L2_APPROVED').length;
+  const paidCount = (paymentRequests || []).filter(p => p.status === 'PAID').length;
+  const myRequestsCount = (paymentRequests || []).filter(
+    p => p.requestedBy.trim().toUpperCase() === (currentUser || '').trim().toUpperCase()
   ).length;
 
   const pendingLeavesCount = (leaveRequests || []).filter(
@@ -153,41 +174,8 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
     }
   ];
 
-  const financeModules: NavItem[] = [
-    {
-      id: 'payments',
-      label: 'Finance & PRV Vouchers',
-      shortLabel: 'Finance & PRV',
-      icon: CreditCard,
-      color: 'text-rose-400',
-      activeBg: 'bg-rose-500/10 border-rose-500/30 text-rose-300',
-      shortcut: 'Alt+8',
-      badge: pendingPRVsCount > 0 ? pendingPRVsCount : undefined,
-      badgeColor: 'bg-rose-500 text-white font-bold animate-pulse'
-    },
-    {
-      id: 'invoices',
-      label: 'Project Invoices (Inc)',
-      shortLabel: 'Invoices (Inc)',
-      icon: FileSpreadsheet,
-      color: 'text-indigo-400',
-      activeBg: 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300',
-      shortcut: 'Alt+I',
-      badge: totalInvoicesCount > 0 ? totalInvoicesCount : undefined,
-      badgeColor: 'bg-indigo-900 text-indigo-200 border border-indigo-700'
-    },
-    {
-      id: 'client-payments',
-      label: 'Client Payments',
-      shortLabel: 'Client Pay',
-      icon: Receipt,
-      color: 'text-emerald-400',
-      activeBg: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
-      shortcut: 'Alt+C',
-      badge: overdueInvoicesCount > 0 ? `${overdueInvoicesCount} Due` : undefined,
-      badgeColor: 'bg-emerald-900 text-emerald-200 border border-emerald-700'
-    }
-  ];
+  const isPRVDisbursementsActive = currentModule === 'payments';
+  const isFinancialInsightsActive = currentModule === 'financial-insights';
 
   const governanceModules: NavItem[] = [
     {
@@ -216,6 +204,45 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
       color: 'text-slate-300',
       activeBg: 'bg-slate-800 border-slate-700 text-white',
       shortcut: 'Alt+P'
+    }
+  ];
+
+  const corporateSuiteModules: NavItem[] = [
+    {
+      id: 'enterprise-profile',
+      label: 'Corporate Identity & Legal',
+      shortLabel: 'Corp Profile',
+      icon: Building2,
+      color: 'text-emerald-400',
+      activeBg: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
+      shortcut: 'Alt+CP'
+    },
+    {
+      id: 'bank-accounts',
+      label: 'Corporate Banking & GL',
+      shortLabel: 'Banking',
+      icon: Landmark,
+      color: 'text-blue-400',
+      activeBg: 'bg-blue-500/10 border-blue-500/30 text-blue-300',
+      shortcut: 'Alt+CB'
+    },
+    {
+      id: 'compliance',
+      label: 'Compliance & Expiry Radar',
+      shortLabel: 'Compliance',
+      icon: ShieldAlert,
+      color: 'text-amber-400',
+      activeBg: 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+      shortcut: 'Alt+CO'
+    },
+    {
+      id: 'correspondence',
+      label: 'Official Correspondence',
+      shortLabel: 'Letters & AI',
+      icon: Mail,
+      color: 'text-purple-400',
+      activeBg: 'bg-purple-500/10 border-purple-500/30 text-purple-300',
+      shortcut: 'Alt+CR'
     }
   ];
 
@@ -281,6 +308,179 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
     </div>
   );
 
+  const isProjectIncomeActive =
+    currentModule === 'project-income' ||
+    currentModule === 'tax-invoices' ||
+    currentModule === 'client-payments' ||
+    currentModule === 'invoices';
+
+  // Render Hierarchical Finance & Invoicing Module
+  const renderHierarchicalFinance = () => (
+    <div className="space-y-1.5">
+      {!isCollapsed && (
+        <div className="px-2 py-1 text-[9px] font-bold text-slate-500 tracking-wider uppercase flex items-center justify-between">
+          <span>Finance & Invoicing</span>
+          <span className="text-[8px] font-mono text-slate-600 bg-slate-900 px-1 rounded">ERP</span>
+        </div>
+      )}
+
+      {/* 1. PROJECT INCOME - Combined Module Item (Vertical subnav removed, consolidated into horizontal ribbon) */}
+      <div className="relative group">
+        <button
+          id="nav-project-income"
+          type="button"
+          onClick={() => setCurrentModule('project-income')}
+          className={`w-full flex items-center gap-2.5 rounded-lg transition-all text-xs font-semibold ${
+            isCollapsed
+              ? 'p-2 justify-center'
+              : 'px-2.5 py-1.5 justify-between'
+          } ${
+            isProjectIncomeActive
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 border shadow-sm font-bold'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Coins className={`w-4 h-4 shrink-0 transition-transform ${isProjectIncomeActive ? 'text-emerald-400' : 'text-slate-400 group-hover:scale-110'}`} />
+            {!isCollapsed && (
+              <span className="truncate text-[11px]">Project Income</span>
+            )}
+          </div>
+
+          {!isCollapsed && totalInvoicesCount > 0 && (
+            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono leading-none bg-emerald-950 text-emerald-300 border border-emerald-700">
+              {totalInvoicesCount} Inv
+            </span>
+          )}
+
+          {isCollapsed && totalInvoicesCount > 0 && (
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slate-950" />
+          )}
+        </button>
+
+        {/* Collapsed Tooltip */}
+        {isCollapsed && (
+          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-700 text-slate-100 text-xs font-medium rounded-lg shadow-xl z-50 whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95">
+            <span>Project Income</span>
+            <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-1 py-0.2 rounded border border-slate-800">
+              Alt+I
+            </span>
+            {totalInvoicesCount > 0 && (
+              <span className="text-[10px] font-mono px-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-700">
+                {totalInvoicesCount} Inv
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 2. PRV & DISBURSEMENTS (Direct button, vertical subnav hidden, exclusively horizontal tabs inside) */}
+      <div className="relative group">
+        <button
+          id="nav-prv-disbursements"
+          type="button"
+          onClick={() => setCurrentModule('payments')}
+          className={`w-full flex items-center gap-2.5 rounded-lg transition-all text-xs font-semibold ${
+            isCollapsed
+              ? 'p-2 justify-center'
+              : 'px-2.5 py-1.5 justify-between'
+          } ${
+            isPRVDisbursementsActive
+              ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 border shadow-sm font-bold'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <CreditCard className={`w-4 h-4 shrink-0 transition-transform ${isPRVDisbursementsActive ? 'text-rose-400' : 'text-slate-400 group-hover:scale-110'}`} />
+            {!isCollapsed && (
+              <span className="truncate text-[11px]">PRV & Disbursements</span>
+            )}
+          </div>
+
+          {!isCollapsed && pendingPRVsCount > 0 && (
+            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono leading-none bg-rose-950/80 text-rose-300 border border-rose-800/80 animate-pulse">
+              {pendingPRVsCount} Action
+            </span>
+          )}
+          {!isCollapsed && pendingPRVsCount === 0 && paymentRequests.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono leading-none bg-purple-900/60 text-purple-300 border border-purple-800">
+              {paymentRequests.length}
+            </span>
+          )}
+
+          {isCollapsed && pendingPRVsCount > 0 && (
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-slate-950" />
+          )}
+        </button>
+
+        {/* Collapsed Tooltip */}
+        {isCollapsed && (
+          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-700 text-slate-100 text-xs font-medium rounded-lg shadow-xl z-50 whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95">
+            <span>PRV & Disbursements</span>
+            <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-1 py-0.2 rounded border border-slate-800">
+              Alt+8
+            </span>
+            {pendingPRVsCount > 0 && (
+              <span className="text-[10px] font-mono px-1 rounded bg-rose-950 text-rose-300 border border-rose-700">
+                {pendingPRVsCount} Action
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 3. FINANCIAL INSIGHTS (Direct button, horizontal sub-navigation tabs inside) */}
+      <div className="relative group">
+        <button
+          id="nav-financial-insights"
+          type="button"
+          onClick={() => setCurrentModule('financial-insights')}
+          className={`w-full flex items-center gap-2.5 rounded-lg transition-all text-xs font-semibold ${
+            isCollapsed
+              ? 'p-2 justify-center'
+              : 'px-2.5 py-1.5 justify-between'
+          } ${
+            isFinancialInsightsActive
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 border shadow-sm font-bold'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <LayoutDashboard className={`w-4 h-4 shrink-0 transition-transform ${isFinancialInsightsActive ? 'text-amber-400' : 'text-slate-400 group-hover:scale-110'}`} />
+            {!isCollapsed && (
+              <span className="truncate text-[11px]">Financial Insights</span>
+            )}
+          </div>
+
+          {!isCollapsed && paymentProofs.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono leading-none bg-amber-950 text-amber-300 border border-amber-700">
+              {paymentProofs.length} Proofs
+            </span>
+          )}
+
+          {isCollapsed && paymentProofs.length > 0 && (
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950" />
+          )}
+        </button>
+
+        {/* Collapsed Tooltip */}
+        {isCollapsed && (
+          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-700 text-slate-100 text-xs font-medium rounded-lg shadow-xl z-50 whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95">
+            <span>Financial Insights</span>
+            <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-1 py-0.2 rounded border border-slate-800">
+              Alt+F
+            </span>
+            {paymentProofs.length > 0 && (
+              <span className="text-[10px] font-mono px-1 rounded bg-amber-950 text-amber-300 border border-amber-700">
+                {paymentProofs.length} Proofs
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <aside
       className={`shrink-0 bg-slate-950/90 border-r border-slate-800/80 select-none flex flex-col justify-between py-2 transition-all duration-200 ${
@@ -293,9 +493,11 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
         <div className="border-t border-slate-900 mx-1"></div>
         {renderModuleGroup('Workforce & Projects', projectModules)}
         <div className="border-t border-slate-900 mx-1"></div>
-        {renderModuleGroup('Finance & Invoicing', financeModules)}
+        {renderHierarchicalFinance()}
         <div className="border-t border-slate-900 mx-1"></div>
         {renderModuleGroup('Governance', governanceModules)}
+        <div className="border-t border-slate-900 mx-1"></div>
+        {renderModuleGroup('Corporate Suite', corporateSuiteModules)}
       </div>
 
       {/* Footer shortcut pill */}

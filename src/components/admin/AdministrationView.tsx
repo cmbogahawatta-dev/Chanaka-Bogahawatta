@@ -27,7 +27,9 @@ import {
   Bell,
   Layers,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  Tag,
+  Mail
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
@@ -39,6 +41,7 @@ import { useStaffAllocation } from '../../context/StaffAllocationContext';
 import { useAttendance } from '../../context/AttendanceContext';
 import { useLeave } from '../../context/LeaveContext';
 import { usePayroll } from '../../context/PayrollContext';
+import { useEnterpriseCorrespondence } from '../../context/EnterpriseCorrespondenceContext';
 import { EnterpriseRole } from '../../types/enterpriseTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { SecurityStatusIndicator } from './SecurityStatusIndicator';
@@ -107,6 +110,7 @@ export const AdministrationView: React.FC = () => {
     clearTransfersHistory: clearPettyCashTransfersHistory,
     clearSupervisorsDirectory,
     clearProjectsHistory,
+    clearCategoriesHistory,
     clearAllPettyCashHistory,
     deleteProject,
     deleteSupervisor
@@ -120,6 +124,7 @@ export const AdministrationView: React.FC = () => {
     maintenanceLogs,
     transfers: fleetTransfers,
     clearVehiclesHistory,
+    clearDriversHistory,
     clearRunningChartHistory,
     clearFuelHistory,
     clearMaintenanceHistory,
@@ -171,6 +176,12 @@ export const AdministrationView: React.FC = () => {
     clearPayrollHistory,
     resetPayrollData
   } = usePayroll();
+
+  const {
+    letters: correspondenceLetters,
+    clearAllCorrespondenceHistory,
+    resetCorrespondenceToDefaults: resetCorrespondenceData
+  } = useEnterpriseCorrespondence();
 
   const [activeAdminTab, setActiveAdminTab] = useState<'ROLES' | 'SECURITY' | 'APPROVAL' | 'SHEETS' | 'MASTER' | 'CACHE'>('ROLES');
   const [sheetIdInput, setSheetIdInput] = useState(sheetsConfig.spreadsheetId || '1XyZ_SAMPLE_EMA_CONSTRUCTION_PETTY_CASH_FLEET_2026');
@@ -242,6 +253,7 @@ export const AdministrationView: React.FC = () => {
       resetSiteRecordsData();
       resetProcurementData();
       resetDocumentsData();
+      resetCorrespondenceData();
       resetPRVsToDefault();
       resetAllocationsToDefault();
       resetAttendanceData();
@@ -258,6 +270,7 @@ export const AdministrationView: React.FC = () => {
     clearAllPRVHistory();
     clearProcurementHistory();
     clearDocumentsHistory();
+    clearAllCorrespondenceHistory();
     clearNotificationsHistory();
     clearAllocationHistory();
     clearAttendanceHistory();
@@ -278,6 +291,7 @@ export const AdministrationView: React.FC = () => {
     paymentRequests.length +
     procurementOrders.length +
     documents.length +
+    correspondenceLetters.length +
     notifications.length +
     allocations.length +
     attendanceRecords.length +
@@ -560,45 +574,58 @@ export const AdministrationView: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
-            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              <Truck className="w-4 h-4 text-blue-400" />
-              <span>Fleet Vehicles ({vehicles.length})</span>
-            </h3>
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">
-              {vehicles.map(v => (
-                <div key={v.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between group hover:border-slate-700 transition-colors">
-                  <div className="pr-2 min-w-0 flex-1">
-                    <span className="font-mono font-bold text-blue-300">{v.registrationNumber}</span>
-                    <span className="block text-[11px] text-slate-300 truncate">{v.make} {v.model} ({v.type})</span>
+          <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3 flex flex-col justify-between">
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <Truck className="w-4 h-4 text-blue-400" />
+                <span>Fleet Vehicles ({vehicles.length})</span>
+              </h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">
+                {vehicles.map(v => (
+                  <div key={v.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between group hover:border-slate-700 transition-colors">
+                    <div className="pr-2 min-w-0 flex-1">
+                      <span className="font-mono font-bold text-blue-300">{v.registrationNumber}</span>
+                      <span className="block text-[11px] text-slate-300 truncate">{v.make} {v.model} ({v.type})</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-mono text-slate-400">{v.currentSite || 'Head Office'}</span>
+                      <button
+                        onClick={() => {
+                          setDeleteModalConfig({
+                            isOpen: true,
+                            module: 'FLEET',
+                            recordType: 'Vehicle',
+                            recordId: v.id,
+                            recordTitle: `${v.registrationNumber} (${v.make} ${v.model})`,
+                            recordSummary: {
+                              reg: v.registrationNumber,
+                              make: v.make,
+                              model: v.model,
+                              type: v.type,
+                              site: v.currentSite
+                            }
+                          });
+                        }}
+                        title="Delete Vehicle Entry (with Dependency Safety Check)"
+                        className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[10px] font-mono text-slate-400">{v.currentSite || 'Head Office'}</span>
-                    <button
-                      onClick={() => {
-                        setDeleteModalConfig({
-                          isOpen: true,
-                          module: 'FLEET',
-                          recordType: 'Vehicle',
-                          recordId: v.id,
-                          recordTitle: `${v.registrationNumber} (${v.make} ${v.model})`,
-                          recordSummary: {
-                            reg: v.registrationNumber,
-                            make: v.make,
-                            model: v.model,
-                            type: v.type,
-                            site: v.currentSite
-                          }
-                        });
-                      }}
-                      title="Delete Vehicle Entry (with Dependency Safety Check)"
-                      className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+            <div className="pt-2 border-t border-slate-800/60">
+              <AdminClearHistoryButton
+                id="btn-admin-clear-vehicles-master-tab"
+                moduleName="Fleet Vehicles Directory"
+                itemCount={vehicles.length}
+                itemDescription="registered fleet assets, tipper trucks, and heavy machinery"
+                preservedItemsDescription="Historical running charts and fuel logs will remain preserved in archive."
+                buttonText="Clear Vehicles"
+                onClear={() => clearVehiclesHistory()}
+              />
             </div>
           </div>
 
@@ -709,7 +736,16 @@ export const AdministrationView: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="pt-2 border-t border-slate-800/60">
+            <div className="pt-2 border-t border-slate-800/60 space-y-2">
+              <AdminClearHistoryButton
+                id="btn-admin-clear-staff-master-tab"
+                moduleName="Staff & HR Directory"
+                itemCount={staffMembers.length}
+                itemDescription="registered enterprise personnel, engineers, and supervisors"
+                preservedItemsDescription="Payroll records and historical attendance logs will remain preserved."
+                buttonText="Clear Staff Directory"
+                onClear={() => clearStaffDirectory()}
+              />
               <button
                 type="button"
                 onClick={() => {
@@ -722,6 +758,68 @@ export const AdministrationView: React.FC = () => {
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset Staff Seed ({staffMembers.length})</span>
               </button>
+            </div>
+          </div>
+
+          {/* Card 5: Registered Drivers Directory */}
+          <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-amber-400" />
+                  <span>Drivers Directory ({drivers.length})</span>
+                </h3>
+              </div>
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1 text-xs">
+                {drivers.length === 0 ? (
+                  <p className="text-center py-6 text-slate-500 italic">No drivers registered.</p>
+                ) : (
+                  drivers.map(d => (
+                    <div key={d.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between group hover:border-slate-700 transition-colors">
+                      <div className="pr-2 min-w-0 flex-1">
+                        <span className="font-mono font-bold text-amber-300">{d.name}</span>
+                        <span className="block text-[11px] text-slate-400 truncate">{d.licenseNumber} • {d.phone || 'No phone'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${d.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
+                          {d.status}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setDeleteModalConfig({
+                              isOpen: true,
+                              module: 'FLEET',
+                              recordType: 'Driver',
+                              recordId: d.id,
+                              recordTitle: `${d.name} (${d.licenseNumber})`,
+                              recordSummary: {
+                                name: d.name,
+                                license: d.licenseNumber,
+                                status: d.status
+                              }
+                            });
+                          }}
+                          title="Delete Driver Entry"
+                          className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="pt-2 border-t border-slate-800/60">
+              <AdminClearHistoryButton
+                id="btn-admin-clear-drivers-master-tab"
+                moduleName="Drivers Directory"
+                itemCount={drivers.length}
+                itemDescription="registered heavy equipment drivers and vehicle operators"
+                preservedItemsDescription="Historical running charts and trip records will remain intact."
+                buttonText="Clear Drivers"
+                onClear={() => clearDriversHistory()}
+              />
             </div>
           </div>
         </div>
@@ -745,7 +843,24 @@ export const AdministrationView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-start">
+              <div className="flex items-center gap-2.5 self-start flex-wrap">
+                <AdminClearHistoryButton
+                  id="btn-admin-purge-all-directories"
+                  moduleName="All Master Directories"
+                  itemCount={projects.length + vehicles.length + drivers.length + supervisors.length + staffMembers.length + categories.length}
+                  itemDescription="all registered projects, fleet vehicles, drivers, site supervisors, HR staff members, and expense categories"
+                  preservedItemsDescription="System role configurations, audit trail entries, and historical ledger transactions will remain preserved."
+                  buttonText="Clear All Directories"
+                  buttonClassName="px-3.5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg shadow-amber-950/50 flex items-center gap-1.5 transition-all active:scale-95"
+                  onClear={() => {
+                    clearProjectsHistory();
+                    clearVehiclesHistory();
+                    clearDriversHistory();
+                    clearSupervisorsDirectory();
+                    clearStaffDirectory();
+                    clearCategoriesHistory();
+                  }}
+                />
                 <AdminClearHistoryButton
                   id="btn-admin-purge-all-history"
                   moduleName="ALL ERP Operational Modules"
@@ -819,6 +934,35 @@ export const AdministrationView: React.FC = () => {
                   preservedItemsDescription="Drivers, trip logs, fuel slips, and service histories remain archived."
                   buttonText="Clear Vehicle Registry"
                   onClear={() => clearVehiclesHistory()}
+                />
+              </div>
+            </div>
+
+            {/* Card 0B: Drivers Registry & Directory */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Drivers Directory</h4>
+                    <span className="text-[11px] font-mono text-amber-400 font-bold">{drivers.length} registered operators</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Clears registered heavy machinery operators, driver records, and licenses. Running logs remain intact.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-drivers-cache-tab"
+                  moduleName="Drivers Directory"
+                  itemCount={drivers.length}
+                  itemDescription="registered driver profiles, licenses, and duty statuses"
+                  preservedItemsDescription="Vehicles and trip records remain archived."
+                  buttonText="Clear Drivers"
+                  onClear={() => clearDriversHistory()}
                 />
               </div>
             </div>
@@ -1084,6 +1228,35 @@ export const AdministrationView: React.FC = () => {
               </div>
             </div>
 
+            {/* Card: Official Corporate Correspondence Studio */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Official Correspondence</h4>
+                    <span className="text-[11px] font-mono text-purple-400 font-bold">{correspondenceLetters.length} logged letters</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Clears drafted, approved, and dispatched corporate letters, claims, transmittals, and letterhead logs.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-correspondence-tab"
+                  moduleName="Official Correspondence"
+                  itemCount={correspondenceLetters.length}
+                  itemDescription="official letters, contractual claims, and correspondence records"
+                  preservedItemsDescription="Standard corporate letter templates, client registries, and company credentials will remain intact."
+                  buttonText="Clear Correspondence"
+                  onClear={() => clearAllCorrespondenceHistory()}
+                />
+              </div>
+            </div>
+
             {/* Card 10: Site Supervisors Master Directory */}
             <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
               <div className="flex items-start justify-between gap-2">
@@ -1138,6 +1311,35 @@ export const AdministrationView: React.FC = () => {
                   preservedItemsDescription="Underlying transaction history in Petty Cash, Fuel, and Maintenance will remain intact."
                   buttonText="Clear Projects"
                   onClear={() => clearProjectsHistory()}
+                />
+              </div>
+            </div>
+
+            {/* Card 11B: Expense Categories Directory */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
+                    <Tag className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Expense Categories Directory</h4>
+                    <span className="text-[11px] font-mono text-teal-400 font-bold">{categories.length} GL categories</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Wipes custom general ledger categories and cost codes. Preserves recorded petty cash vouchers.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-categories-cache-tab"
+                  moduleName="Expense Categories Directory"
+                  itemCount={categories.length}
+                  itemDescription="general ledger expense categories and cost codes"
+                  preservedItemsDescription="Logged vouchers and financial ledgers will remain intact."
+                  buttonText="Clear Categories"
+                  onClear={() => clearCategoriesHistory()}
                 />
               </div>
             </div>

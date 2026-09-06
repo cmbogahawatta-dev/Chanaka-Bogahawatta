@@ -19,13 +19,17 @@ import {
   TrendingUp,
   Image as ImageIcon,
   Check,
-  Percent
+  Percent,
+  Trash2
 } from 'lucide-react';
 import { usePettyCash } from '../../../context/PettyCashContext';
+import { useTaxInvoice } from '../../../context/TaxInvoiceContext';
 import { Income, InvoicePaymentStatus } from '../../../types/pettyCashTypes';
 import { formatLkr, round2 } from '../../../utils/vatCalculations';
 import { RecordInvoicePaymentModal } from '../../pettyCash/RecordInvoicePaymentModal';
 import { InvoiceDetailModal } from '../../pettyCash/InvoiceDetailModal';
+import { AdminClearHistoryButton } from '../../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../../common/UniversalDeleteModal';
 
 interface ClientPaymentsViewProps {
   onNavigateToInvoices?: () => void;
@@ -37,8 +41,17 @@ export const ClientPaymentsView: React.FC<ClientPaymentsViewProps> = ({
   const {
     income,
     projects,
+    clearClientReceiptsHistory,
+    deleteIncome,
+    revertInvoicePayment,
     userRole
   } = usePettyCash();
+
+  const {
+    deleteInvoice,
+    deleteClientPayment,
+    payments
+  } = useTaxInvoice();
 
   const canManagePayments = userRole === 'ADMIN' || userRole === 'FINANCE';
 
@@ -52,6 +65,8 @@ export const ClientPaymentsView: React.FC<ClientPaymentsViewProps> = ({
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Income | null>(null);
   const [selectedInvoiceForDetail, setSelectedInvoiceForDetail] = useState<Income | null>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<Income | null>(null);
+  const [receiptToDelete, setReceiptToDelete] = useState<any | null>(null);
 
   // All project corporate invoices
   const projectInvoices = useMemo(() => {
@@ -412,6 +427,18 @@ export const ClientPaymentsView: React.FC<ClientPaymentsViewProps> = ({
               <option value="Overdue">Overdue</option>
             </select>
           )}
+
+          {activeTab === 'receipts_history' && (
+            <AdminClearHistoryButton
+              id="btn-admin-clear-receipts-history"
+              moduleName="Client Receipts History"
+              itemCount={receiptsHistory.length}
+              itemDescription="settled payment receipts, cheque slips, and collection remittances"
+              preservedItemsDescription="Underlying project billing invoices and contracts will remain intact."
+              buttonText="Clear Receipts"
+              onClear={() => clearClientReceiptsHistory(selectedProject !== 'ALL' ? selectedProject : undefined)}
+            />
+          )}
         </div>
       </div>
 
@@ -553,6 +580,16 @@ export const ClientPaymentsView: React.FC<ClientPaymentsViewProps> = ({
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </button>
+
+                            {canManagePayments && (
+                              <button
+                                onClick={() => setInvoiceToDelete(inv)}
+                                className="p-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 hover:text-rose-200 border border-rose-900/40 transition-colors"
+                                title="Delete Invoice (Admin Security Key required)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -581,12 +618,13 @@ export const ClientPaymentsView: React.FC<ClientPaymentsViewProps> = ({
                   <th className="py-3 px-3 text-right">Remaining Due</th>
                   <th className="py-3 px-3 text-center">Slip Proof</th>
                   <th className="py-3 px-3 text-center">Status</th>
+                  <th className="py-3 px-3 text-center">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">
                 {receiptsHistory.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-500">
+                    <td colSpan={10} className="py-12 text-center text-slate-500">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Receipt className="w-8 h-8 text-slate-600" />
                         <p className="font-semibold text-slate-400">No client payment receipts recorded yet.</p>
@@ -646,6 +684,17 @@ export const ClientPaymentsView: React.FC<ClientPaymentsViewProps> = ({
                           {rec.status}
                         </span>
                       </td>
+                      <td className="py-3 px-3 text-center">
+                        {canManagePayments && (
+                          <button
+                            onClick={() => setReceiptToDelete(rec)}
+                            className="p-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 hover:text-rose-200 border border-rose-900/40 transition-colors"
+                            title="Delete this payment receipt with Admin Security Key"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -677,6 +726,61 @@ export const ClientPaymentsView: React.FC<ClientPaymentsViewProps> = ({
             setSelectedInvoiceForPayment(selectedInvoiceForDetail);
             setSelectedInvoiceForDetail(null);
             setIsPaymentModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* Universal Admin Delete Modal for Corporate Client Invoice */}
+      {invoiceToDelete && (
+        <UniversalDeleteModal
+          isOpen={Boolean(invoiceToDelete)}
+          onClose={() => setInvoiceToDelete(null)}
+          recordType="Corporate Client Invoice"
+          recordTitle={`${invoiceToDelete.invoiceNumber || invoiceToDelete.INCOME_ID} - ${invoiceToDelete.clientName || invoiceToDelete.PROJECT}`}
+          recordCode={invoiceToDelete.invoiceNumber || invoiceToDelete.INCOME_ID}
+          recordName={invoiceToDelete.clientName || invoiceToDelete.PROJECT}
+          recordId={invoiceToDelete.id}
+          additionalDetails={`Gross Amount: ${formatLkr(invoiceToDelete.grossAmount ?? invoiceToDelete.AMOUNT)} • Outstanding Due: ${formatLkr(invoiceToDelete.balanceDue ?? 0)} • Project: ${invoiceToDelete.PROJECT}`}
+          module="CLIENT_PAYMENTS"
+          onDelete={async () => {
+            deleteIncome(invoiceToDelete.id);
+            try {
+              deleteInvoice(invoiceToDelete.invoiceNumber || invoiceToDelete.INCOME_ID || invoiceToDelete.id);
+            } catch {
+              // Context sync
+            }
+            setInvoiceToDelete(null);
+          }}
+        />
+      )}
+
+      {/* Universal Admin Delete Modal for Client Payment Receipt */}
+      {receiptToDelete && (
+        <UniversalDeleteModal
+          isOpen={Boolean(receiptToDelete)}
+          onClose={() => setReceiptToDelete(null)}
+          recordType="Client Payment Receipt"
+          recordTitle={`Payment Receipt for ${receiptToDelete.invoiceNumber} (${receiptToDelete.paymentReference || 'Settlement'})`}
+          recordCode={receiptToDelete.paymentReference || receiptToDelete.invoiceNumber}
+          recordName={receiptToDelete.clientName}
+          recordId={`${receiptToDelete.invoiceId}-payment`}
+          additionalDetails={`Received Amount: ${formatLkr(receiptToDelete.amountReceived)} • Payment Date: ${receiptToDelete.paymentDate} • Invoice Ref: ${receiptToDelete.invoiceNumber}`}
+          module="CLIENT_PAYMENTS"
+          onDelete={async () => {
+            revertInvoicePayment(receiptToDelete.invoiceId, receiptToDelete.amountReceived);
+            try {
+              const matchingPayment = payments.find(p =>
+                p.invoiceId === receiptToDelete.invoiceId ||
+                p.invoiceNumber === receiptToDelete.invoiceNumber ||
+                p.receiptNumber === receiptToDelete.paymentReference
+              );
+              if (matchingPayment) {
+                deleteClientPayment(matchingPayment.id);
+              }
+            } catch (err) {
+              console.warn('Sync payment deletion with TaxInvoiceContext failed:', err);
+            }
+            setReceiptToDelete(null);
           }}
         />
       )}

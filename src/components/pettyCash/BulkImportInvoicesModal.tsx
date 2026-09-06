@@ -223,20 +223,11 @@ export const BulkImportInvoicesModal: React.FC<BulkImportInvoicesModalProps> = (
   const handleExecuteImport = async () => {
     setAdminPinError(null);
 
-    // If user entered PIN, verify with AdminSecurityService
-    if (adminPin.trim()) {
-      const pinCheck = await AdminSecurityService.verifyCode(adminPin);
-      if (!pinCheck.success) {
-        setAdminPinError(pinCheck.message || 'Invalid Master Admin PIN. Authorization required.');
-        return;
-      }
-    } else {
-      // If PIN is blank, check if security credential is required
-      const cred = AdminSecurityService.getCredential();
-      if (cred && cred.pinHash) {
-        setAdminPinError('Please enter your 4-digit Master Admin PIN to authorize invoice bulk import.');
-        return;
-      }
+    // Admin PIN verification
+    const pinCheck = await AdminSecurityService.verifyCode(adminPin);
+    if (!pinCheck.success) {
+      setAdminPinError(pinCheck.message || 'Invalid Master Admin PIN. Authorization required.');
+      return;
     }
 
     if (!parsedData || !validationSummary) return;
