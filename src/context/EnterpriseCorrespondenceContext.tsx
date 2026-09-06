@@ -3,6 +3,7 @@ import {
   Letter,
   LetterVersion,
   LetterTemplate,
+  LetterheadTemplate,
   LetterStatus,
   LetterDirection,
   LetterPriority,
@@ -15,11 +16,15 @@ import {
   extractClientAffix,
   extractProjectAffix
 } from '../utils/correspondenceUtils';
+import { defaultLetterheads, resolveRecommendedLetterhead } from '../utils/letterheadUtils';
+import { AuditService } from '../services/audit/auditService';
 
 interface EnterpriseCorrespondenceContextType {
   letters: Letter[];
   versions: LetterVersion[];
   templates: LetterTemplate[];
+  letterheads: LetterheadTemplate[];
+  activeLetterheads: LetterheadTemplate[];
   createLetter: (letter: Omit<Letter, 'id' | 'version' | 'isLocked' | 'createdAt'> & { letterNumber?: string }) => Letter;
   updateLetter: (id: string, updates: Partial<Letter>, changeDesc?: string, editorName?: string) => void;
   advanceStatus: (id: string, newStatus: LetterStatus, actorName: string) => void;
@@ -29,6 +34,29 @@ interface EnterpriseCorrespondenceContextType {
   archiveLetter: (id: string) => void;
   deleteLetter: (id: string) => boolean;
   addTemplate: (tmpl: Omit<LetterTemplate, 'id' | 'createdAt'>) => void;
+  createLetterhead: (
+    tmpl: Omit<LetterheadTemplate, 'id' | 'createdAt' | 'updatedAt'>,
+    actorName?: string
+  ) => LetterheadTemplate;
+  updateLetterhead: (
+    id: string,
+    updates: Partial<LetterheadTemplate>,
+    actorName?: string
+  ) => void;
+  deleteLetterhead: (id: string, actorName?: string) => boolean;
+  duplicateLetterhead: (id: string, actorName?: string) => LetterheadTemplate | null;
+  setDefaultLetterhead: (id: string, actorName?: string) => void;
+  toggleLetterheadActive: (id: string, actorName?: string) => void;
+  getLetterheadById: (id?: string) => LetterheadTemplate | undefined;
+  getRecommendedLetterhead: (params: {
+    projectId?: string;
+    projectAffix?: string;
+    projectCode?: string;
+    clientId?: string;
+    clientAffix?: string;
+    category?: string;
+    confidentiality?: string;
+  }) => LetterheadTemplate;
   generateNextLetterNumber: () => string;
   getNextLetterNumber: (prefix?: string) => string;
   generateCorrespondenceReference: (params: {
@@ -314,6 +342,17 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
     return defaultTemplates;
   });
 
+  const [letterheads, setLetterheads] = useState<LetterheadTemplate[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_letterheads`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return defaultLetterheads;
+  });
+
   useEffect(() => {
     try {
       localStorage.setItem(`${LOCAL_STORAGE_KEY}_letters`, JSON.stringify(letters));
@@ -331,6 +370,238 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
       localStorage.setItem(`${LOCAL_STORAGE_KEY}_templates`, JSON.stringify(templates));
     } catch {}
   }, [templates]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_letterheads`, JSON.stringify(letterheads));
+    } catch {}
+  }, [letterheads]);
+
+  const activeLetterheads = letterheads.filter(l => l.active);
+
+  const getLetterheadById = (id?: string): LetterheadTemplate | undefined => {
+    if (!id) return undefined;
+    return letterheads.find(l => l.id === id);
+  };
+
+  const getRecommendedLetterhead = (params: {
+    projectId?: string;
+    projectAffix?: string;
+    projectCode?: string;
+    clientId?: string;
+    clientAffix?: string;
+    category?: string;
+    confidentiality?: string;
+  }): LetterheadTemplate => {
+    return resolveRecommendedLetterhead(letterheads, params);
+  };
+
+  const createLetterhead = (
+    tmpl: Omit<LetterheadTemplate, 'id' | 'createdAt' | 'updatedAt'>,
+    actorName: string = 'Administrator'
+  ): LetterheadTemplate => {
+    const newLh: LetterheadTemplate = {
+      ...tmpl,
+      id: `lh-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setLetterheads(prev => {
+      let list = prev;
+      if (newLh.isDefault) {
+        list = list.map(l => ({ ...l, isDefault: false }));
+      }
+      return [newLh, ...list];
+    });
+
+    try {
+      AuditService.log({
+        enterpriseId: tmpl.enterpriseId || 'ent-apex',
+        userId: 'usr-admin',
+        userName: actorName,
+        userRole: 'admin',
+        action: 'CREATE',
+        module: 'CORRESPONDENCE',
+        recordId: newLh.id,
+        recordTitle: newLh.name,
+        details: `Created new ${newLh.scope} letterhead: ${newLh.name}`
+      });
+    } catch (e) {
+      console.error('Failed to log audit for letterhead creation:', e);
+    }
+
+    return newLh;
+  };
+
+  const updateLetterhead = (
+    id: string,
+    updates: Partial<LetterheadTemplate>,
+    actorName: string = 'Administrator'
+  ) => {
+    setLetterheads(prev => {
+      const target = prev.find(l => l.id === id);
+      if (!target) return prev;
+
+      let list = prev;
+      if (updates.isDefault) {
+        list = list.map(l => (l.id === id ? l : { ...l, isDefault: false }));
+      }
+
+      const updated = list.map(l =>
+        l.id === id
+          ? {
+              ...l,
+              ...updates,
+              updatedAt: new Date().toISOString()
+            }
+          : l
+      );
+
+      try {
+        AuditService.log({
+          enterpriseId: target.enterpriseId || 'ent-apex',
+          userId: 'usr-admin',
+          userName: actorName,
+          userRole: 'admin',
+          action: 'UPDATE',
+          module: 'CORRESPONDENCE',
+          recordId: id,
+          recordTitle: target.name,
+          details: `Updated letterhead: ${target.name} (${Object.keys(updates).join(', ')})`,
+          oldValue: target,
+          newValue: { ...target, ...updates }
+        });
+      } catch (e) {
+        console.error('Failed to log audit for letterhead update:', e);
+      }
+
+      return updated;
+    });
+  };
+
+  const deleteLetterhead = (id: string, actorName: string = 'Administrator'): boolean => {
+    const target = letterheads.find(l => l.id === id);
+    if (!target) return false;
+
+    setLetterheads(prev => {
+      const remaining = prev.filter(l => l.id !== id);
+      if (target.isDefault && remaining.length > 0) {
+        const nextDef = remaining.find(l => l.scope === 'Corporate') || remaining[0];
+        if (nextDef) nextDef.isDefault = true;
+      }
+      return remaining;
+    });
+
+    try {
+      AuditService.log({
+        enterpriseId: target.enterpriseId || 'ent-apex',
+        userId: 'usr-admin',
+        userName: actorName,
+        userRole: 'admin',
+        action: 'DELETE',
+        module: 'CORRESPONDENCE',
+        recordId: id,
+        recordTitle: target.name,
+        details: `Deleted letterhead: ${target.name}`
+      });
+    } catch (e) {
+      console.error('Failed to log audit for letterhead deletion:', e);
+    }
+
+    return true;
+  };
+
+  const duplicateLetterhead = (
+    id: string,
+    actorName: string = 'Administrator'
+  ): LetterheadTemplate | null => {
+    const target = letterheads.find(l => l.id === id);
+    if (!target) return null;
+
+    const dup: LetterheadTemplate = {
+      ...target,
+      id: `lh-${Date.now()}`,
+      name: `${target.name} (Copy)`,
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setLetterheads(prev => [dup, ...prev]);
+
+    try {
+      AuditService.log({
+        enterpriseId: target.enterpriseId || 'ent-apex',
+        userId: 'usr-admin',
+        userName: actorName,
+        userRole: 'admin',
+        action: 'CREATE',
+        module: 'CORRESPONDENCE',
+        recordId: dup.id,
+        recordTitle: dup.name,
+        details: `Duplicated letterhead from ${target.name}`
+      });
+    } catch (e) {
+      console.error('Failed to log audit for letterhead duplication:', e);
+    }
+
+    return dup;
+  };
+
+  const setDefaultLetterhead = (id: string, actorName: string = 'Administrator') => {
+    setLetterheads(prev => {
+      const target = prev.find(l => l.id === id);
+      if (!target) return prev;
+
+      try {
+        AuditService.log({
+          enterpriseId: target.enterpriseId || 'ent-apex',
+          userId: 'usr-admin',
+          userName: actorName,
+          userRole: 'admin',
+          action: 'UPDATE',
+          module: 'CORRESPONDENCE',
+          recordId: id,
+          recordTitle: target.name,
+          details: `Set ${target.name} as primary default letterhead`
+        });
+      } catch (e) {
+        console.error('Failed to log audit for default letterhead change:', e);
+      }
+
+      return prev.map(l => ({
+        ...l,
+        isDefault: l.id === id
+      }));
+    });
+  };
+
+  const toggleLetterheadActive = (id: string, actorName: string = 'Administrator') => {
+    setLetterheads(prev => {
+      const target = prev.find(l => l.id === id);
+      if (!target) return prev;
+      const nextActive = !target.active;
+
+      try {
+        AuditService.log({
+          enterpriseId: target.enterpriseId || 'ent-apex',
+          userId: 'usr-admin',
+          userName: actorName,
+          userRole: 'admin',
+          action: 'UPDATE',
+          module: 'CORRESPONDENCE',
+          recordId: id,
+          recordTitle: target.name,
+          details: `${nextActive ? 'Activated' : 'Deactivated'} letterhead: ${target.name}`
+        });
+      } catch (e) {
+        console.error('Failed to log audit for letterhead active toggle:', e);
+      }
+
+      return prev.map(l => (l.id === id ? { ...l, active: nextActive } : l));
+    });
+  };
 
   const generateNextLetterNumber = (): string => {
     const date = new Date();
@@ -386,11 +657,27 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
       }
     }
 
+    // Assign letterhead if not explicitly provided
+    let assignedLetterheadId = data.letterheadId;
+    if (!assignedLetterheadId) {
+      const rec = resolveRecommendedLetterhead(letterheads, {
+        projectId: data.projectId,
+        projectAffix: data.projectAffix,
+        projectCode: data.projectCode,
+        clientId: data.clientId,
+        clientAffix: data.clientAffix,
+        category: data.category,
+        confidentiality: data.confidentiality
+      });
+      assignedLetterheadId = rec.id;
+    }
+
     const newLetter: Letter = {
       ...data,
       id: `ltr-${Date.now()}`,
       letterNumber: assignedLetterNumber,
       ourReference: data.ourReference || assignedLetterNumber,
+      letterheadId: assignedLetterheadId,
       version: 1,
       isLocked: false,
       createdAt: new Date().toISOString()
@@ -656,10 +943,12 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
     setLetters(initialLetters);
     setVersions([]);
     setTemplates(defaultTemplates);
+    setLetterheads(defaultLetterheads);
     try {
       localStorage.setItem(`${LOCAL_STORAGE_KEY}_letters`, JSON.stringify(initialLetters));
       localStorage.setItem(`${LOCAL_STORAGE_KEY}_versions`, JSON.stringify([]));
       localStorage.setItem(`${LOCAL_STORAGE_KEY}_templates`, JSON.stringify(defaultTemplates));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_letterheads`, JSON.stringify(defaultLetterheads));
     } catch {}
   };
 
@@ -669,6 +958,8 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
         letters,
         versions,
         templates,
+        letterheads,
+        activeLetterheads,
         createLetter,
         updateLetter,
         advanceStatus,
@@ -678,6 +969,14 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
         archiveLetter,
         deleteLetter,
         addTemplate,
+        createLetterhead,
+        updateLetterhead,
+        deleteLetterhead,
+        duplicateLetterhead,
+        setDefaultLetterhead,
+        toggleLetterheadActive,
+        getLetterheadById,
+        getRecommendedLetterhead,
         generateNextLetterNumber,
         getNextLetterNumber,
         generateCorrespondenceReference,

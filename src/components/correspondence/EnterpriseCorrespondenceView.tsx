@@ -25,23 +25,29 @@ import {
   FolderOpen,
   X,
   ExternalLink,
-  RotateCcw
+  RotateCcw,
+  SlidersHorizontal,
+  Eye
 } from 'lucide-react';
 import { useEnterpriseCorrespondence } from '../../context/EnterpriseCorrespondenceContext';
 import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
-import { Letter, LetterheadVariant, LetterTone } from '../../types/correspondenceTypes';
+import { Letter, LetterheadVariant, LetterTone, LetterheadTemplate } from '../../types/correspondenceTypes';
 import { generateLetterPdf } from '../../services/export/letterheadRenderer';
 import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { CorrespondenceFolderTree } from './CorrespondenceFolderTree';
 import { CorrespondenceComposeModal } from './CorrespondenceComposeModal';
+import { LetterheadManagerView } from './LetterheadManagerView';
+import { LetterheadPreviewModal } from './LetterheadPreviewModal';
 import { groupLettersByClientAndProject } from '../../utils/correspondenceUtils';
 
 export const EnterpriseCorrespondenceView: React.FC = () => {
   const {
     letters,
     templates,
+    letterheads,
+    getLetterheadById,
     createLetter,
     updateLetter,
     deleteLetter,
@@ -58,8 +64,19 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
   const { profile } = useEnterpriseCompany();
   const { currentEnterprise } = useEnterprise();
 
-  const [activeTab, setActiveTab] = useState<'outbox' | 'templates'>('outbox');
+  const [activeTab, setActiveTab] = useState<'outbox' | 'templates' | 'letterheads'>('outbox');
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(letters[0] || null);
+  const [previewLetterheadModalTarget, setPreviewLetterheadModalTarget] = useState<LetterheadTemplate | null>(null);
+
+  // Active Letterhead for the selected letter
+  const resolvedLetterheadForSelectedLetter = useMemo(() => {
+    if (!selectedLetter) return null;
+    if (selectedLetter.letterheadId) {
+      const match = letterheads.find(l => l.id === selectedLetter.letterheadId);
+      if (match) return match;
+    }
+    return letterheads.find(l => l.isDefault && l.active) || letterheads[0] || null;
+  }, [selectedLetter, letterheads]);
 
   // Folder navigation states
   const [selectedClientKey, setSelectedClientKey] = useState<string | null>(null);
@@ -74,6 +91,7 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
     projectAffix?: string;
     projectCode?: string;
     projectName?: string;
+    letterheadId?: string;
   }>({});
 
   // Deletion Target State for Strict Admin Security Key Authorization
@@ -176,6 +194,7 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
     projectAffix?: string;
     projectCode?: string;
     projectName?: string;
+    letterheadId?: string;
   }) => {
     if (params) {
       setComposeModalParams(params);
@@ -216,7 +235,15 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
   };
 
   const handleDownloadPdf = (letterToPrint: Letter) => {
-    generateLetterPdf(letterToPrint, profile, currentEnterprise?.name || 'Apex Global Logistics Corp');
+    const targetLetterhead = letterToPrint.letterheadId
+      ? getLetterheadById(letterToPrint.letterheadId)
+      : (letterheads.find(l => l.isDefault && l.active) || letterheads[0]);
+    generateLetterPdf(
+      letterToPrint,
+      profile,
+      currentEnterprise?.name || 'Apex Global Logistics Corp',
+      targetLetterhead
+    );
   };
 
   return (
@@ -261,12 +288,26 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
             onClick={() => setActiveTab(activeTab === 'templates' ? 'outbox' : 'templates')}
             className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors flex items-center gap-1.5 ${
               activeTab === 'templates'
-                ? 'bg-purple-600 text-white border-purple-500'
+                ? 'bg-purple-600 text-white border-purple-500 shadow-md'
                 : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
             Templates ({templates.length})
+          </button>
+
+          {/* Letterheads Tab */}
+          <button
+            onClick={() => setActiveTab(activeTab === 'letterheads' ? 'outbox' : 'letterheads')}
+            className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors flex items-center gap-1.5 ${
+              activeTab === 'letterheads'
+                ? 'bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-600/20 font-semibold'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+            }`}
+            title="Manage Official Company Stationery & Letterheads"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400" />
+            Letterheads ({letterheads.length})
           </button>
 
           {/* Admin Clear History Button */}
@@ -571,6 +612,38 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
                       </button>
                     )}
 
+                    {/* Letterhead Stationery Selector */}
+                    <div className="flex items-center gap-1.5 bg-slate-800 rounded-lg px-2.5 py-1 border border-slate-700 text-xs">
+                      <span className="text-[11px] text-slate-400 font-medium">Letterhead:</span>
+                      <select
+                        value={resolvedLetterheadForSelectedLetter?.id || ''}
+                        onChange={(e) => {
+                          if (selectedLetter) {
+                            updateLetter(selectedLetter.id, { letterheadId: e.target.value });
+                            setSelectedLetter(prev => prev ? { ...prev, letterheadId: e.target.value } : null);
+                          }
+                        }}
+                        className="bg-transparent text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[190px] truncate"
+                        title="Switch Letterhead Stationery for this letter"
+                      >
+                        {letterheads.filter(l => l.active).map(lh => (
+                          <option key={lh.id} value={lh.id} className="bg-slate-900 text-slate-200">
+                            [{lh.scope}] {lh.name} {lh.isDefault ? '★' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {resolvedLetterheadForSelectedLetter && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewLetterheadModalTarget(resolvedLetterheadForSelectedLetter)}
+                          className="text-purple-400 hover:text-purple-300 p-0.5 ml-0.5"
+                          title="Preview full A4 letterhead sheet"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
                     <button
                       onClick={() => handleDownloadPdf(selectedLetter)}
                       className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-indigo-600/20"
@@ -595,106 +668,170 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
                 </div>
 
                 {/* Consultant-Grade Letterhead Sheet Simulation */}
-                <div className="max-w-4xl mx-auto w-full bg-white text-slate-900 rounded-lg shadow-2xl p-8 sm:p-10 border border-slate-200">
-                  {/* Letterhead Top Banner */}
-                  <div className="border-b-2 border-emerald-600 pb-4 mb-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
-                          {profile.legalName || currentEnterprise?.name}
-                        </h2>
-                        <p className="text-xs font-semibold text-emerald-700 uppercase tracking-widest mt-0.5">
-                          {profile.tradingName || 'Logistics & Heavy Engineering Solutions'}
-                        </p>
-                      </div>
-                      <div className="text-right text-[10px] text-slate-500 leading-tight">
-                        <div>Reg No: {profile.registrationNumber}</div>
-                        <div>VAT: {profile.vatNumber} | TIN: {profile.tinNumber}</div>
-                        <div>CIDA Grade: {profile.cidaGrade}</div>
-                      </div>
-                    </div>
-                    <div className="mt-2 text-[10px] text-slate-600 flex justify-between">
-                      <span>Office: {profile.registeredAddress}</span>
-                      <span>Tel: {profile.telephone} | Web: {profile.website}</span>
-                    </div>
-                  </div>
+                <div
+                  className="max-w-4xl mx-auto w-full bg-white text-slate-900 rounded-lg shadow-2xl relative overflow-hidden border border-slate-200"
+                  style={
+                    resolvedLetterheadForSelectedLetter?.fullLetterheadImageUrl
+                      ? { minHeight: '1120px' }
+                      : undefined
+                  }
+                >
+                  {/* Full Artwork Background (if uploaded) */}
+                  {resolvedLetterheadForSelectedLetter?.fullLetterheadImageUrl && (
+                    <img
+                      src={resolvedLetterheadForSelectedLetter.fullLetterheadImageUrl}
+                      alt="EMA Company Letterhead Artwork"
+                      className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                    />
+                  )}
 
-                  {/* Date & Metadata */}
-                  <div className="flex justify-between items-start text-xs text-slate-700 mb-6">
-                    <div>
-                      <div className="font-bold text-slate-900">TO:</div>
-                      <div className="font-bold text-sm text-slate-900">{selectedLetter.recipientOrganization}</div>
-                      {selectedLetter.attention && (
-                        <div className="italic text-slate-600">Attn: {selectedLetter.attention}</div>
-                      )}
-                      <div className="text-slate-500 max-w-sm whitespace-pre-line mt-1">
-                        {selectedLetter.recipientAddress}
-                      </div>
-                    </div>
-                    <div className="text-right space-y-1">
-                      <div>
-                        <span className="font-bold text-slate-900">Date:</span> {selectedLetter.date}
-                      </div>
-                      <div>
-                        <span className="font-bold text-slate-900">Our Ref:</span>{' '}
-                        <span className="font-mono font-bold text-purple-700">
-                          {selectedLetter.ourReference || selectedLetter.letterNumber}
-                        </span>
-                      </div>
-                      {(selectedLetter.projectName || selectedLetter.projectCode || selectedLetter.projectAffix) && (
-                        <div className="text-[11px] text-emerald-700 font-semibold">
-                          Project: [{selectedLetter.projectAffix || selectedLetter.projectCode || 'GEN'}]{' '}
-                          {selectedLetter.projectName || ''}
-                        </div>
-                      )}
-                      {selectedLetter.theirReference && (
-                        <div>
-                          <span className="font-bold text-slate-900">Your Ref:</span> {selectedLetter.theirReference}
-                        </div>
-                      )}
-                      <div className="text-[10px] uppercase font-bold text-slate-500">
-                        Category: {selectedLetter.category}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Subject Line Bar */}
-                  <div className="bg-slate-100 border border-slate-300 p-2.5 rounded text-xs font-bold text-slate-900 uppercase tracking-wide mb-6">
-                    SUBJECT: {selectedLetter.subject}
-                  </div>
-
-                  {/* Letter Body */}
+                  {/* Letterhead Content Container aligned to Safe Margins */}
                   <div
-                    className="text-sm leading-relaxed text-slate-800 space-y-4 font-serif min-h-[260px]"
-                    dangerouslySetInnerHTML={{ __html: selectedLetter.bodyHtml }}
-                  />
+                    className="relative z-10 p-8 sm:p-10 flex flex-col justify-between"
+                    style={{
+                      paddingTop: resolvedLetterheadForSelectedLetter?.fullLetterheadImageUrl
+                        ? `${Math.max(40, (resolvedLetterheadForSelectedLetter.contentTopMargin || 50) * 1.3)}px`
+                        : undefined,
+                      paddingBottom: resolvedLetterheadForSelectedLetter?.fullLetterheadImageUrl
+                        ? `${Math.max(30, (resolvedLetterheadForSelectedLetter.contentBottomMargin || 35) * 1.3)}px`
+                        : undefined,
+                      paddingLeft: resolvedLetterheadForSelectedLetter?.fullLetterheadImageUrl
+                        ? `${Math.max(28, (resolvedLetterheadForSelectedLetter.contentLeftMargin || 20) * 1.3)}px`
+                        : undefined,
+                      paddingRight: resolvedLetterheadForSelectedLetter?.fullLetterheadImageUrl
+                        ? `${Math.max(28, (resolvedLetterheadForSelectedLetter.contentRightMargin || 20) * 1.3)}px`
+                        : undefined,
+                      minHeight: resolvedLetterheadForSelectedLetter?.fullLetterheadImageUrl ? '1080px' : undefined
+                    }}
+                  >
+                    <div>
+                      {/* Custom Header Graphic Banner (if split header image) */}
+                      {resolvedLetterheadForSelectedLetter?.headerImageUrl && !resolvedLetterheadForSelectedLetter?.fullLetterheadImageUrl && (
+                        <div className="mb-6 border-b border-slate-200 pb-3">
+                          <img
+                            src={resolvedLetterheadForSelectedLetter.headerImageUrl}
+                            alt="Company Header Banner"
+                            className="w-full object-contain max-h-36 rounded"
+                          />
+                        </div>
+                      )}
 
-                  {/* Sign-off & Seal */}
-                  <div className="mt-12 pt-6 border-t border-slate-200 flex justify-between items-end">
-                    <div className="text-xs text-slate-700 space-y-1">
-                      <div>Yours faithfully,</div>
-                      <div className="font-bold text-slate-900 uppercase text-sm">
-                        {profile.legalName || currentEnterprise?.name}
-                      </div>
-                      <div className="h-12 flex items-center">
-                        {selectedLetter.status === 'Approved' ? (
-                          <div className="px-3 py-1 bg-emerald-50 border border-emerald-300 rounded text-[11px] font-mono text-emerald-800 flex items-center gap-1 font-bold">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            OFFICIALLY SIGNED & SEALED
+                      {/* Default Software-Generated Letterhead Banner (only if no custom image artwork exists) */}
+                      {!resolvedLetterheadForSelectedLetter?.fullLetterheadImageUrl && !resolvedLetterheadForSelectedLetter?.headerImageUrl && (
+                        <div className="border-b-2 border-emerald-600 pb-4 mb-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
+                                {profile.legalName || currentEnterprise?.name}
+                              </h2>
+                              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-widest mt-0.5">
+                                {profile.tradingName || 'Logistics & Heavy Engineering Solutions'}
+                              </p>
+                            </div>
+                            <div className="text-right text-[10px] text-slate-500 leading-tight">
+                              <div>Reg No: {profile.registrationNumber}</div>
+                              <div>VAT: {profile.vatNumber} | TIN: {profile.tinNumber}</div>
+                              <div>CIDA Grade: {profile.cidaGrade}</div>
+                            </div>
                           </div>
-                        ) : (
-                          <span className="text-slate-400 italic text-[11px]">[Pending Board Signature]</span>
-                        )}
+                          <div className="mt-2 text-[10px] text-slate-600 flex justify-between">
+                            <span>Office: {profile.registeredAddress}</span>
+                            <span>Tel: {profile.telephone} | Web: {profile.website}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Date & Metadata */}
+                      <div className="flex justify-between items-start text-xs text-slate-700 mb-6">
+                        <div>
+                          <div className="font-bold text-slate-900">TO:</div>
+                          <div className="font-bold text-sm text-slate-900">{selectedLetter.recipientOrganization}</div>
+                          {selectedLetter.attention && (
+                            <div className="italic text-slate-600">Attn: {selectedLetter.attention}</div>
+                          )}
+                          <div className="text-slate-500 max-w-sm whitespace-pre-line mt-1">
+                            {selectedLetter.recipientAddress}
+                          </div>
+                        </div>
+                        <div className="text-right space-y-1">
+                          <div>
+                            <span className="font-bold text-slate-900">Date:</span> {selectedLetter.date}
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-900">Our Ref:</span>{' '}
+                            <span className="font-mono font-bold text-purple-700">
+                              {selectedLetter.ourReference || selectedLetter.letterNumber}
+                            </span>
+                          </div>
+                          {(selectedLetter.projectName || selectedLetter.projectCode || selectedLetter.projectAffix) && (
+                            <div className="text-[11px] text-emerald-700 font-semibold">
+                              Project: [{selectedLetter.projectAffix || selectedLetter.projectCode || 'GEN'}]{' '}
+                              {selectedLetter.projectName || ''}
+                            </div>
+                          )}
+                          {selectedLetter.theirReference && (
+                            <div>
+                              <span className="font-bold text-slate-900">Your Ref:</span> {selectedLetter.theirReference}
+                            </div>
+                          )}
+                          <div className="text-[10px] uppercase font-bold text-slate-500">
+                            Category: {selectedLetter.category}
+                          </div>
+                        </div>
                       </div>
-                      <div className="font-bold text-slate-900">
-                        {selectedLetter.approvedBy || selectedLetter.preparedBy}
+
+                      {/* Subject Line Bar */}
+                      <div className="bg-slate-100 border border-slate-300 p-2.5 rounded text-xs font-bold text-slate-900 uppercase tracking-wide mb-6">
+                        SUBJECT: {selectedLetter.subject}
                       </div>
-                      <div className="text-slate-500 text-[11px]">Authorized Signatory</div>
+
+                      {/* Letter Body */}
+                      <div
+                        className="text-sm leading-relaxed text-slate-800 space-y-4 font-serif min-h-[260px]"
+                        dangerouslySetInnerHTML={{ __html: selectedLetter.bodyHtml }}
+                      />
                     </div>
 
-                    <div className="text-right text-[10px] text-slate-400">
-                      <div>Ref: {selectedLetter.letterNumber}</div>
-                      <div>EMA Project & Client Registry</div>
+                    <div>
+                      {/* Sign-off & Seal */}
+                      <div className="mt-12 pt-6 border-t border-slate-200 flex justify-between items-end">
+                        <div className="text-xs text-slate-700 space-y-1">
+                          <div>Yours faithfully,</div>
+                          <div className="font-bold text-slate-900 uppercase text-sm">
+                            {profile.legalName || currentEnterprise?.name}
+                          </div>
+                          <div className="h-12 flex items-center">
+                            {selectedLetter.status === 'Approved' ? (
+                              <div className="px-3 py-1 bg-emerald-50 border border-emerald-300 rounded text-[11px] font-mono text-emerald-800 flex items-center gap-1 font-bold">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                OFFICIALLY SIGNED & SEALED
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">[Pending Board Signature]</span>
+                            )}
+                          </div>
+                          <div className="font-bold text-slate-900">
+                            {selectedLetter.approvedBy || selectedLetter.preparedBy}
+                          </div>
+                          <div className="text-slate-500 text-[11px]">Authorized Signatory</div>
+                        </div>
+
+                        <div className="text-right text-[10px] text-slate-400">
+                          <div>Ref: {selectedLetter.letterNumber}</div>
+                          <div>EMA Project & Client Registry</div>
+                        </div>
+                      </div>
+
+                      {/* Custom Footer Graphic Banner (if split footer image) */}
+                      {resolvedLetterheadForSelectedLetter?.footerImageUrl && !resolvedLetterheadForSelectedLetter?.fullLetterheadImageUrl && (
+                        <div className="mt-6 pt-3 border-t border-slate-200">
+                          <img
+                            src={resolvedLetterheadForSelectedLetter.footerImageUrl}
+                            alt="Company Footer Banner"
+                            className="w-full object-contain max-h-24 rounded"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -765,6 +902,19 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* VIEW 3: OFFICIAL LETTERHEAD STATIONERY STUDIO */}
+        {activeTab === 'letterheads' && (
+          <div className="flex-1 overflow-hidden">
+            <LetterheadManagerView
+              onBackToCorrespondence={() => setActiveTab('outbox')}
+              onComposeWithLetterhead={lhId => {
+                handleOpenCompose({ letterheadId: lhId });
+                setActiveTab('outbox');
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* MODAL: COMPOSE CORRESPONDENCE UNDER PROJECT AND CLIENT BASIS */}
@@ -777,10 +927,20 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
           initialProjectAffix={composeModalParams.projectAffix}
           initialProjectCode={composeModalParams.projectCode}
           initialProjectName={composeModalParams.projectName}
+          initialLetterheadId={composeModalParams.letterheadId}
           onLetterCreated={createdLetter => {
             setSelectedLetter(createdLetter);
             setActiveTab('outbox');
           }}
+        />
+      )}
+
+      {/* MODAL: PREVIEW FULL LETTERHEAD SHEET */}
+      {previewLetterheadModalTarget && (
+        <LetterheadPreviewModal
+          isOpen={!!previewLetterheadModalTarget}
+          onClose={() => setPreviewLetterheadModalTarget(null)}
+          letterhead={previewLetterheadModalTarget}
         />
       )}
 

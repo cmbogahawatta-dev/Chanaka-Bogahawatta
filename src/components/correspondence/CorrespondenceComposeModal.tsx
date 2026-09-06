@@ -17,7 +17,9 @@ import {
   Landmark,
   CheckCircle2,
   MapPin,
-  ExternalLink
+  ExternalLink,
+  Eye,
+  Ruler
 } from 'lucide-react';
 import { useEnterpriseCorrespondence } from '../../context/EnterpriseCorrespondenceContext';
 import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
@@ -28,8 +30,10 @@ import {
   Letter,
   LetterTemplate,
   LetterheadVariant,
-  LetterTone
+  LetterTone,
+  LetterheadTemplate
 } from '../../types/correspondenceTypes';
+import { LetterheadPreviewModal } from './LetterheadPreviewModal';
 import {
   extractClientAffix,
   extractProjectAffix,
@@ -45,6 +49,7 @@ interface CorrespondenceComposeModalProps {
   initialProjectAffix?: string;
   initialProjectCode?: string;
   initialProjectName?: string;
+  initialLetterheadId?: string;
   onLetterCreated: (createdLetter: Letter) => void;
 }
 
@@ -56,14 +61,18 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
   initialProjectAffix,
   initialProjectCode,
   initialProjectName,
+  initialLetterheadId,
   onLetterCreated
 }) => {
   const {
     letters,
     templates,
+    letterheads,
+    activeLetterheads,
     createLetter,
     draftLetterWithAi,
-    generateCorrespondenceReference
+    generateCorrespondenceReference,
+    getRecommendedLetterhead
   } = useEnterpriseCorrespondence();
 
   const { clients } = useEnterpriseCompany();
@@ -317,6 +326,37 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
   const [subject, setSubject] = useState('');
   const [category, setCategory] = useState('Project');
   const [letterheadVariant, setLetterheadVariant] = useState<LetterheadVariant>('Project');
+  const [selectedLetterheadId, setSelectedLetterheadId] = useState<string>(initialLetterheadId || '');
+  const [previewLetterheadTarget, setPreviewLetterheadTarget] = useState<LetterheadTemplate | null>(null);
+
+  // Auto-resolve recommended letterhead if not explicitly set
+  useEffect(() => {
+    if (initialLetterheadId) {
+      setSelectedLetterheadId(initialLetterheadId);
+    } else if (activeLetterheads.length > 0) {
+      const rec = getRecommendedLetterhead({
+        clientId: selectedClientId,
+        clientAffix,
+        projectId: selectedProjectId,
+        projectAffix,
+        category
+      });
+      setSelectedLetterheadId(rec.id);
+    }
+  }, [
+    initialLetterheadId,
+    clientAffix,
+    projectAffix,
+    category,
+    selectedClientId,
+    selectedProjectId,
+    activeLetterheads.length
+  ]);
+
+  const activeLetterheadObj = useMemo(() => {
+    return letterheads.find(l => l.id === selectedLetterheadId) || activeLetterheads[0];
+  }, [letterheads, activeLetterheads, selectedLetterheadId]);
+
   const [bodyHtml, setBodyHtml] = useState(
     '<p>Dear Sir / Madam,</p><p>We write with reference to the above-mentioned project regarding...</p>'
   );
@@ -393,6 +433,7 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
       priority: 'Normal' as const,
       confidentiality: 'Normal' as const,
       bodyHtml,
+      letterheadId: selectedLetterheadId || undefined,
       letterheadVariant,
       preparedBy,
       status: 'Draft' as const,
@@ -950,20 +991,53 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Letterhead Style
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-200">
+                    Company Letterhead
+                  </label>
+                  {activeLetterheadObj && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewLetterheadTarget(activeLetterheadObj)}
+                      className="text-[11px] text-purple-400 hover:text-purple-300 flex items-center gap-1 font-semibold"
+                    >
+                      <Eye className="w-3 h-3" />
+                      <span>Preview Sheet</span>
+                    </button>
+                  )}
+                </div>
                 <select
-                  value={letterheadVariant}
-                  onChange={e => setLetterheadVariant(e.target.value as LetterheadVariant)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:border-purple-500 focus:outline-none"
+                  value={selectedLetterheadId}
+                  onChange={e => {
+                    setSelectedLetterheadId(e.target.value);
+                    const lh = letterheads.find(l => l.id === e.target.value);
+                    if (lh) {
+                      if (lh.scope === 'Project') setLetterheadVariant('Project');
+                      else if (lh.scope === 'Finance') setLetterheadVariant('Finance');
+                      else if (lh.scope === 'Tender') setLetterheadVariant('Tender');
+                      else if (lh.scope === 'Confidential') setLetterheadVariant('Confidential');
+                      else setLetterheadVariant('Company');
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 font-medium focus:border-purple-500 focus:outline-none"
                 >
-                  <option value="Project">Project / Site Transmittal</option>
-                  <option value="Company">Corporate General Letterhead</option>
-                  <option value="Finance">Finance & Banking Letterhead</option>
-                  <option value="Tender">Tender & Procurement Letterhead</option>
-                  <option value="Confidential">Confidential / Board Letterhead</option>
+                  {activeLetterheads.map(lh => (
+                    <option key={lh.id} value={lh.id}>
+                      [{lh.scope}] {lh.name} {lh.isDefault ? '★ (Default)' : ''}
+                      {lh.fullLetterheadImageUrl ? ' • Full Artwork' : lh.headerImageUrl ? ' • Custom Banner' : ''}
+                    </option>
+                  ))}
                 </select>
+                {activeLetterheadObj && (
+                  <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                    <span>
+                      Safe Margin: Top {activeLetterheadObj.contentTopMargin || 50}mm • Bot {activeLetterheadObj.contentBottomMargin || 35}mm
+                    </span>
+                    <span className="text-emerald-400">
+                      {activeLetterheadObj.fullLetterheadImageUrl ? 'Full Artwork' : activeLetterheadObj.headerImageUrl ? 'Header Banner' : 'EMA Vector'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1053,6 +1127,14 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
           </div>
         </form>
       </div>
+
+      {previewLetterheadTarget && (
+        <LetterheadPreviewModal
+          isOpen={!!previewLetterheadTarget}
+          onClose={() => setPreviewLetterheadTarget(null)}
+          letterhead={previewLetterheadTarget}
+        />
+      )}
     </div>
   );
 };

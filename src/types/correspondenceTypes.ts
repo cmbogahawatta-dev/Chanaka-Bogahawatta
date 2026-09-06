@@ -3,6 +3,7 @@ export type LetterStatus = 'Draft' | 'Review' | 'Pending Approval' | 'Approved' 
 export type LetterPriority = 'Low' | 'Normal' | 'High' | 'Urgent';
 export type LetterConfidentiality = 'Normal' | 'Restricted' | 'Confidential';
 export type LetterheadVariant = 'Company' | 'Project' | 'Finance' | 'Tender' | 'Confidential';
+export type LetterheadScope = 'Corporate' | 'Client' | 'Project' | 'Finance' | 'Tender' | 'Confidential';
 export type LetterTone = 'Formal' | 'Firm' | 'Diplomatic' | 'Contractual' | 'Conciliatory' | 'Urgent';
 
 export interface Letter {
@@ -41,6 +42,7 @@ export interface Letter {
   bodyHtml: string;
   templateId?: string;
   letterheadVariant?: 'Company' | 'Project' | 'Finance' | 'Tender' | 'Confidential';
+  letterheadId?: string; // Reference to custom uploaded or configured letterhead template
   preparedBy: string;
   reviewerId?: string;
   approverId?: string;
@@ -78,4 +80,35 @@ export interface LetterTemplate {
   createdBy: string;
   createdAt: string;
   active: boolean;
+}
+
+export interface LetterheadTemplate {
+  id: string;
+  enterpriseId: string;
+  name: string;
+  description?: string;
+  scope: LetterheadScope;
+  clientId?: string;
+  clientName?: string;
+  clientAffix?: string;
+  projectId?: string;
+  projectCode?: string;
+  projectName?: string;
+  projectAffix?: string;
+  pageSize: 'A4' | 'Letter' | 'Legal';
+  orientation: 'Portrait' | 'Landscape';
+  headerImageUrl?: string; // Data URL for uploaded header banner
+  footerImageUrl?: string; // Data URL for uploaded footer banner
+  fullLetterheadImageUrl?: string; // Data URL for uploaded full-page letterhead scan/asset
+  headerHeight: number; // in mm, default 45
+  footerHeight: number; // in mm, default 30
+  contentTopMargin: number; // in mm, default 50
+  contentBottomMargin: number; // in mm, default 35
+  contentLeftMargin: number; // in mm, default 20
+  contentRightMargin: number; // in mm, default 20
+  active: boolean;
+  isDefault: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
