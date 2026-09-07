@@ -28,6 +28,7 @@ import { UniversalDeleteModal } from '../../common/UniversalDeleteModal';
 
 export const PRVListView: React.FC = () => {
   const {
+    paymentRequests,
     filteredRequests,
     filters,
     setFilters,
@@ -107,11 +108,13 @@ export const PRVListView: React.FC = () => {
             onClear={() => clearAllPRVHistory()}
           />
           <button
+            id="btn-list-create-prv"
+            type="button"
             onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-bold shadow-lg active:scale-95 transition-all text-xs"
           >
             <Plus className="w-4 h-4" />
-            <span>New Payment Request</span>
+            <span>+ Create Payment Request</span>
           </button>
         </div>
       </div>
@@ -286,15 +289,44 @@ export const PRVListView: React.FC = () => {
             <tbody className="divide-y divide-slate-800/80">
               {filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
-                    <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="font-semibold">No payment request vouchers match your filter criteria.</p>
-                    <button
-                      onClick={resetFilters}
-                      className="mt-2 text-purple-400 hover:text-purple-300 font-bold"
-                    >
-                      Clear all filters
-                    </button>
+                  <td colSpan={9} className="py-14 text-center text-slate-400">
+                    <div className="max-w-md mx-auto flex flex-col items-center justify-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-950/60 border border-purple-800/60 flex items-center justify-center text-purple-400 shadow-lg shadow-purple-950/40">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-base font-bold text-slate-100">
+                          {paymentRequests.length === 0
+                            ? 'No Payment Request Vouchers'
+                            : 'No Payment Requests Found'}
+                        </h4>
+                        <p className="text-xs text-slate-400 max-w-sm">
+                          {paymentRequests.length === 0
+                            ? 'Create your first payment request voucher to start the approval workflow.'
+                            : 'No payment request vouchers match your filter criteria.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center gap-2.5 pt-2">
+                        {paymentRequests.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={resetFilters}
+                            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all border border-slate-700 shadow-sm"
+                          >
+                            Clear all filters
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          id="btn-empty-state-create-prv"
+                          onClick={() => setIsCreateModalOpen(true)}
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-bold text-xs shadow-lg shadow-purple-950/50 active:scale-95 transition-all"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>+ Create Payment Request</span>
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (

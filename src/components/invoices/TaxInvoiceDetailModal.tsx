@@ -18,7 +18,8 @@ import {
   Check,
   RefreshCw,
   Copy,
-  Trash2
+  Trash2,
+  Edit3
 } from 'lucide-react';
 import { TaxInvoice } from '../../types/taxInvoiceTypes';
 import { useTaxInvoice } from '../../context/TaxInvoiceContext';
@@ -32,6 +33,7 @@ interface TaxInvoiceDetailModalProps {
   onOpenRecordPayment: (invoice: TaxInvoice) => void;
   onOpenCancelInvoice: (invoice: TaxInvoice) => void;
   onOpenCreditNote: (invoice: TaxInvoice) => void;
+  onOpenEditInvoice?: (invoice: TaxInvoice) => void;
   onOpenDeleteInvoice?: (invoice: TaxInvoice) => void;
 }
 
@@ -42,6 +44,7 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
   onOpenRecordPayment,
   onOpenCancelInvoice,
   onOpenCreditNote,
+  onOpenEditInvoice,
   onOpenDeleteInvoice
 }) => {
   const {
@@ -256,6 +259,17 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
               </>
             )}
 
+            {onOpenEditInvoice && !isCancelled && (
+              <button
+                onClick={() => onOpenEditInvoice(invoice)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold flex items-center gap-1.5 border border-slate-700 shadow transition-colors"
+                title="Edit / Revise this Tax Invoice"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Invoice</span>
+              </button>
+            )}
+
             {onOpenDeleteInvoice && (
               <button
                 onClick={() => onOpenDeleteInvoice(invoice)}
@@ -281,20 +295,21 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
           {/* TAB 1: FORM & PREVIEW */}
           {activeTab === 'preview' && (
             <div className="space-y-6">
-              {/* Prominent Statutory Banner */}
-              <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              {/* Redesigned Tax Invoice Header */}
+              <div className="p-5 bg-slate-950 rounded-xl border border-cyan-900/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-red-950 text-red-400 font-black text-[11px] border border-red-800 tracking-wider">
-                      TAX INVOICE
-                    </span>
-                    <span className="text-slate-400 font-medium">
-                      Inland Revenue Department • Gazette Extraordinary No. 2481/22
-                    </span>
+                  <h1 className="text-2xl font-black text-white tracking-wide">
+                    TAX INVOICE
+                  </h1>
+                  <div className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                    <span className="text-slate-400 font-sans font-medium">Tax Invoice Number :-</span>
+                    <span className="font-mono font-bold text-cyan-300 text-base">{invoice.serialNumber}</span>
                   </div>
-                  <p className="text-slate-300">
-                    Serial: <strong className="font-mono text-cyan-300 text-sm">{invoice.serialNumber}</strong>
-                  </p>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-400 pt-1">
+                    <span>Date: <strong className="text-white">{invoice.invoiceDate}</strong></span>
+                    <span>•</span>
+                    <span>Status: <strong className="text-emerald-400">{invoice.status}</strong></span>
+                  </div>
                 </div>
 
                 <div className="text-right">
@@ -308,16 +323,19 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
                 </div>
               </div>
 
-              {/* Supplier & Purchaser Grid */}
+              {/* Service Provider & Purchaser Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Supplier */}
+                {/* Service Provider */}
                 <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block border-b border-slate-800 pb-1">
-                    Supplier (Issuing Entity)
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-cyan-400 block border-b border-slate-800 pb-1">
+                    SERVICE PROVIDER
                   </span>
                   <div>
-                    <h4 className="font-bold text-white text-sm">{invoice.supplierName}</h4>
-                    <p className="text-slate-400 leading-relaxed text-[11px]">{invoice.supplierAddress}</p>
+                    <h4 className="font-bold text-white text-sm break-words">{invoice.supplierName}</h4>
+                    <div className="mt-1">
+                      <span className="text-[10px] text-slate-500 block">Registered Address:</span>
+                      <p className="text-slate-300 leading-relaxed text-[11px] break-words">{invoice.supplierAddress}</p>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
                     <div>
@@ -329,27 +347,62 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
                       <strong className="text-cyan-300">{invoice.supplierVatNumber}</strong>
                     </div>
                   </div>
+                  {invoice.supplierContact && (
+                    <p className="text-[10px] text-slate-400 pt-1">
+                      Contact: <span className="text-slate-300">{invoice.supplierContact}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Purchaser */}
                 <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block border-b border-slate-800 pb-1">
-                    Purchaser (Client / Recipient)
-                  </span>
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                    <span className="text-[10.5px] font-bold uppercase tracking-wider text-purple-400">
+                      PURCHASER (CLIENT / RECIPIENT)
+                    </span>
+                    {invoice.purchaserSnapshot ? (
+                      <span className="inline-flex items-center gap-1 text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-purple-950/80 text-purple-300 border border-purple-800/60" title={`Snapshot sealed at ${invoice.purchaserSnapshot.capturedAt}`}>
+                        <ShieldCheck className="w-3 h-3 text-purple-400" />
+                        <span>Sealed Snapshot</span>
+                      </span>
+                    ) : (
+                      <span className="text-[9.5px] font-mono text-slate-500">Historical Record</span>
+                    )}
+                  </div>
                   <div>
-                    <h4 className="font-bold text-white text-sm">{invoice.purchaserName}</h4>
-                    <p className="text-slate-400 leading-relaxed text-[11px]">{invoice.purchaserAddress || 'Not specified'}</p>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-white text-sm break-words">{invoice.purchaserName}</h4>
+                      {invoice.purchaserSnapshot?.clientCode && (
+                        <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">
+                          {invoice.purchaserSnapshot.clientCode}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1">
+                      <span className="text-[10px] text-slate-500 block">Registered Address:</span>
+                      <p className="text-slate-300 leading-relaxed text-[11px] break-words">{invoice.purchaserAddress || 'Not specified'}</p>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
                     <div>
                       <span className="text-slate-500 block text-[10px]">TIN:</span>
-                      <strong className="text-cyan-300">{invoice.purchaserTin || 'Required under Gazette'}</strong>
+                      <strong className="text-cyan-300">{invoice.purchaserTin || 'Unverified'}</strong>
                     </div>
                     <div>
                       <span className="text-slate-500 block text-[10px]">VAT No:</span>
                       <strong className="text-cyan-300">{invoice.purchaserVatNumber || 'N/A'}</strong>
                     </div>
                   </div>
+                  {(invoice.purchaserContactPerson || invoice.purchaserPhone) && (
+                    <p className="text-[10px] text-slate-400 pt-1">
+                      Attn: <span className="text-slate-300">{invoice.purchaserContactPerson}</span> {invoice.purchaserPhone && `(${invoice.purchaserPhone})`}
+                    </p>
+                  )}
+                  {invoice.purchaserSnapshot?.capturedAt && (
+                    <p className="text-[9.5px] text-slate-500 italic pt-0.5">
+                      Client snapshot frozen on: {new Date(invoice.purchaserSnapshot.capturedAt).toLocaleDateString()} {new Date(invoice.purchaserSnapshot.capturedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
                 </div>
               </div>
 

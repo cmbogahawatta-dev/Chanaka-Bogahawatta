@@ -52,10 +52,12 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ initialTab }) => {
   const validPRVTabs = ['vouchers', 'my_requests', 'pending_approvals', 'payment_approvals', 'completed_payments'];
   const currentPRVTab = validPRVTabs.includes(activeSubTab) ? activeSubTab : 'vouchers';
 
-  // Sync initial tab from props or route
+  // Sync initial tab when initialTab prop is provided or changed, without overriding manual tab switching
+  const prevInitialTabRef = React.useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (initialTab && validPRVTabs.includes(initialTab)) {
+    if (initialTab && validPRVTabs.includes(initialTab) && prevInitialTabRef.current !== initialTab) {
       setActiveSubTab(initialTab);
+      prevInitialTabRef.current = initialTab;
     } else if (!validPRVTabs.includes(activeSubTab)) {
       setActiveSubTab('vouchers');
     }
@@ -194,7 +196,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ initialTab }) => {
         {/* Quick Actions */}
         <div className="flex items-center gap-2 shrink-0">
           <button
+            id="btn-payments-new-prv"
             type="button"
+            title="Create New Payment Request Voucher"
             onClick={() => setIsCreateModalOpen(true)}
             className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-950/50 flex items-center gap-1.5 active:scale-95 whitespace-nowrap"
           >

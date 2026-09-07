@@ -4,7 +4,8 @@ import {
   TaxInvoiceSettings,
   ClientPaymentRecord,
   InvoiceSupplyItem,
-  TaxInvoiceStatus
+  TaxInvoiceStatus,
+  PurchaserSnapshot
 } from '../types/taxInvoiceTypes';
 import {
   generateTaxInvoiceSerialNumber,
@@ -647,11 +648,26 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       isDraft = true;
     }
 
+    const purchaserSnapshot: PurchaserSnapshot = data.purchaserSnapshot || {
+      clientId: data.clientId,
+      legalName: data.purchaserName || 'Client Entity',
+      tin: data.purchaserTin || '',
+      vatNumber: data.purchaserVatNumber || '',
+      isVatRegistered: Boolean(data.purchaserVatNumber),
+      registeredAddress: data.purchaserAddress || '',
+      contactPerson: data.purchaserContactPerson || '',
+      phone: data.purchaserPhone || '',
+      email: data.purchaserEmail || '',
+      capturedAt: now
+    };
+
     const newInvoice: TaxInvoice = {
       id,
       serialNumber,
       isDraft,
       status,
+      clientId: data.clientId || purchaserSnapshot.clientId,
+      purchaserSnapshot,
       invoiceDate,
       supplyDate: data.supplyDate || invoiceDate,
       dueDate: data.dueDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
@@ -660,13 +676,13 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       supplierVatNumber: settings.companyVatNumber,
       supplierAddress: settings.companyAddress,
       supplierContact: `${settings.companyPhone} / ${settings.companyEmail}`,
-      purchaserName: data.purchaserName || 'Client Entity',
-      purchaserTin: data.purchaserTin || '',
-      purchaserVatNumber: data.purchaserVatNumber || '',
-      purchaserAddress: data.purchaserAddress || '',
-      purchaserContactPerson: data.purchaserContactPerson || '',
-      purchaserPhone: data.purchaserPhone || '',
-      purchaserEmail: data.purchaserEmail || '',
+      purchaserName: purchaserSnapshot.legalName,
+      purchaserTin: purchaserSnapshot.tin,
+      purchaserVatNumber: purchaserSnapshot.vatNumber || '',
+      purchaserAddress: purchaserSnapshot.registeredAddress,
+      purchaserContactPerson: purchaserSnapshot.contactPerson || '',
+      purchaserPhone: purchaserSnapshot.phone || '',
+      purchaserEmail: purchaserSnapshot.email || '',
       projectCode: data.projectCode || 'PRJ-GEN',
       projectName: data.projectName || 'General Engineering Project',
       ipcNumber: data.ipcNumber || '',
@@ -690,7 +706,7 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           timestamp: now,
           action: 'CREATED',
           performedBy: currentUser || 'Finance Officer',
-          notes: isIssueImmediately ? `Issued directly with serial ${serialNumber}` : 'Created draft'
+          notes: isIssueImmediately ? `Issued directly with serial ${serialNumber} (Purchaser snapshot sealed)` : 'Created draft with client master snapshot'
         }
       ],
       createdAt: now,
@@ -846,11 +862,25 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setInvoices(prev =>
       prev.map(item => {
         if (item.id !== id) return item;
+        const finalSnapshot: PurchaserSnapshot = item.purchaserSnapshot || {
+          clientId: item.clientId,
+          legalName: item.purchaserName,
+          tin: item.purchaserTin,
+          vatNumber: item.purchaserVatNumber,
+          isVatRegistered: Boolean(item.purchaserVatNumber),
+          registeredAddress: item.purchaserAddress,
+          contactPerson: item.purchaserContactPerson,
+          phone: item.purchaserPhone,
+          email: item.purchaserEmail,
+          capturedAt: now
+        };
+
         return {
           ...item,
           serialNumber: permanentSerial,
           isDraft: false,
           status: 'ISSUED',
+          purchaserSnapshot: finalSnapshot,
           issuedBy: user,
           issuedAt: now,
           updatedAt: now,
@@ -863,7 +893,7 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               performedBy: user,
               previousStatus: item.status,
               newStatus: 'ISSUED',
-              notes: `Permanently issued under Gazette No. 2481/22. Serial assigned: ${permanentSerial}`
+              notes: `Permanently issued under Gazette No. 2481/22. Serial assigned: ${permanentSerial}. Purchaser snapshot sealed.`
             }
           ]
         };

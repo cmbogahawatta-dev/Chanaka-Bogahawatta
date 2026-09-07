@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FleetProvider } from './context/FleetContext';
 import { PettyCashProvider } from './context/PettyCashContext';
 import { EnterpriseProvider, useEnterprise } from './context/EnterpriseContext';
-import { PRVProvider } from './context/PRVContext';
+import { PRVProvider, usePRV } from './context/PRVContext';
 import { SiteRecordProvider } from './context/SiteRecordContext';
 import { StaffProvider } from './context/StaffContext';
 
@@ -106,6 +106,13 @@ import {
 
 const EnterpriseAppContent: React.FC = () => {
   const { currentModule, setCurrentModule, navigateToModule } = useEnterprise();
+  const { setActiveSubTab, setIsCreateModalOpen } = usePRV();
+
+  const handleOpenNewPRV = () => {
+    setCurrentModule('payments');
+    setActiveSubTab('vouchers');
+    setIsCreateModalOpen(true);
+  };
 
   // Navigation Rail State (persisted in localStorage)
   const [isRailCollapsed, setIsRailCollapsed] = useState<boolean>(() => {
@@ -246,7 +253,7 @@ const EnterpriseAppContent: React.FC = () => {
           setShowTransferModal(true);
         }}
         onOpenAddPO={() => navigateToModule('procurement')}
-        onOpenAddPayment={() => navigateToModule('payments')}
+        onOpenAddPayment={handleOpenNewPRV}
         selectedProjectFilter={selectedProjectFilter}
         onSelectProjectFilter={setSelectedProjectFilter}
       />
@@ -634,7 +641,7 @@ const EnterpriseAppContent: React.FC = () => {
           setShowTransferModal(true);
         }}
         onOpenAddPO={() => navigateToModule('procurement')}
-        onOpenAddPayment={() => navigateToModule('payments')}
+        onOpenAddPayment={handleOpenNewPRV}
       />
 
       {/* Global Modals */}

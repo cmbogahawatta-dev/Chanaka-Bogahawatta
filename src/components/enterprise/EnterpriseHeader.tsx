@@ -99,7 +99,7 @@ export const EnterpriseHeader: React.FC<EnterpriseHeaderProps> = ({
     { id: 'staff', label: 'Staff & HR Directory', icon: Users, color: 'text-cyan-400' },
     { id: 'projects', label: 'Projects & Construction', icon: FolderKanban, color: 'text-purple-400' },
     { id: 'procurement', label: 'Procurement', icon: ShoppingCart, color: 'text-orange-400' },
-    { id: 'payments', label: 'Finance & PRV Vouchers', icon: CreditCard, color: 'text-rose-400' },
+    { id: 'payments', label: 'Payment Request Vouchers', icon: Receipt, color: 'text-rose-400' },
     { id: 'project-income', label: 'Project Income', icon: Coins, color: 'text-emerald-400' },
     { id: 'tax-invoices', label: 'Tax Invoice', icon: ShieldCheck, color: 'text-cyan-400' },
     { id: 'client-payments', label: 'Client Payments', icon: Receipt, color: 'text-emerald-400' },

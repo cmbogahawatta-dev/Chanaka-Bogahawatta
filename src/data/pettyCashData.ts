@@ -57,6 +57,40 @@ export const initialSupervisors: Supervisor[] = [
 
 export const initialProjects: Project[] = [
   {
+    id: 'prj-port-1',
+    PROJECT_ID: 'PRJ-PORT-01',
+    PROJECT_CODE: 'PRJ-PORT-01',
+    PROJECT_NAME: 'Colombo Port Expansion Phase II',
+    CLIENT: 'Colombo Port City Development Authority',
+    CLIENT_NAME: 'Colombo Port City Development Authority',
+    LOCATION: 'Colombo Port City Boulevard',
+    CONTRACT_VALUE: 450000000.00,
+    START_DATE: '01/01/2025',
+    END_DATE: '31/12/2027',
+    STATUS: 'Active',
+    PROJECT_MANAGER: 'Eng. K. Wickramasinghe',
+    REMARKS: 'Breakwater, deep quay walls, marine dredging & offshore protection',
+    BUDGET_PETTY_CASH: 250000.00,
+    BUDGET: 250000.00
+  },
+  {
+    id: 'prj-hwy-2',
+    PROJECT_ID: 'PRJ-HWY-02',
+    PROJECT_CODE: 'PRJ-HWY-02',
+    PROJECT_NAME: 'Central Expressway Stage III (Rambukkana)',
+    CLIENT: 'Access Engineering PLC',
+    CLIENT_NAME: 'Access Engineering PLC',
+    LOCATION: 'Rambukkana / Galagedara',
+    CONTRACT_VALUE: 320000000.00,
+    START_DATE: '15/03/2025',
+    END_DATE: '30/06/2027',
+    STATUS: 'Active',
+    PROJECT_MANAGER: 'Eng. N. Jayawardena',
+    REMARKS: 'Viaduct structures and asphalt pavement works',
+    BUDGET_PETTY_CASH: 200000.00,
+    BUDGET: 200000.00
+  },
+  {
     id: 'prj-1',
     PROJECT_ID: 'PRJ-001',
     PROJECT_CODE: 'PIDB 26',

@@ -59,11 +59,36 @@ export interface ClientPaymentRecord {
   createdAt: string;
 }
 
+export interface PurchaserSnapshot {
+  clientId?: string;
+  clientCode?: string;
+  organizationType?: string;
+  legalName: string;
+  tradeName?: string;
+  tin: string;
+  vatNumber?: string;
+  svatNumber?: string;
+  isVatRegistered: boolean;
+  registeredAddress: string;
+  billingAddress?: string;
+  contactPerson?: string;
+  contactDesignation?: string;
+  contactDepartment?: string;
+  phone?: string;
+  email?: string;
+  paymentTermsDays?: number;
+  capturedAt: string; // ISO timestamp when snapshot was taken
+}
+
 export interface TaxInvoice {
   id: string;
   serialNumber: string; // YYMMM_QQQQ_XXXXX (Permanent once issued) or PREVIEW_...
   isDraft: boolean;
   status: TaxInvoiceStatus;
+
+  // Client Master Link & Immutable Historical Snapshot
+  clientId?: string;
+  purchaserSnapshot?: PurchaserSnapshot;
 
   // Key Dates
   invoiceDate: string; // YYYY-MM-DD - Controls the YY and MMM in serial number

@@ -8,16 +8,24 @@ import {
   DollarSign,
   ShieldCheck,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Briefcase,
+  Building2,
+  Sparkles,
+  Lock,
+  CheckCircle2
 } from 'lucide-react';
 import { InvoiceSupplyItem, TaxInvoice } from '../../types/taxInvoiceTypes';
 import { useTaxInvoice } from '../../context/TaxInvoiceContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
+import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
+import { usePettyCash } from '../../context/PettyCashContext';
 import {
   calculateTaxInvoiceTotals,
   amountToWordsLKR,
   generateTaxInvoiceSerialNumber
 } from '../../utils/taxInvoiceUtils';
+import { PurchaserSnapshot } from '../../types/taxInvoiceTypes';
 
 interface CreateTaxInvoiceModalProps {
   isOpen: boolean;
@@ -27,6 +35,8 @@ interface CreateTaxInvoiceModalProps {
 export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ isOpen, onClose }) => {
   const { settings, createInvoice } = useTaxInvoice();
   const { currentUser } = useEnterprise();
+  const { clients, profile } = useEnterpriseCompany();
+  const { projects } = usePettyCash();
 
   const today = new Date().toISOString().split('T')[0];
   const inThirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
@@ -34,6 +44,9 @@ export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ is
   const [invoiceDate, setInvoiceDate] = useState(today);
   const [supplyDate, setSupplyDate] = useState(today);
   const [dueDate, setDueDate] = useState(inThirtyDays);
+
+  // Selected Client from Master Data
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
 
   // Purchaser Details
   const [purchaserName, setPurchaserName] = useState('Colombo Port City Development Authority');
@@ -50,6 +63,75 @@ export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ is
   const [ipcNumber, setIpcNumber] = useState('IPC-05');
   const [contractNumber, setContractNumber] = useState('CPCE-2025-C08');
   const [purchaseOrderRef, setPurchaseOrderRef] = useState('PO-CPCDA-9921');
+
+  // Handle Client Selection from Master Data
+  const handleClientSelect = (clientId: string) => {
+    setSelectedClientId(clientId);
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    // Prefer dedicated Tax Invoice Master Data, fallback to basic/tax details
+    const invData = client.taxInvoiceMasterData;
+    const taxData = client.taxDetails;
+    const primContact = client.primaryContact;
+    const billAddr = client.billingAddress;
+    const regAddr = client.registeredAddress;
+
+    const resolvedName = invData?.displayName || client.name || '';
+    const resolvedTin = invData?.tin || taxData?.tin || '';
+    const resolvedVat = invData?.vatNumber || taxData?.vatNumber || '';
+
+    let resolvedAddress = invData?.address;
+    if (!resolvedAddress) {
+      if (billAddr && !billAddr.sameAsRegistered && billAddr.line1) {
+        resolvedAddress = `${billAddr.line1}${billAddr.line2 ? ', ' + billAddr.line2 : ''}, ${billAddr.city}`;
+      } else if (regAddr && regAddr.line1) {
+        resolvedAddress = `${regAddr.line1}${regAddr.line2 ? ', ' + regAddr.line2 : ''}, ${regAddr.city}`;
+      } else {
+        resolvedAddress = client.address || '';
+      }
+    }
+
+    const resolvedContact = invData?.contactPerson || primContact?.name || client.contactPerson || '';
+    const resolvedPhone = invData?.telephone || primContact?.telephone || primContact?.mobile || client.phone || '';
+    const resolvedEmail = invData?.email || taxData?.invoiceEmail || primContact?.email || client.email || '';
+
+    setPurchaserName(resolvedName);
+    setPurchaserTin(resolvedTin);
+    setPurchaserVatNumber(resolvedVat);
+    setPurchaserAddress(resolvedAddress);
+    setPurchaserContactPerson(resolvedContact);
+    setPurchaserPhone(resolvedPhone);
+    setPurchaserEmail(resolvedEmail);
+
+    // Auto-populate Contract if client has one
+    if (client.initialContract?.contractNumber) {
+      setContractNumber(client.initialContract.contractNumber);
+    }
+    if (client.initialContract?.contractName) {
+      setProjectName(client.initialContract.contractName);
+    }
+    if (client.initialContract?.employerReference) {
+      setPurchaseOrderRef(client.initialContract.employerReference);
+    }
+
+    // Auto-calculate Due Date from client's payment terms
+    const days = taxData?.defaultPaymentTermsDays || client.paymentTerms?.defaultPaymentTermsDays || 30;
+    const invTime = new Date(invoiceDate).getTime();
+    const calculatedDue = new Date(invTime + days * 86400000).toISOString().split('T')[0];
+    setDueDate(calculatedDue);
+
+    // Check if client has assigned projects
+    if (client.assignedProjectIds && client.assignedProjectIds.length > 0) {
+      const matched = projects.find(
+        p => client.assignedProjectIds?.includes(p.PROJECT_CODE) || client.assignedProjectIds?.includes(p.id)
+      );
+      if (matched) {
+        setProjectCode(matched.PROJECT_CODE);
+        setProjectName(matched.PROJECT_NAME);
+      }
+    }
+  };
 
   // Line Items
   const [lineItems, setLineItems] = useState<InvoiceSupplyItem[]>([
@@ -138,8 +220,47 @@ export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ is
       return;
     }
 
+    const selectedClient = clients.find(c => c.id === selectedClientId);
+    const now = new Date().toISOString();
+    const purchaserSnapshot: PurchaserSnapshot = selectedClient
+      ? {
+          clientId: selectedClient.id,
+          clientCode: selectedClient.clientCode,
+          organizationType: selectedClient.organizationType,
+          legalName: selectedClient.name,
+          tradeName: selectedClient.shortName,
+          tin: purchaserTin,
+          vatNumber: purchaserVatNumber || undefined,
+          svatNumber: selectedClient.taxDetails?.svatNumber,
+          isVatRegistered: Boolean(purchaserVatNumber || selectedClient.taxDetails?.isVatRegistered),
+          registeredAddress: purchaserAddress,
+          billingAddress: selectedClient.billingAddress
+            ? `${selectedClient.billingAddress.line1}, ${selectedClient.billingAddress.city || ''}`
+            : undefined,
+          contactPerson: purchaserContactPerson || undefined,
+          contactDesignation: selectedClient.primaryContact?.designation,
+          contactDepartment: selectedClient.primaryContact?.department,
+          phone: purchaserPhone || undefined,
+          email: purchaserEmail || undefined,
+          paymentTermsDays: selectedClient.taxDetails?.defaultPaymentTermsDays || 30,
+          capturedAt: now
+        }
+      : {
+          legalName: purchaserName,
+          tin: purchaserTin,
+          vatNumber: purchaserVatNumber || undefined,
+          isVatRegistered: Boolean(purchaserVatNumber),
+          registeredAddress: purchaserAddress,
+          contactPerson: purchaserContactPerson || undefined,
+          phone: purchaserPhone || undefined,
+          email: purchaserEmail || undefined,
+          capturedAt: now
+        };
+
     createInvoice(
       {
+        clientId: selectedClientId || undefined,
+        purchaserSnapshot,
         invoiceDate,
         supplyDate,
         dueDate,
@@ -243,11 +364,96 @@ export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ is
             </div>
           </div>
 
+          {/* Service Provider (Issuer) - Corporate Identity */}
+          <div className="p-4 bg-slate-950/80 rounded-xl border border-emerald-900/40 space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Building className="w-4 h-4 text-emerald-400" />
+                <h3 className="font-bold text-white text-xs uppercase tracking-wider">
+                  Service Provider (Issuer) - Corporate Identity
+                </h3>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-medium">
+                <Lock className="w-3 h-3" />
+                <span>Locked to Corporate Identity Master</span>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs bg-slate-900/60 p-3 rounded-lg border border-slate-800">
+              <div className="md:col-span-2">
+                <span className="text-[10px] text-slate-400 block">Legal Entity Name</span>
+                <span className="font-bold text-slate-100">{profile.legalName}</span>
+                <span className="text-slate-400 text-[11px] block mt-0.5">
+                  {profile.registeredAddress || 'No. 45, Alfred House Gardens, Colombo 03, Sri Lanka'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] text-slate-400 block">Tax & Compliance Registrations</span>
+                <span className="font-mono text-emerald-400 font-semibold block">
+                  TIN: {profile.tinNumber || '102948571'}
+                </span>
+                <span className="font-mono text-slate-300 text-[11px] block">
+                  VAT: {profile.vatNumber || '102948571-7000'}
+                </span>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500 italic">
+              Notice: Service Provider identity is legally governed by the Enterprise Corporate Profile and cannot be altered per invoice.
+            </p>
+          </div>
+
           {/* Section 2: Purchaser / Client Details */}
-          <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-3">
-            <h3 className="font-bold text-white text-xs uppercase tracking-wider text-slate-400">
-              Purchaser Information (Registered Person)
-            </h3>
+          <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
+              <div>
+                <h3 className="font-bold text-white text-xs uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-cyan-400" />
+                  Purchaser Information (Client Master Data)
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Populate directly from Client Master Registry or customize for this specific supply entry
+                </p>
+              </div>
+
+              {/* Client Master Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">
+                  Load Registered Client:
+                </span>
+                <select
+                  value={selectedClientId}
+                  onChange={e => handleClientSelect(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-900 border border-cyan-800/60 text-cyan-300 rounded-lg text-xs font-semibold focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="">-- Choose Client / Employer --</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.clientCode || 'N/A'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {selectedClientId && (
+              <div className="p-2.5 bg-cyan-950/30 border border-cyan-800/40 rounded-lg flex items-center justify-between text-xs text-cyan-300">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span>
+                    Linked to Client Master Record. Changes to this invoice will snapshot client data without altering master records.
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleClientSelect(selectedClientId)}
+                  className="px-2 py-1 bg-cyan-900/60 hover:bg-cyan-850 text-[11px] font-semibold rounded border border-cyan-700/50"
+                  title="Re-populate fields from client master"
+                >
+                  Re-sync Master
+                </button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="md:col-span-2">
@@ -332,46 +538,77 @@ export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ is
           </div>
 
           {/* Section 3: Project Association */}
-          <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-slate-400 mb-1 font-semibold">Project Code</label>
-              <input
-                type="text"
-                value={projectCode}
-                onChange={e => setProjectCode(e.target.value)}
-                placeholder="PRJ-PORT-01"
-                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs font-mono outline-none"
-              />
+          <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h3 className="font-bold text-white text-xs uppercase tracking-wider text-slate-400">
+                Project & Contract Association
+              </h3>
+              {projects.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 font-semibold">Load Active ERP Project:</span>
+                  <select
+                    onChange={e => {
+                      const p = projects.find(proj => proj.PROJECT_CODE === e.target.value);
+                      if (p) {
+                        setProjectCode(p.PROJECT_CODE);
+                        setProjectName(p.PROJECT_NAME);
+                      }
+                    }}
+                    defaultValue=""
+                    className="px-2.5 py-1 bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg outline-none focus:border-cyan-500"
+                  >
+                    <option value="" disabled>-- Select Project --</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.PROJECT_CODE}>
+                        {p.PROJECT_CODE} - {p.PROJECT_NAME}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
-            <div>
-              <label className="block text-slate-400 mb-1 font-semibold">Project Name</label>
-              <input
-                type="text"
-                value={projectName}
-                onChange={e => setProjectName(e.target.value)}
-                placeholder="Colombo Port Expansion"
-                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1 font-semibold">IPC / Milestone Ref</label>
-              <input
-                type="text"
-                value={ipcNumber}
-                onChange={e => setIpcNumber(e.target.value)}
-                placeholder="IPC-05"
-                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs font-mono outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1 font-semibold">PO / Contract Ref</label>
-              <input
-                type="text"
-                value={purchaseOrderRef}
-                onChange={e => setPurchaseOrderRef(e.target.value)}
-                placeholder="PO-CPCDA-9921"
-                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs font-mono outline-none"
-              />
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">Project Code</label>
+                <input
+                  type="text"
+                  value={projectCode}
+                  onChange={e => setProjectCode(e.target.value)}
+                  placeholder="PRJ-PORT-01"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs font-mono outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">Project Name</label>
+                <input
+                  type="text"
+                  value={projectName}
+                  onChange={e => setProjectName(e.target.value)}
+                  placeholder="Colombo Port Expansion"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">IPC / Milestone Ref</label>
+                <input
+                  type="text"
+                  value={ipcNumber}
+                  onChange={e => setIpcNumber(e.target.value)}
+                  placeholder="IPC-05"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs font-mono outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">PO / Contract Ref</label>
+                <input
+                  type="text"
+                  value={purchaseOrderRef}
+                  onChange={e => setPurchaseOrderRef(e.target.value)}
+                  placeholder="PO-CPCDA-9921"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs font-mono outline-none"
+                />
+              </div>
             </div>
           </div>
 

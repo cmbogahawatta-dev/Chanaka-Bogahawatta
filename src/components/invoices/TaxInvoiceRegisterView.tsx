@@ -20,7 +20,8 @@ import {
   Eye,
   Building,
   TrendingUp,
-  Trash2
+  Trash2,
+  Edit3
 } from 'lucide-react';
 import { TaxInvoice, TaxInvoiceStatus } from '../../types/taxInvoiceTypes';
 import { useTaxInvoice } from '../../context/TaxInvoiceContext';
@@ -33,6 +34,7 @@ import { CreateTaxInvoiceModal } from './CreateTaxInvoiceModal';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import { CancelInvoiceModal } from './CancelInvoiceModal';
 import { CreditNoteModal } from './CreditNoteModal';
+import { TaxInvoicePreviewModal } from './TaxInvoicePreviewModal';
 
 export const TaxInvoiceRegisterView: React.FC = () => {
   const {
@@ -52,12 +54,15 @@ export const TaxInvoiceRegisterView: React.FC = () => {
 
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<TaxInvoice | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<TaxInvoice | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<TaxInvoice | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
   const [isCreditNoteOpen, setIsCreditNoteOpen] = useState(false);
+  const [previewInvoice, setPreviewInvoice] = useState<TaxInvoice | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -152,6 +157,11 @@ export const TaxInvoiceRegisterView: React.FC = () => {
   const handleOpenCreditNote = (inv: TaxInvoice) => {
     setSelectedInvoice(inv);
     setIsCreditNoteOpen(true);
+  };
+
+  const handleOpenEdit = (inv: TaxInvoice) => {
+    setEditingInvoice(inv);
+    setIsCreateOpen(true);
   };
 
   return (
@@ -527,17 +537,33 @@ export const TaxInvoiceRegisterView: React.FC = () => {
                           {/* Actions */}
                           <td className="py-3 px-4 text-right" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">
+                              {/* View Option prior to Download or Print */}
                               <button
+                                id={`btn-view-invoice-${inv.id}`}
+                                onClick={() => {
+                                  setPreviewInvoice(inv);
+                                  setIsPreviewModalOpen(true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-cyan-300 bg-cyan-950/70 hover:bg-cyan-900/90 border border-cyan-800/70 hover:border-cyan-700 transition-all font-medium text-xs shadow-sm active:scale-95"
+                                title="View / Preview invoice document prior to download or print"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                                <span>View</span>
+                              </button>
+
+                              <button
+                                id={`btn-download-invoice-${inv.id}`}
                                 onClick={() => downloadInvoicePdf(inv)}
-                                className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-800"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-colors"
                                 title="Download A4 PDF"
                               >
                                 <Download className="w-3.5 h-3.5" />
                               </button>
 
                               <button
+                                id={`btn-print-invoice-${inv.id}`}
                                 onClick={() => printInvoicePdf(inv)}
-                                className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-800"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-colors"
                                 title="Print Invoice"
                               >
                                 <Printer className="w-3.5 h-3.5" />
@@ -560,6 +586,14 @@ export const TaxInvoiceRegisterView: React.FC = () => {
                                 title="Open Invoice"
                               >
                                 <ChevronRight className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                onClick={() => handleOpenEdit(inv)}
+                                className="p-1.5 rounded text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition-colors"
+                                title="Edit / Revise Tax Invoice"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
                               </button>
 
                               <button
@@ -758,7 +792,11 @@ export const TaxInvoiceRegisterView: React.FC = () => {
       {/* Modals */}
       <CreateTaxInvoiceModal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setEditingInvoice(null);
+        }}
+        editInvoice={editingInvoice}
       />
 
       <TaxInvoiceDetailModal
@@ -768,6 +806,10 @@ export const TaxInvoiceRegisterView: React.FC = () => {
         onOpenRecordPayment={handleOpenPayment}
         onOpenCancelInvoice={handleOpenCancel}
         onOpenCreditNote={handleOpenCreditNote}
+        onOpenEditInvoice={(inv) => {
+          setIsDetailOpen(false);
+          handleOpenEdit(inv);
+        }}
         onOpenDeleteInvoice={(inv) => {
           setIsDetailOpen(false);
           setInvoiceToDelete(inv);
@@ -790,6 +832,22 @@ export const TaxInvoiceRegisterView: React.FC = () => {
         isOpen={isCreditNoteOpen}
         onClose={() => setIsCreditNoteOpen(false)}
         invoice={selectedInvoice}
+      />
+
+      {/* A4 Tax Invoice Document & PDF Preview Modal */}
+      <TaxInvoicePreviewModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => {
+          setIsPreviewModalOpen(false);
+          setPreviewInvoice(null);
+        }}
+        invoice={previewInvoice}
+        onPrint={printInvoicePdf}
+        onDownload={downloadInvoicePdf}
+        onOpenDetails={(inv) => {
+          setSelectedInvoice(inv);
+          setIsDetailOpen(true);
+        }}
       />
 
       {/* Strict Security Key Delete Confirmation Modal */}

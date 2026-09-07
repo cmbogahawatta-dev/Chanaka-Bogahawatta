@@ -48,59 +48,60 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   doc.setFillColor(15, 23, 42); // Slate 900
   doc.rect(0, 0, pageWidth, 5, 'F');
 
-  // Prominent Statutory Header "TAX INVOICE"
+  // Prominent Header "TAX INVOICE"
   let y = 14;
 
-  // Header Box
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, y, pageWidth - margin * 2, 22, 2, 2, 'FD');
-
+  // Clean Header without dark boxes or legal gazette citations
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(20);
-  doc.setTextColor(15, 23, 42);
-  doc.text(invoice.isCreditNote ? 'TAX CREDIT NOTE' : 'TAX INVOICE', margin + 6, y + 10);
+  doc.setFontSize(22);
+  doc.setTextColor(15, 23, 42); // Slate-900
+  doc.text(invoice.isCreditNote ? 'TAX CREDIT NOTE' : 'TAX INVOICE', margin, y + 6);
 
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 116, 139);
-  doc.text('ISSUED UNDER VALUE ADDED TAX ACT NO. 14 OF 2002 (AS AMENDED)', margin + 6, y + 15);
-  doc.text('INLAND REVENUE DEPARTMENT • GAZETTE EXTRAORDINARY NO. 2481/22 & NO. 2500/106', margin + 6, y + 19);
-
-  // Serial Number Badge in Header Right
-  const badgeWidth = 65;
-  const badgeX = pageWidth - margin - badgeWidth - 4;
-  doc.setFillColor(15, 23, 42);
-  doc.roundedRect(badgeX, y + 3, badgeWidth, 16, 1.5, 1.5, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.text('SERIAL NUMBER (SECTION 60)', badgeX + badgeWidth / 2, y + 8, { align: 'center' });
-
+  // Directly underneath: Tax Invoice Number :- [serialNumber]
   doc.setFontSize(11);
-  doc.setTextColor(56, 189, 248); // Cyan-400
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105); // Slate-600
+  doc.text('Tax Invoice Number :- ', margin, y + 13);
+
+  const prefixWidth = doc.getTextWidth('Tax Invoice Number :- ');
   doc.setFont('courier', 'bold');
-  doc.text(invoice.serialNumber, badgeX + badgeWidth / 2, y + 15, { align: 'center' });
+  doc.setTextColor(2, 132, 199); // Cyan / Blue accent
+  doc.text(invoice.serialNumber, margin + prefixWidth, y + 13);
 
-  y += 26;
+  // Status & Date on right side
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Date: ${invoice.invoiceDate}`, pageWidth - margin, y + 6, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(invoice.status === 'PAID' ? 16 : 100, invoice.status === 'PAID' ? 185 : 116, invoice.status === 'PAID' ? 129 : 139);
+  doc.text(`Status: ${invoice.status}`, pageWidth - margin, y + 13, { align: 'right' });
 
-  // Two-Column Section: Supplier vs Purchaser Details
+  // Thin clean separator
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.4);
+  doc.line(margin, y + 17, pageWidth - margin, y + 17);
+
+  y += 21;
+
+  // Two-Column Section: Service Provider vs Purchaser Details
   const colWidth = (pageWidth - margin * 2 - 6) / 2;
   const leftColX = margin;
   const rightColX = margin + colWidth + 6;
+  const cardHeight = 46;
 
-  // Supplier Card (Left)
+  // Service Provider Card (Left)
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(leftColX, y, colWidth, 42, 1.5, 1.5, 'FD');
+  doc.roundedRect(leftColX, y, colWidth, cardHeight, 1.5, 1.5, 'FD');
 
   doc.setFillColor(241, 245, 249);
   doc.roundedRect(leftColX, y, colWidth, 7, 1.5, 1.5, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(30, 41, 59);
-  doc.text('SUPPLIER (ISSUING REGISTERED PERSON)', leftColX + 3, y + 5);
+  doc.text('SERVICE PROVIDER', leftColX + 3, y + 5);
 
   let suppY = y + 11;
   doc.setFont('helvetica', 'bold');
@@ -112,39 +113,45 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  doc.text(invoice.supplierAddress, leftColX + 3, suppY);
+  const suppAddrLines = doc.splitTextToSize(invoice.supplierAddress, colWidth - 6);
+  doc.text(suppAddrLines, leftColX + 3, suppY);
+  suppY += Math.max(1, suppAddrLines.length) * 3.5 + 1;
 
-  suppY += 5;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('Supplier TIN:', leftColX + 3, suppY);
+  doc.text('TIN:', leftColX + 3, suppY);
   doc.setFont('courier', 'bold');
   doc.setTextColor(2, 132, 199);
-  doc.text(invoice.supplierTin || 'N/A', leftColX + 24, suppY);
+  doc.text(invoice.supplierTin || 'N/A', leftColX + 12, suppY);
 
-  suppY += 4.5;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('Supplier VAT No:', leftColX + 3, suppY);
+  doc.text('VAT No:', leftColX + 44, suppY);
   doc.setFont('courier', 'bold');
   doc.setTextColor(2, 132, 199);
-  doc.text(invoice.supplierVatNumber || 'N/A', leftColX + 28, suppY);
+  doc.text(invoice.supplierVatNumber || 'N/A', leftColX + 59, suppY);
 
   suppY += 4.5;
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
   doc.text(`Contact: ${invoice.supplierContact}`, leftColX + 3, suppY);
 
+  suppY += 4.5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Remittance: Commercial Bank • A/C 1000849201 • CCEYLKFX', leftColX + 3, suppY);
+
   // Purchaser Card (Right)
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(rightColX, y, colWidth, 42, 1.5, 1.5, 'FD');
+  doc.roundedRect(rightColX, y, colWidth, cardHeight, 1.5, 1.5, 'FD');
 
   doc.setFillColor(241, 245, 249);
   doc.roundedRect(rightColX, y, colWidth, 7, 1.5, 1.5, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(30, 41, 59);
-  doc.text('PURCHASER (CLIENT / RECIPIENT)', rightColX + 3, y + 5);
+  doc.text('PURCHASER', rightColX + 3, y + 5);
 
   let purchY = y + 11;
   doc.setFont('helvetica', 'bold');
@@ -156,30 +163,30 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  doc.text(invoice.purchaserAddress || 'Registered Office Address', rightColX + 3, purchY);
+  const purchAddrLines = doc.splitTextToSize(invoice.purchaserAddress || 'Registered Office Address', colWidth - 6);
+  doc.text(purchAddrLines, rightColX + 3, purchY);
+  purchY += Math.max(1, purchAddrLines.length) * 3.5 + 1;
 
-  purchY += 5;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('Purchaser TIN:', rightColX + 3, purchY);
+  doc.text('TIN:', rightColX + 3, purchY);
   doc.setFont('courier', 'bold');
   doc.setTextColor(2, 132, 199);
-  doc.text(invoice.purchaserTin || 'Verified in Registry', rightColX + 26, purchY);
+  doc.text(invoice.purchaserTin || 'Unverified', rightColX + 12, purchY);
 
-  purchY += 4.5;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('Purchaser VAT No:', rightColX + 3, purchY);
+  doc.text('VAT No:', rightColX + 44, purchY);
   doc.setFont('courier', 'bold');
   doc.setTextColor(2, 132, 199);
-  doc.text(invoice.purchaserVatNumber || 'N/A', rightColX + 30, purchY);
+  doc.text(invoice.purchaserVatNumber || 'N/A', rightColX + 59, purchY);
 
   purchY += 4.5;
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`Attn: ${invoice.purchaserContactPerson || 'Project Director'}`, rightColX + 3, purchY);
+  doc.text(`Attn: ${invoice.purchaserContactPerson || 'Project Director'} ${invoice.purchaserPhone ? `(${invoice.purchaserPhone})` : ''}`, rightColX + 3, purchY);
 
-  y += 46;
+  y += cardHeight + 4;
 
   // Metadata Strip: Dates, Project, IPC, Due Date
   doc.setFillColor(248, 250, 252);

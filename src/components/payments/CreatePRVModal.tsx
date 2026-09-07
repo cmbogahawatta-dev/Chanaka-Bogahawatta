@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   X,
   FileText,
@@ -35,7 +35,22 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
   const { currentUser, currentRole } = useEnterprise();
 
   // Next PRV number preview
-  const nextPrvNumber = `PRV-${new Date().getFullYear()}-${String(paymentRequests.length + 1).padStart(5, '0')}`;
+  const nextPrvNumber = useMemo(() => {
+    const year = new Date().getFullYear();
+    let maxNum = 0;
+    paymentRequests.forEach(p => {
+      const match = p.prvNumber?.match(/PRV-(\d{4})-(\d+)/i);
+      if (match && match[1] === String(year)) {
+        const n = parseInt(match[2], 10);
+        if (!isNaN(n) && n > maxNum) {
+          maxNum = n;
+        }
+      }
+    });
+    return `PRV-${year}-${String(maxNum + 1).padStart(5, '0')}`;
+  }, [paymentRequests]);
+
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Form State
   const [requestDate, setRequestDate] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -119,10 +134,20 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
   };
 
   const handleSubmit = (submitImmediately: boolean) => {
-    if (!purpose.trim() || !payeeName.trim() || amount <= 0) {
-      alert('Please fill all mandatory fields: Payment Purpose, Payee Name, and a valid Amount greater than 0.');
+    if (!purpose.trim()) {
+      setValidationError('Please enter a Payment Purpose (Subject).');
       return;
     }
+    if (!payeeName.trim()) {
+      setValidationError('Please enter the Payee / Beneficiary Name.');
+      return;
+    }
+    if (!amount || amount <= 0) {
+      setValidationError('Please enter a valid Base Amount greater than 0.');
+      return;
+    }
+
+    setValidationError(null);
 
     const selectedProj = projects.find(p => p.PROJECT_CODE === projectCode);
     const selectedCat = categories.find(c => c.CATEGORY_NAME === expenseCategory);
@@ -196,6 +221,13 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
 
         {/* Scrollable Form Content */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6 text-xs text-slate-300">
+          {validationError && (
+            <div className="p-3 bg-rose-950/80 border border-rose-800 rounded-xl text-rose-300 flex items-center gap-2.5 font-medium animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{validationError}</span>
+            </div>
+          )}
+
           {/* SECTION 1: REQUEST INFORMATION */}
           <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-4">
             <div className="flex items-center gap-2 text-purple-400 font-bold border-b border-slate-800 pb-2">

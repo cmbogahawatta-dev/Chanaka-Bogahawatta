@@ -832,8 +832,18 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     submitImmediately: boolean = true
   ): PaymentRequestVoucher => {
     const year = new Date().getFullYear();
-    const count = paymentRequests.length + 1;
-    const prvNumber = `PRV-${year}-${String(count).padStart(5, '0')}`;
+    let maxNum = 0;
+    paymentRequests.forEach(p => {
+      const match = p.prvNumber?.match(/PRV-(\d{4})-(\d+)/i);
+      if (match && match[1] === String(year)) {
+        const n = parseInt(match[2], 10);
+        if (!isNaN(n) && n > maxNum) {
+          maxNum = n;
+        }
+      }
+    });
+    const nextNum = maxNum + 1;
+    const prvNumber = `PRV-${year}-${String(nextNum).padStart(5, '0')}`;
     const newId = `prv-${Date.now()}`;
     const timestamp = new Date().toLocaleString('en-GB');
 

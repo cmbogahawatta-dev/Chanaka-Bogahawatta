@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Briefcase,
   Edit3,
+  Edit2,
   Plus,
   Trash2,
   Download,
@@ -33,7 +34,9 @@ import {
   Unlink,
   DollarSign,
   Landmark,
-  Upload
+  Upload,
+  Receipt,
+  Filter
 } from 'lucide-react';
 import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
 import { useEnterpriseBanking } from '../../context/EnterpriseBankingContext';
@@ -58,6 +61,7 @@ import { AttachDocumentModal } from './AttachDocumentModal';
 import { AddProjectForClientModal } from './AddProjectForClientModal';
 import { RegisteredBanksTab } from './RegisteredBanksTab';
 import { CorrespondenceComposeModal } from '../correspondence/CorrespondenceComposeModal';
+import { RegisterClientModal } from './RegisterClientModal';
 import { extractClientAffix, extractProjectAffix } from '../../utils/correspondenceUtils';
 
 export const EnterpriseProfileView: React.FC = () => {
@@ -354,6 +358,9 @@ export const EnterpriseProfileView: React.FC = () => {
   });
 
   const [isAddClientOpen, setIsAddClientOpen] = useState(false);
+  const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
+  const [clientTaxFilter, setClientTaxFilter] = useState<'ALL' | 'VAT' | 'NON_VAT'>('ALL');
   const [clientForm, setClientForm] = useState<Omit<Client, 'id'>>({
     name: '',
     contactPerson: '',
@@ -1354,60 +1361,17 @@ export const EnterpriseProfileView: React.FC = () => {
             <div>
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Briefcase className="w-5 h-5 text-purple-400" />
-                Clients, Employers & Associated Projects
+                Clients, Employers & Project Master Registry
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Government Authorities, Institutional Employers, and Commercial Project Clients
+                Master Database for Contracts, Projects, Billing, Tax Invoices, Receivables & Correspondence
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => {
-                  setClientForm({
-                    name: '',
-                    contactPerson: '',
-                    address: '',
-                    phone: '',
-                    email: '',
-                    notes: '',
-                    supportingDocuments: []
-                  });
-                  setIsAddClientOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors shadow-lg shadow-emerald-700/20"
-                title="Add bank or financial institution to client registry from registered banks"
-              >
-                <Landmark className="w-4 h-4 text-emerald-300" />
-                <span>Add Bank to Clients</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (clients.length > 0) {
-                    setClientForAddProject(clients[0]);
-                  } else {
-                    setIsAddClientOpen(true);
-                  }
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors shadow-lg shadow-purple-600/20"
-                title="Add or link project for client"
-              >
-                <FolderPlus className="w-4 h-4" />
-                <span>Add Project to Client</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setClientForm({
-                    name: '',
-                    contactPerson: '',
-                    address: '',
-                    phone: '',
-                    email: '',
-                    notes: '',
-                    supportingDocuments: []
-                  });
+                  setClientToEdit(null);
                   setIsAddClientOpen(true);
                 }}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors shadow-lg shadow-emerald-600/20"
@@ -1418,257 +1382,444 @@ export const EnterpriseProfileView: React.FC = () => {
             </div>
           </div>
 
+          {/* Search & Filter Bar */}
+          <div className="p-3 bg-slate-800/60 border border-slate-700/60 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={clientSearchTerm}
+                onChange={e => setClientSearchTerm(e.target.value)}
+                placeholder="Search by client name, client code, TIN, VAT, contact person, or city..."
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <select
+                value={clientTaxFilter}
+                onChange={e => setClientTaxFilter(e.target.value as any)}
+                className="px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 focus:border-purple-500 focus:outline-none"
+              >
+                <option value="ALL">All Tax Statuses</option>
+                <option value="VAT">VAT Registered Only</option>
+                <option value="NON_VAT">Non-VAT Only</option>
+              </select>
+
+              <span className="text-xs text-slate-400 font-mono pl-1">
+                {clients.filter(cli => {
+                  const q = clientSearchTerm.trim().toLowerCase();
+                  const matchesSearch = !q ||
+                    cli.name?.toLowerCase().includes(q) ||
+                    cli.clientCode?.toLowerCase().includes(q) ||
+                    cli.contactPerson?.toLowerCase().includes(q) ||
+                    cli.taxDetails?.tin?.toLowerCase().includes(q) ||
+                    cli.taxDetails?.vatNumber?.toLowerCase().includes(q) ||
+                    cli.primaryContact?.name?.toLowerCase().includes(q) ||
+                    cli.registeredAddress?.city?.toLowerCase().includes(q) ||
+                    cli.address?.toLowerCase().includes(q);
+
+                  const isVat = Boolean(cli.taxDetails?.isVatRegistered || cli.taxDetails?.taxStatus === 'VAT Registered');
+                  const matchesTax = clientTaxFilter === 'ALL' ||
+                    (clientTaxFilter === 'VAT' && isVat) ||
+                    (clientTaxFilter === 'NON_VAT' && !isVat);
+
+                  return matchesSearch && matchesTax;
+                }).length} / {clients.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Client Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {clients.length === 0 ? (
+            {clients.filter(cli => {
+              const q = clientSearchTerm.trim().toLowerCase();
+              const matchesSearch = !q ||
+                cli.name?.toLowerCase().includes(q) ||
+                cli.clientCode?.toLowerCase().includes(q) ||
+                cli.contactPerson?.toLowerCase().includes(q) ||
+                cli.taxDetails?.tin?.toLowerCase().includes(q) ||
+                cli.taxDetails?.vatNumber?.toLowerCase().includes(q) ||
+                cli.primaryContact?.name?.toLowerCase().includes(q) ||
+                cli.registeredAddress?.city?.toLowerCase().includes(q) ||
+                cli.address?.toLowerCase().includes(q);
+
+              const isVat = Boolean(cli.taxDetails?.isVatRegistered || cli.taxDetails?.taxStatus === 'VAT Registered');
+              const matchesTax = clientTaxFilter === 'ALL' ||
+                (clientTaxFilter === 'VAT' && isVat) ||
+                (clientTaxFilter === 'NON_VAT' && !isVat);
+
+              return matchesSearch && matchesTax;
+            }).length === 0 ? (
               <div className="col-span-full p-10 text-center bg-slate-800/40 border border-slate-700/50 rounded-xl">
                 <Briefcase className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-slate-300">No clients or employers registered</p>
-                <p className="text-xs text-slate-500 mt-1">Click "Register Client / Employer" to add customer organizations and project liaisons.</p>
+                <p className="text-sm font-medium text-slate-300">No matching clients or employers found</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Try adjusting your search criteria or register a new client.
+                </p>
               </div>
             ) : (
-              clients.map(cli => {
-                const clientProjects = projects.filter(p => {
-                  const pClient = (p.CLIENT || '').trim().toLowerCase();
-                  const pClientName = (p.CLIENT_NAME || '').trim().toLowerCase();
-                  const cName = cli.name.trim().toLowerCase();
+              clients
+                .filter(cli => {
+                  const q = clientSearchTerm.trim().toLowerCase();
+                  const matchesSearch = !q ||
+                    cli.name?.toLowerCase().includes(q) ||
+                    cli.clientCode?.toLowerCase().includes(q) ||
+                    cli.contactPerson?.toLowerCase().includes(q) ||
+                    cli.taxDetails?.tin?.toLowerCase().includes(q) ||
+                    cli.taxDetails?.vatNumber?.toLowerCase().includes(q) ||
+                    cli.primaryContact?.name?.toLowerCase().includes(q) ||
+                    cli.registeredAddress?.city?.toLowerCase().includes(q) ||
+                    cli.address?.toLowerCase().includes(q);
+
+                  const isVat = Boolean(cli.taxDetails?.isVatRegistered || cli.taxDetails?.taxStatus === 'VAT Registered');
+                  const matchesTax = clientTaxFilter === 'ALL' ||
+                    (clientTaxFilter === 'VAT' && isVat) ||
+                    (clientTaxFilter === 'NON_VAT' && !isVat);
+
+                  return matchesSearch && matchesTax;
+                })
+                .map(cli => {
+                  const clientProjects = projects.filter(p => {
+                    const pClient = (p.CLIENT || '').trim().toLowerCase();
+                    const pClientName = (p.CLIENT_NAME || '').trim().toLowerCase();
+                    const cName = cli.name.trim().toLowerCase();
+                    return (
+                      pClient === cName ||
+                      pClientName === cName ||
+                      (cli.id && (p.CLIENT === cli.id || p.CLIENT_NAME === cli.id)) ||
+                      (cli.assignedProjectIds && (cli.assignedProjectIds.includes(p.id) || cli.assignedProjectIds.includes(p.PROJECT_CODE)))
+                    );
+                  });
+
+                  const clientDocs = cli.supportingDocuments || [];
+                  const isVat = Boolean(cli.taxDetails?.isVatRegistered || cli.taxDetails?.taxStatus === 'VAT Registered');
+                  const tin = cli.taxInvoiceMasterData?.tin || cli.taxDetails?.tin;
+                  const vat = cli.taxInvoiceMasterData?.vatNumber || cli.taxDetails?.vatNumber;
+
                   return (
-                    pClient === cName ||
-                    pClientName === cName ||
-                    (cli.id && (p.CLIENT === cli.id || p.CLIENT_NAME === cli.id)) ||
-                    (cli.assignedProjectIds && (cli.assignedProjectIds.includes(p.id) || cli.assignedProjectIds.includes(p.PROJECT_CODE)))
-                  );
-                });
-
-                const clientDocs = cli.supportingDocuments || [];
-
-                return (
-                  <div
-                    key={cli.id}
-                    className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5 flex flex-col justify-between hover:border-slate-600 transition-all shadow-sm"
-                  >
-                    <div className="space-y-4">
-                      {/* Client Header Info */}
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-lg">
-                            <Briefcase className="w-5 h-5" />
+                    <div
+                      key={cli.id}
+                      className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5 flex flex-col justify-between hover:border-slate-600 transition-all shadow-sm"
+                    >
+                      <div className="space-y-4">
+                        {/* Client Header Info */}
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className="p-2 bg-purple-500/10 text-purple-400 rounded-lg">
+                                <Briefcase className="w-4 h-4" />
+                              </div>
+                              {cli.clientCode && (
+                                <span className="font-mono text-xs font-bold text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-800/50">
+                                  {cli.clientCode}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {isVat ? (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-semibold flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  <span>VAT Registered</span>
+                                </span>
+                              ) : (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-300 border border-slate-600 font-medium">
+                                  Non-VAT
+                                </span>
+                              )}
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 font-medium">
+                                {clientProjects.length} {clientProjects.length === 1 ? 'Project' : 'Projects'}
+                              </span>
+                            </div>
                           </div>
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 font-medium">
-                            {clientProjects.length} {clientProjects.length === 1 ? 'Project' : 'Projects'}
-                          </span>
-                        </div>
-                        <h4 className="text-base font-bold text-slate-100 mt-3">{cli.name}</h4>
-                        {cli.contactPerson && (
-                          <p className="text-xs text-purple-400 font-medium mt-1">Liaison: {cli.contactPerson}</p>
-                        )}
-                        {cli.address && <p className="text-xs text-slate-400 mt-2">{cli.address}</p>}
 
-                        <div className="mt-3 space-y-1 text-xs text-slate-300 border-t border-slate-700/40 pt-2">
-                          {cli.phone && <div>Tel: {cli.phone}</div>}
-                          {cli.email && <div>Email: {cli.email}</div>}
-                          {cli.notes && <div className="text-slate-400 italic mt-1">{cli.notes}</div>}
-                        </div>
-                      </div>
+                          <h4 className="text-base font-bold text-slate-100 mt-2.5 line-clamp-2">
+                            {cli.name}
+                          </h4>
 
-                      {/* Supporting Documents Section */}
-                      <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                            <Paperclip className="w-3.5 h-3.5 text-emerald-400" />
-                            Supporting Documents ({clientDocs.length})
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setAttachTarget({
-                                type: 'client',
-                                id: cli.id,
-                                title: cli.name,
-                                subtitle: cli.contactPerson,
-                                documents: clientDocs
-                              })
-                            }
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>Attach</span>
-                          </button>
+                          {cli.organizationType && (
+                            <span className="inline-block text-[11px] text-slate-400 mt-0.5">
+                              {cli.organizationType}
+                            </span>
+                          )}
+
+                          {/* Tax Identity Box */}
+                          {(tin || vat) && (
+                            <div className="mt-2.5 p-2 bg-slate-900/80 rounded-lg border border-slate-700/60 grid grid-cols-2 gap-2 text-[11px]">
+                              {tin && (
+                                <div>
+                                  <span className="text-[10px] text-slate-500 block uppercase">TIN</span>
+                                  <span className="font-mono text-emerald-400 font-semibold">{tin}</span>
+                                </div>
+                              )}
+                              {vat && (
+                                <div>
+                                  <span className="text-[10px] text-slate-500 block uppercase">VAT Reg No</span>
+                                  <span className="font-mono text-cyan-400 font-semibold">{vat}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Primary Contact Details */}
+                          <div className="mt-3 space-y-1 text-xs text-slate-300 border-t border-slate-700/40 pt-2.5">
+                            {(cli.primaryContact?.name || cli.contactPerson) && (
+                              <div className="flex items-center gap-1.5 text-purple-300 font-medium">
+                                <Users2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                <span className="truncate">
+                                  {cli.primaryContact?.name || cli.contactPerson}
+                                  {cli.primaryContact?.designation && (
+                                    <span className="text-slate-400 font-normal"> ({cli.primaryContact.designation})</span>
+                                  )}
+                                </span>
+                              </div>
+                            )}
+
+                            {(cli.registeredAddress?.line1 || cli.address) && (
+                              <div className="flex items-start gap-1.5 text-slate-400 text-[11px] mt-1">
+                                <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+                                <span className="line-clamp-2">
+                                  {cli.registeredAddress?.line1
+                                    ? `${cli.registeredAddress.line1}, ${cli.registeredAddress.city || ''}`
+                                    : cli.address}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 text-[11px] text-slate-300">
+                              {(cli.phone || cli.primaryContact?.telephone || cli.primaryContact?.mobile) && (
+                                <div className="flex items-center gap-1 truncate">
+                                  <Phone className="w-3 h-3 text-slate-500 shrink-0" />
+                                  <span>{cli.primaryContact?.mobile || cli.primaryContact?.telephone || cli.phone}</span>
+                                </div>
+                              )}
+                              {(cli.email || cli.primaryContact?.email) && (
+                                <div className="flex items-center gap-1 truncate">
+                                  <Mail className="w-3 h-3 text-slate-500 shrink-0" />
+                                  <span className="truncate">{cli.primaryContact?.email || cli.email}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {cli.notes && (
+                              <div className="text-slate-400 italic text-[11px] mt-1 line-clamp-2">
+                                {cli.notes}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        {clientDocs.length > 0 ? (
-                          <div className="space-y-1.5">
-                            {clientDocs.map(doc => (
-                              <div
-                                key={doc.id}
-                                className="flex items-center justify-between gap-2 p-1.5 bg-slate-800/80 rounded border border-slate-700/60 text-xs"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => setPreviewDocument(doc)}
-                                  className="flex items-center gap-1.5 min-w-0 text-left hover:text-emerald-300 transition-colors"
-                                  title={`Click to preview: ${doc.name}`}
+                        {/* Supporting Documents Section */}
+                        <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                              <Paperclip className="w-3.5 h-3.5 text-emerald-400" />
+                              Supporting Documents ({clientDocs.length})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAttachTarget({
+                                  type: 'client',
+                                  id: cli.id,
+                                  title: cli.name,
+                                  subtitle: cli.contactPerson,
+                                  documents: clientDocs
+                                })
+                              }
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Attach</span>
+                            </button>
+                          </div>
+
+                          {clientDocs.length > 0 ? (
+                            <div className="space-y-1.5">
+                              {clientDocs.map(doc => (
+                                <div
+                                  key={doc.id}
+                                  className="flex items-center justify-between gap-2 p-1.5 bg-slate-800/80 rounded border border-slate-700/60 text-xs"
                                 >
-                                  <FileText className="w-3 h-3 text-emerald-400 shrink-0" />
-                                  <span className="truncate font-medium text-slate-200 text-[11px]">
-                                    {doc.name}
-                                  </span>
-                                </button>
-                                {doc.fileSize && (
-                                  <span className="text-[10px] text-slate-500 font-mono shrink-0">
-                                    {doc.fileSize}
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-[11px] text-slate-500 italic">
-                            No contract or award documents attached yet.
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Associated Projects Section */}
-                      <div className="p-3 bg-purple-950/20 rounded-lg border border-purple-500/20 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-purple-300 flex items-center gap-1.5">
-                            <FolderPlus className="w-3.5 h-3.5 text-purple-400" />
-                            Associated Projects ({clientProjects.length})
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setClientForAddProject(cli)}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 border border-purple-500/40 text-[11px] font-semibold transition-all active:scale-95"
-                            title="Add project for this client"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>Add Project</span>
-                          </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewDocument(doc)}
+                                    className="flex items-center gap-1.5 min-w-0 text-left hover:text-emerald-300 transition-colors"
+                                    title={`Click to preview: ${doc.name}`}
+                                  >
+                                    <FileText className="w-3 h-3 text-emerald-400 shrink-0" />
+                                    <span className="truncate font-medium text-slate-200 text-[11px]">
+                                      {doc.name}
+                                    </span>
+                                  </button>
+                                  {doc.fileSize && (
+                                    <span className="text-[10px] text-slate-500 font-mono shrink-0">
+                                      {doc.fileSize}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-500 italic">
+                              No contract or award documents attached yet.
+                            </p>
+                          )}
                         </div>
 
-                        {clientProjects.length > 0 ? (
-                          <div className="space-y-2">
-                            {clientProjects.map(proj => (
-                              <div
-                                key={proj.id}
-                                className="p-2 bg-slate-900/80 rounded-lg border border-slate-800 flex items-start justify-between gap-2"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono text-purple-400 font-bold text-[11px]">
-                                      {proj.PROJECT_CODE}
-                                    </span>
-                                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                                      {proj.STATUS}
-                                    </span>
-                                  </div>
-                                  <p className="text-xs font-medium text-slate-200 truncate mt-0.5">
-                                    {proj.PROJECT_NAME}
-                                  </p>
-                                  <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                                    {proj.LOCATION && <span>{proj.LOCATION}</span>}
-                                    {proj.CONTRACT_VALUE ? (
-                                      <span className="text-emerald-400 font-mono">
-                                        • LKR {Number(proj.CONTRACT_VALUE).toLocaleString()}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setClientForCorrespondence({
-                                        clientName: cli.name,
-                                        clientAffix: extractClientAffix(cli.name),
-                                        projectCode: proj.PROJECT_CODE,
-                                        projectName: proj.PROJECT_NAME,
-                                        projectAffix: extractProjectAffix(proj.PROJECT_CODE)
-                                      })
-                                    }
-                                    className="px-2 py-0.5 rounded bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 text-[10px] font-semibold border border-blue-700/40 flex items-center gap-1 transition-colors"
-                                    title={`Create official correspondence for ${proj.PROJECT_CODE} under ${cli.name}`}
-                                  >
-                                    <Mail className="w-3 h-3 text-blue-400" />
-                                    <span>Letter</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUnlinkProject(proj.id)}
-                                    className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
-                                    title="Unlink project from this client"
-                                  >
-                                    <Unlink className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="py-2 text-center">
-                            <p className="text-[11px] text-slate-400">
-                              No projects currently linked to this client.
-                            </p>
+                        {/* Associated Projects Section */}
+                        <div className="p-3 bg-purple-950/20 rounded-lg border border-purple-500/20 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-purple-300 flex items-center gap-1.5">
+                              <FolderPlus className="w-3.5 h-3.5 text-purple-400" />
+                              Associated Projects ({clientProjects.length})
+                            </span>
                             <button
                               type="button"
                               onClick={() => setClientForAddProject(cli)}
-                              className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-purple-400 hover:text-purple-300 underline underline-offset-2"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 border border-purple-500/40 text-[11px] font-semibold transition-all active:scale-95"
+                              title="Add project for this client"
                             >
                               <Plus className="w-3 h-3" />
-                              Add or Link a Project
+                              <span>Add Project</span>
                             </button>
                           </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Card Actions Footer */}
-                    <div className="mt-4 pt-3 border-t border-slate-700/40 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                          {clientProjects.length > 0 ? (
+                            <div className="space-y-2">
+                              {clientProjects.map(proj => (
+                                <div
+                                  key={proj.id}
+                                  className="p-2 bg-slate-900/80 rounded-lg border border-slate-800 flex items-start justify-between gap-2"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-purple-400 font-bold text-[11px]">
+                                        {proj.PROJECT_CODE}
+                                      </span>
+                                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                                        {proj.STATUS}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs font-medium text-slate-200 truncate mt-0.5">
+                                      {proj.PROJECT_NAME}
+                                    </p>
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                                      {proj.LOCATION && <span>{proj.LOCATION}</span>}
+                                      {proj.CONTRACT_VALUE ? (
+                                        <span className="text-emerald-400 font-mono">
+                                          • LKR {Number(proj.CONTRACT_VALUE).toLocaleString()}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setClientForCorrespondence({
+                                          clientName: cli.name,
+                                          clientAffix: extractClientAffix(cli.name),
+                                          projectCode: proj.PROJECT_CODE,
+                                          projectName: proj.PROJECT_NAME,
+                                          projectAffix: extractProjectAffix(proj.PROJECT_CODE)
+                                        })
+                                      }
+                                      className="px-2 py-0.5 rounded bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 text-[10px] font-semibold border border-blue-700/40 flex items-center gap-1 transition-colors"
+                                      title={`Create official correspondence for ${proj.PROJECT_CODE} under ${cli.name}`}
+                                    >
+                                      <Mail className="w-3 h-3 text-blue-400" />
+                                      <span>Letter</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUnlinkProject(proj.id)}
+                                      className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                                      title="Unlink project from this client"
+                                    >
+                                      <Unlink className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="py-2 text-center">
+                              <p className="text-[11px] text-slate-400">
+                                No projects currently linked to this client.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setClientForAddProject(cli)}
+                                className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-purple-400 hover:text-purple-300 underline underline-offset-2"
+                              >
+                                <Plus className="w-3 h-3" />
+                                Add or Link a Project
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Actions Footer */}
+                      <div className="mt-4 pt-3 border-t border-slate-700/40 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setClientToEdit(cli);
+                              setIsAddClientOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-all"
+                            title={`Edit complete master data for ${cli.name}`}
+                          >
+                            <Edit2 className="w-3 h-3" />
+                            <span>Edit Master</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setClientForCorrespondence({
+                                clientName: cli.name,
+                                clientAffix: extractClientAffix(cli.name)
+                              })
+                            }
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-all"
+                            title={`Create official correspondence for ${cli.name}`}
+                          >
+                            <Mail className="w-3 h-3" />
+                            <span>Letter</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setClientForAddProject(cli)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-purple-400 hover:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg transition-all"
+                          >
+                            <FolderPlus className="w-3 h-3" />
+                            <span>Project</span>
+                          </button>
+                        </div>
+
                         <button
                           type="button"
                           onClick={() =>
-                            setClientForCorrespondence({
-                              clientName: cli.name,
-                              clientAffix: extractClientAffix(cli.name)
+                            openDeleteModal({
+                              type: 'client',
+                              id: cli.id,
+                              title: cli.name,
+                              subtitle: cli.contactPerson
                             })
                           }
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-all"
-                          title={`Create official correspondence for ${cli.name}`}
+                          className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                          title={`Delete ${cli.name}`}
                         >
-                          <Mail className="w-3.5 h-3.5" />
-                          <span>New Letter</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setClientForAddProject(cli)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-purple-400 hover:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg transition-all"
-                        >
-                          <FolderPlus className="w-3.5 h-3.5" />
-                          <span>Add Project</span>
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openDeleteModal({
-                            type: 'client',
-                            id: cli.id,
-                            title: cli.name,
-                            subtitle: cli.contactPerson
-                          })
-                        }
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition-all active:scale-95"
-                        title={`Remove client ${cli.name}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Remove</span>
-                      </button>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })
             )}
           </div>
         </div>
@@ -2305,174 +2456,15 @@ export const EnterpriseProfileView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL: ADD CLIENT */}
-      {isAddClientOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <Briefcase className="w-5 h-5 text-purple-400" />
-                Register Client / Employer
-              </h3>
-              <button onClick={() => setIsAddClientOpen(false)} className="text-slate-400 hover:text-slate-200">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Quick Pre-fill from Registered Bank Directory */}
-            <div className="mt-3 p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
-                  <Landmark className="w-4 h-4 text-emerald-400" />
-                  <span>Add from Registered Bank List</span>
-                </label>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-medium">
-                  {registeredBanks.length} Banks in Registry
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                Instantly populate company, liaison, CBSL codes, and head office address from verified registered banks.
-              </p>
-              <select
-                onChange={e => {
-                  const bId = e.target.value;
-                  if (!bId) return;
-                  const b = registeredBanks.find(item => item.id === bId);
-                  if (b) {
-                    setClientForm({
-                      ...clientForm,
-                      name: b.bankName,
-                      contactPerson: b.branches && b.branches.length > 0 ? `Corporate Banking Division (${b.branches[0]})` : 'Senior Manager, Corporate Banking Division',
-                      address: b.headOffice || '',
-                      phone: b.contactNumber || '',
-                      email: b.website ? `info@${b.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '')}` : '',
-                      notes: `Registered Bank (Code: ${b.bankCode}, SWIFT: ${b.swiftCode}, ${b.category})`
-                    });
-                  }
-                }}
-                className="w-full px-3 py-2 bg-slate-800 border border-emerald-500/40 rounded-lg text-xs text-slate-100 focus:border-emerald-500 focus:outline-none"
-              >
-                <option value="">-- Choose Registered Bank to Pre-fill --</option>
-                <optgroup label="Licensed Commercial Banks">
-                  {registeredBanks
-                    .filter(b => b.category === 'Licensed Commercial Bank')
-                    .map(b => (
-                      <option key={b.id} value={b.id}>
-                        [{b.bankCode}] {b.bankName} ({b.shortName || b.bankCode})
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="Licensed Specialized & Foreign Banks">
-                  {registeredBanks
-                    .filter(b => b.category !== 'Licensed Commercial Bank')
-                    .map(b => (
-                      <option key={b.id} value={b.id}>
-                        [{b.bankCode}] {b.bankName} ({b.shortName || b.bankCode}) - {b.category || 'Specialized'}
-                      </option>
-                    ))}
-                </optgroup>
-              </select>
-            </div>
-
-            <form
-              onSubmit={e => {
-                e.preventDefault();
-                addClient(clientForm);
-                setIsAddClientOpen(false);
-              }}
-              className="mt-4 space-y-4 text-sm"
-            >
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Organization Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Ceylon Electricity Board"
-                  value={clientForm.name}
-                  onChange={e => setClientForm({ ...clientForm, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Contact Person / Engineer</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Eng. H. M. Karunaratne (Project Director)"
-                  value={clientForm.contactPerson}
-                  onChange={e => setClientForm({ ...clientForm, contactPerson: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Office Address</label>
-                <textarea
-                  rows={2}
-                  value={clientForm.address}
-                  onChange={e => setClientForm({ ...clientForm, address: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Telephone</label>
-                  <input
-                    type="text"
-                    value={clientForm.phone}
-                    onChange={e => setClientForm({ ...clientForm, phone: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={clientForm.email}
-                    onChange={e => setClientForm({ ...clientForm, email: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Contract / Project Notes</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Standard 30-day payment term, retention 5%"
-                  value={clientForm.notes}
-                  onChange={e => setClientForm({ ...clientForm, notes: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
-                />
-              </div>
-
-              {/* Supporting Document Upload Input */}
-              <SupportingDocumentUploadInput
-                documents={clientForm.supportingDocuments || []}
-                onDocumentsChange={docs => setClientForm({ ...clientForm, supportingDocuments: docs })}
-                label="Attach Client Contract / Master Agreement / MOU (PDF, JPG, PNG)"
-              />
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsAddClientOpen(false)}
-                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium"
-                >
-                  Register Client
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* COMPREHENSIVE CLIENT / EMPLOYER MASTER REGISTRATION & EDIT MODAL */}
+      <RegisterClientModal
+        isOpen={isAddClientOpen}
+        onClose={() => {
+          setIsAddClientOpen(false);
+          setClientToEdit(null);
+        }}
+        clientToEdit={clientToEdit}
+      />
 
       {/* MODAL: DELETE / REMOVE CONFIRMATION */}
       {deleteTarget && (

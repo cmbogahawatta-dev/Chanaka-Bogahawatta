@@ -414,13 +414,16 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
           </div>
         )}
 
-        {/* 2. PRV & DISBURSEMENTS */}
+        {/* 2. PAYMENT REQUEST VOUCHERS (PRV) */}
         {canViewPRV && (
           <div className="relative group">
             <button
-              id="nav-prv-disbursements"
+              id="nav-prv-vouchers"
               type="button"
-              onClick={() => setCurrentModule('payments')}
+              onClick={() => {
+                setCurrentModule('payments');
+                setActiveSubTab('vouchers');
+              }}
               className={`w-full flex items-center gap-2.5 rounded-lg transition-all text-xs font-semibold ${
                 isCollapsed
                   ? 'p-2 justify-center'
@@ -432,9 +435,9 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <CreditCard className={`w-4 h-4 shrink-0 transition-transform ${isPRVDisbursementsActive ? 'text-rose-400' : 'text-slate-400 group-hover:scale-110'}`} />
+                <Receipt className={`w-4 h-4 shrink-0 transition-transform ${isPRVDisbursementsActive ? 'text-rose-400' : 'text-slate-400 group-hover:scale-110'}`} />
                 {!isCollapsed && (
-                  <span className="truncate text-[11px]">PRV & Disbursements</span>
+                  <span className="truncate text-[11px]">Payment Request Vouchers</span>
                 )}
               </div>
 
@@ -457,7 +460,7 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
             {/* Collapsed Tooltip */}
             {isCollapsed && (
               <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-700 text-slate-100 text-xs font-medium rounded-lg shadow-xl z-50 whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95">
-                <span>PRV & Disbursements</span>
+                <span>Payment Request Vouchers</span>
                 <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-1 py-0.2 rounded border border-slate-800">
                   Alt+8
                 </span>
@@ -540,9 +543,9 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
         <div className="border-t border-slate-900 mx-1"></div>
         {renderHierarchicalFinance()}
         <div className="border-t border-slate-900 mx-1"></div>
-        {renderModuleGroup('Governance', governanceModules)}
-        <div className="border-t border-slate-900 mx-1"></div>
         {renderModuleGroup('Corporate Suite', corporateSuiteModules)}
+        <div className="border-t border-slate-900 mx-1"></div>
+        {renderModuleGroup('Governance', governanceModules)}
       </div>
 
       {/* Footer shortcut pill */}
