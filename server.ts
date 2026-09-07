@@ -1,13 +1,611 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
+import { authDb, StoredUser } from './server/authStore';
+
+// Extend Express Request interface for Auth
+declare global {
+  namespace Express {
+    interface Request {
+      authUser?: StoredUser;
+      authPermissions?: string[];
+      authToken?: string;
+    }
+  }
+}
 
 const app = express();
 const PORT = 3000;
 
 // Middleware for parsing JSON with larger payload limit for base64 document images
 app.use(express.json({ limit: '20mb' }));
+
+// ----------------------------------------------------
+// AUTHENTICATION & RBAC MIDDLEWARES
+// ----------------------------------------------------
+
+function extractToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7).trim();
+  }
+  const customHeader = req.headers['x-auth-token'];
+  if (typeof customHeader === 'string') {
+    return customHeader.trim();
+  }
+  return null;
+}
+
+// Attach user to request if valid token provided
+function authenticateToken(req: Request, res: Response, next: NextFunction) {
+  const token = extractToken(req);
+  if (!token) {
+    next();
+    return;
+  }
+
+  const user = authDb.validateSession(token);
+  if (user) {
+    req.authUser = user;
+    req.authPermissions = authDb.resolveUserPermissions(user);
+    req.authToken = token;
+  }
+  next();
+}
+
+// Enforce authenticated session
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.authUser) {
+    res.status(401).json({
+      success: false,
+      error: 'Unauthorized: Valid authentication token required.'
+    });
+    return;
+  }
+  next();
+}
+
+// Enforce granular permission
+function requirePermission(permissionCode: string) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.authUser) {
+      res.status(401).json({ success: false, error: 'Authentication required.' });
+      return;
+    }
+
+    if (req.authUser.roleCode === 'SUPER_ADMIN') {
+      next();
+      return;
+    }
+
+    const permissions = req.authPermissions || [];
+    if (!permissions.includes(permissionCode)) {
+      res.status(403).json({
+        success: false,
+        error: `Forbidden: Missing required permission [${permissionCode}].`,
+        requiredPermission: permissionCode
+      });
+      return;
+    }
+    next();
+  };
+}
+
+// Enforce project access
+function requireProjectAccess(minLevel: 'VIEW' | 'EDIT' | 'FULL' = 'VIEW') {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.authUser) {
+      res.status(401).json({ success: false, error: 'Authentication required.' });
+      return;
+    }
+
+    if (req.authUser.roleCode === 'SUPER_ADMIN' || req.authUser.hasAllProjectAccess) {
+      next();
+      return;
+    }
+
+    const projectId = req.body.projectId || req.params.projectId || req.query.projectId;
+    const projectCode = req.body.projectCode || req.params.projectCode || req.query.projectCode;
+
+    if (!projectId && !projectCode) {
+      next();
+      return;
+    }
+
+    const matchedProject = req.authUser.assignedProjects.find(
+      p => (projectId && (p.projectId === projectId || p.projectCode === projectId)) ||
+           (projectCode && (p.projectCode === projectCode || p.projectId === projectCode))
+    );
+
+    if (!matchedProject || matchedProject.accessLevel === 'NO_ACCESS') {
+      res.status(403).json({
+        success: false,
+        error: `Access Denied: You do not have access to project [${projectCode || projectId}].`
+      });
+      return;
+    }
+
+    if (minLevel === 'EDIT' && matchedProject.accessLevel === 'VIEW') {
+      res.status(403).json({
+        success: false,
+        error: `Insufficient Permission: You have VIEW-only access to project [${projectCode || projectId}].`
+      });
+      return;
+    }
+
+    if (minLevel === 'FULL' && matchedProject.accessLevel !== 'FULL') {
+      res.status(403).json({
+        success: false,
+        error: `Insufficient Permission: Project [${projectCode || projectId}] requires FULL management access.`
+      });
+      return;
+    }
+
+    next();
+  };
+}
+
+app.use(authenticateToken);
+
+// ----------------------------------------------------
+// AUTHENTICATION & USER SESSION ENDPOINTS
+// ----------------------------------------------------
+
+// 1. User Login
+app.post('/api/auth/login', (req: Request, res: Response) => {
+  try {
+    const { identifier, password } = req.body;
+    if (!identifier || !password) {
+      res.status(400).json({ success: false, error: 'Email/Username and Password are required.' });
+      return;
+    }
+
+    const authResult = authDb.authenticate(identifier, password);
+    if (!authResult) {
+      res.status(401).json({ success: false, error: 'Invalid username/email or password.' });
+      return;
+    }
+
+    const clientUser = authDb.toClientUser(authResult.user);
+    res.json({
+      success: true,
+      token: authResult.token,
+      user: clientUser
+    });
+  } catch (err: any) {
+    res.status(403).json({ success: false, error: err.message || 'Login failed.' });
+  }
+});
+
+// 2. User Logout
+app.post('/api/auth/logout', (req: Request, res: Response) => {
+  const token = extractToken(req);
+  if (token) {
+    authDb.invalidateSession(token);
+  }
+  res.json({ success: true, message: 'Logged out successfully.' });
+});
+
+// 3. Current User Profile
+app.get('/api/auth/me', requireAuth, (req: Request, res: Response) => {
+  if (!req.authUser) {
+    res.status(401).json({ success: false, error: 'Not authenticated.' });
+    return;
+  }
+  res.json({
+    success: true,
+    user: authDb.toClientUser(req.authUser)
+  });
+});
+
+// 4. Change Password
+app.post('/api/auth/change-password', requireAuth, (req: Request, res: Response) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      res.status(400).json({ success: false, error: 'Old password and new password are required.' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+      return;
+    }
+
+    authDb.changePassword(req.authUser!.id, oldPassword, newPassword);
+    res.json({ success: true, message: 'Password changed successfully.' });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to change password.' });
+  }
+});
+
+// 5. Reset Password (Self-Service or Admin)
+app.post('/api/auth/reset-password', (req: Request, res: Response) => {
+  try {
+    const { identifier, newPassword } = req.body;
+    if (!identifier || !newPassword) {
+      res.status(400).json({ success: false, error: 'Identifier and new password are required.' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+      return;
+    }
+
+    authDb.resetPassword(identifier, newPassword, req.authUser);
+    res.json({ success: true, message: 'Password reset successfully.' });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to reset password.' });
+  }
+});
+
+// ----------------------------------------------------
+// ADMIN & USER MANAGEMENT ENDPOINTS
+// ----------------------------------------------------
+
+// List all users
+app.get('/api/admin/users', requireAuth, requirePermission('users.view'), (req: Request, res: Response) => {
+  const users = authDb.getUsers().map(u => authDb.toClientUser(u));
+  res.json({ success: true, users });
+});
+
+// Create new user
+app.post('/api/admin/users', requireAuth, requirePermission('users.create'), (req: Request, res: Response) => {
+  try {
+    const userData = req.body;
+    const newUser = authDb.createUser(userData, req.authUser);
+    res.status(201).json({
+      success: true,
+      user: authDb.toClientUser(newUser)
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to create user.' });
+  }
+});
+
+// Update user
+app.put('/api/admin/users/:id', requireAuth, requirePermission('users.edit'), (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    const updated = authDb.updateUser(id, updates, req.authUser);
+    res.json({
+      success: true,
+      user: authDb.toClientUser(updated)
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to update user.' });
+  }
+});
+
+// Toggle status (Active / Inactive / Suspended)
+app.patch('/api/admin/users/:id/status', requireAuth, requirePermission('users.disable'), (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!['ACTIVE', 'INACTIVE', 'SUSPENDED'].includes(status)) {
+      res.status(400).json({ success: false, error: 'Invalid status value.' });
+      return;
+    }
+    const updated = authDb.updateUser(id, { status }, req.authUser);
+    res.json({
+      success: true,
+      user: authDb.toClientUser(updated)
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// Delete individual user (Requires Administrator Password verification)
+app.delete('/api/admin/users/:id', requireAuth, (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { adminPassword } = req.body;
+    if (!adminPassword) {
+      res.status(400).json({
+        success: false,
+        error: 'Administrator password verification is required to authorize user deletion.'
+      });
+      return;
+    }
+    const result = authDb.deleteUser(id, adminPassword, req.authUser!);
+    res.json({
+      success: true,
+      deletedUser: authDb.toClientUser(result.deletedUser)
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to delete user.' });
+  }
+});
+
+// Bulk delete users (Requires Administrator Password verification)
+app.post('/api/admin/users/bulk-delete', requireAuth, (req: Request, res: Response) => {
+  try {
+    const { userIds, adminPassword } = req.body;
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      res.status(400).json({ success: false, error: 'No user accounts specified for deletion.' });
+      return;
+    }
+    if (!adminPassword) {
+      res.status(400).json({
+        success: false,
+        error: 'Administrator password verification is required to authorize batch deletion.'
+      });
+      return;
+    }
+    const result = authDb.deleteMultipleUsers(userIds, adminPassword, req.authUser!);
+    res.json({
+      success: true,
+      count: result.count
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to delete selected users.' });
+  }
+});
+
+// Purge or Reset User Directory (Requires Administrator Password verification)
+app.post('/api/admin/users/purge-directory', requireAuth, (req: Request, res: Response) => {
+  try {
+    const { adminPassword, mode } = req.body;
+    if (!adminPassword) {
+      res.status(400).json({
+        success: false,
+        error: 'Administrator password verification is required to purge or reset the user directory.'
+      });
+      return;
+    }
+    const result = authDb.purgeUserDirectory(adminPassword, req.authUser!, mode || 'RESET_DEFAULTS');
+    res.json({
+      success: true,
+      count: result.count,
+      mode: mode || 'RESET_DEFAULTS'
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to purge user directory.' });
+  }
+});
+
+// Update User Project Access
+app.put('/api/admin/users/:id/projects', requireAuth, requirePermission('users.edit'), (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { assignedProjects, hasAllProjectAccess } = req.body;
+    const updated = authDb.updateUser(id, { assignedProjects, hasAllProjectAccess }, req.authUser);
+    res.json({
+      success: true,
+      user: authDb.toClientUser(updated)
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// Roles
+app.get('/api/admin/roles', requireAuth, (req: Request, res: Response) => {
+  res.json({ success: true, roles: authDb.getRoles() });
+});
+
+app.post('/api/admin/roles', requireAuth, requirePermission('roles.edit'), (req: Request, res: Response) => {
+  try {
+    const newRole = authDb.createRole(req.body, req.authUser);
+    res.status(201).json({ success: true, role: newRole });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/admin/roles/:code/permissions', requireAuth, requirePermission('roles.edit'), (req: Request, res: Response) => {
+  try {
+    const { code } = req.params;
+    const { permissions } = req.body;
+    const updatedRole = authDb.updateRolePermissions(code, permissions, req.authUser);
+    res.json({ success: true, role: updatedRole });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// Permissions
+app.get('/api/admin/permissions', requireAuth, (req: Request, res: Response) => {
+  res.json({ success: true, permissions: authDb.getPermissions() });
+});
+
+// Departments
+app.get('/api/admin/departments', requireAuth, (req: Request, res: Response) => {
+  res.json({ success: true, departments: authDb.getDepartments() });
+});
+
+app.post('/api/admin/departments', requireAuth, (req: Request, res: Response) => {
+  try {
+    const newDept = authDb.createDepartment(req.body, req.authUser);
+    res.status(201).json({ success: true, department: newDept });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// Positions
+app.get('/api/admin/positions', requireAuth, (req: Request, res: Response) => {
+  res.json({ success: true, positions: authDb.getPositions() });
+});
+
+app.post('/api/admin/positions', requireAuth, (req: Request, res: Response) => {
+  try {
+    const newPos = authDb.createPosition(req.body, req.authUser);
+    res.status(201).json({ success: true, position: newPos });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// Audit Logs
+app.get('/api/admin/audit-logs', requireAuth, requirePermission('audit_logs.view'), (req: Request, res: Response) => {
+  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 200;
+  res.json({ success: true, auditLogs: authDb.getAuditLogs(limit) });
+});
+
+app.post('/api/admin/audit-logs', requireAuth, (req: Request, res: Response) => {
+  try {
+    const logData = req.body;
+    const log = authDb.addAuditLog({
+      userId: req.authUser!.id,
+      employeeId: req.authUser!.employeeId,
+      userName: req.authUser!.fullName,
+      action: logData.action || 'USER_ACTION',
+      module: logData.module || 'General',
+      recordType: logData.recordType || 'RECORD',
+      recordId: logData.recordId,
+      projectId: logData.projectId,
+      projectCode: logData.projectCode,
+      description: logData.description || ''
+    });
+    res.json({ success: true, log });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// SERVER-SIDE PRV AUTHORIZATION & SECURITY
+// ----------------------------------------------------
+
+// Server-side verification for PRV approval actions
+app.post(
+  '/api/prv/server-approve',
+  requireAuth,
+  requirePermission('payments.prv.approve'),
+  requireProjectAccess('EDIT'),
+  (req: Request, res: Response) => {
+    try {
+      const { prvId, prvNumber, approvalLevel, comment, projectId, projectCode } = req.body;
+      const user = req.authUser!;
+
+      // Validate user role matches approval level
+      if (approvalLevel === 'OWNER') {
+        const isOwner = user.roleCode === 'MANAGING_DIRECTOR' || user.roleCode === 'SUPER_ADMIN';
+        if (!isOwner) {
+          res.status(403).json({
+            success: false,
+            error: 'Security Authorization Failure: Only the Managing Director / Owner can grant final payment release.'
+          });
+          return;
+        }
+      } else if (approvalLevel === 'ACCOUNTS_L1' || approvalLevel === 'ACCOUNTS_L2') {
+        const isFinanceOrAdmin =
+          user.roleCode === 'ACCOUNTANT' ||
+          user.roleCode === 'SUPER_ADMIN' ||
+          user.roleCode === 'MANAGING_DIRECTOR';
+        if (!isFinanceOrAdmin) {
+          res.status(403).json({
+            success: false,
+            error: 'Security Authorization Failure: Accounts approval requires Accountant or Finance authorization.'
+          });
+          return;
+        }
+      }
+
+      // Record immutable audit entry
+      authDb.addAuditLog({
+        userId: user.id,
+        employeeId: user.employeeId,
+        userName: user.fullName,
+        action: `PRV_${approvalLevel}_APPROVED`,
+        module: 'Payments / PRV',
+        recordType: 'PRV',
+        recordId: prvId || prvNumber,
+        projectId,
+        projectCode,
+        description: `Authorized ${approvalLevel} approval for PRV ${prvNumber || prvId}. Remarks: "${comment || 'Verified'}"`
+      });
+
+      res.json({
+        success: true,
+        authorizedAt: new Date().toISOString(),
+        approver: {
+          userId: user.id,
+          employeeId: user.employeeId,
+          name: user.fullName,
+          position: user.position,
+          role: user.role
+        },
+        message: `${approvalLevel} approval confirmed and cryptographically verified on server.`
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || 'Server approval processing failed.' });
+    }
+  }
+);
+
+// Server-side PRV rejection
+app.post(
+  '/api/prv/server-reject',
+  requireAuth,
+  requirePermission('payments.prv.reject'),
+  requireProjectAccess('EDIT'),
+  (req: Request, res: Response) => {
+    try {
+      const { prvId, prvNumber, level, reason, projectId, projectCode } = req.body;
+      const user = req.authUser!;
+
+      authDb.addAuditLog({
+        userId: user.id,
+        employeeId: user.employeeId,
+        userName: user.fullName,
+        action: `PRV_${level}_REJECTED`,
+        module: 'Payments / PRV',
+        recordType: 'PRV',
+        recordId: prvId || prvNumber,
+        projectId,
+        projectCode,
+        description: `Rejected PRV ${prvNumber || prvId} at ${level}. Reason: "${reason}"`
+      });
+
+      res.json({
+        success: true,
+        rejectedAt: new Date().toISOString(),
+        reviewer: user.fullName
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+);
+
+// Server-side PRV Payment Disbursement
+app.post(
+  '/api/prv/server-pay',
+  requireAuth,
+  requirePermission('payments.prv.pay'),
+  (req: Request, res: Response) => {
+    try {
+      const { prvId, prvNumber, amount, bankAccount, reference, projectId, projectCode } = req.body;
+      const user = req.authUser!;
+
+      authDb.addAuditLog({
+        userId: user.id,
+        employeeId: user.employeeId,
+        userName: user.fullName,
+        action: 'PRV_PAYMENT_DISBURSED',
+        module: 'Payments / PRV',
+        recordType: 'PRV',
+        recordId: prvId || prvNumber,
+        projectId,
+        projectCode,
+        description: `Payment released for ${prvNumber || prvId}. Ref: ${reference}, Bank: ${bankAccount}. Disbursed by ${user.fullName}.`
+      });
+
+      res.json({
+        success: true,
+        disbursedAt: new Date().toISOString(),
+        disbursedBy: user.fullName
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+);
+
 
 // Lazy initialize Gemini client
 function getGeminiClient(): GoogleGenAI | null {

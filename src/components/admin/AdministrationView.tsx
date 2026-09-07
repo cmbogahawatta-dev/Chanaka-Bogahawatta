@@ -29,7 +29,9 @@ import {
   Sparkles,
   RotateCcw,
   Tag,
-  Mail
+  Mail,
+  History,
+  UserCog
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
@@ -47,6 +49,9 @@ import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { SecurityStatusIndicator } from './SecurityStatusIndicator';
 import { AuditLogView } from './AuditLogView';
 import { ApprovalCentreView } from './ApprovalCentreView';
+import { UserManagementView } from './UserManagementView';
+import { RoleManagementView } from './RoleManagementView';
+import { AuditTrailView } from './AuditTrailView';
 import { DeleteRequestModal } from '../common/DeleteRequestModal';
 import { useDataManagement } from '../../context/DataManagementContext';
 import { DataManagementModule } from '../../types/dataManagementTypes';
@@ -183,7 +188,7 @@ export const AdministrationView: React.FC = () => {
     resetCorrespondenceToDefaults: resetCorrespondenceData
   } = useEnterpriseCorrespondence();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'ROLES' | 'SECURITY' | 'APPROVAL' | 'SHEETS' | 'MASTER' | 'CACHE'>('ROLES');
+  const [activeAdminTab, setActiveAdminTab] = useState<'USERS' | 'ROLES' | 'AUDIT' | 'SECURITY' | 'APPROVAL' | 'SHEETS' | 'MASTER' | 'CACHE'>('USERS');
   const [sheetIdInput, setSheetIdInput] = useState(sheetsConfig.spreadsheetId || '1XyZ_SAMPLE_EMA_CONSTRUCTION_PETTY_CASH_FLEET_2026');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -327,12 +332,31 @@ export const AdministrationView: React.FC = () => {
       {/* 2. Admin Sub-Tabs */}
       <div className="flex flex-wrap items-center gap-2 bg-slate-900/60 p-2 rounded-xl border border-slate-800">
         <button
+          onClick={() => setActiveAdminTab('USERS')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            activeAdminTab === 'USERS' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>User Directory & Logins</span>
+        </button>
+        <button
           onClick={() => setActiveAdminTab('ROLES')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
             activeAdminTab === 'ROLES' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Roles & Permissions Matrix
+          <UserCog className="w-3.5 h-3.5" />
+          <span>Roles & Permissions Matrix</span>
+        </button>
+        <button
+          onClick={() => setActiveAdminTab('AUDIT')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            activeAdminTab === 'AUDIT' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <History className="w-3.5 h-3.5" />
+          <span>Enterprise Audit Trail</span>
         </button>
         <button
           onClick={() => setActiveAdminTab('SECURITY')}
@@ -386,53 +410,67 @@ export const AdministrationView: React.FC = () => {
 
       {/* 3. SUB-TAB VIEWS */}
 
-      {/* Tab A: Roles Matrix */}
+      {/* Tab USERS: User Directory & Credentials */}
+      {activeAdminTab === 'USERS' && (
+        <UserManagementView />
+      )}
+
+      {/* Tab AUDIT: Enterprise Audit Trail */}
+      {activeAdminTab === 'AUDIT' && (
+        <AuditTrailView />
+      )}
+
+      {/* Tab ROLES: Roles & Permissions Matrix */}
       {activeAdminTab === 'ROLES' && (
-        <div className="space-y-4">
-          <SecurityStatusIndicator />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {rolesMatrix.map(item => (
-              <div
-                key={item.role}
-                className={`p-4 rounded-2xl border transition-all space-y-3 ${
-                  currentRole === item.role
-                    ? 'bg-amber-950/40 border-amber-800 shadow-md ring-1 ring-amber-500/50'
-                    : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-lg bg-slate-950 text-amber-300 border border-slate-800">
-                    {item.role}
-                  </span>
-                  {currentRole === item.role && (
-                    <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Active Session
+        <div className="space-y-6">
+          <RoleManagementView />
+          <div className="pt-4 border-t border-slate-800 space-y-4">
+            <h3 className="text-sm font-bold text-slate-300">Default Role Archetypes Reference</h3>
+            <SecurityStatusIndicator />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {rolesMatrix.map(item => (
+                <div
+                  key={item.role}
+                  className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                    currentRole === item.role
+                      ? 'bg-amber-950/40 border-amber-800 shadow-md ring-1 ring-amber-500/50'
+                      : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-lg bg-slate-950 text-amber-300 border border-slate-800">
+                      {item.role}
                     </span>
+                    {currentRole === item.role && (
+                      <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Active Session
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-300">{item.description}</p>
+
+                  <div className="pt-2 border-t border-slate-800 space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Permissions:</span>
+                    {item.permissions.map((perm, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                        <CheckCircle2 className="w-3 h-3 text-amber-400 shrink-0" />
+                        <span>{perm}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {currentRole !== item.role && (
+                    <button
+                      onClick={() => setCurrentRole(item.role)}
+                      className="w-full py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all"
+                    >
+                      Switch to this Persona
+                    </button>
                   )}
                 </div>
-
-                <p className="text-xs text-slate-300">{item.description}</p>
-
-                <div className="pt-2 border-t border-slate-800 space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Permissions:</span>
-                  {item.permissions.map((perm, idx) => (
-                    <div key={idx} className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                      <CheckCircle2 className="w-3 h-3 text-amber-400 shrink-0" />
-                      <span>{perm}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {currentRole !== item.role && (
-                  <button
-                    onClick={() => setCurrentRole(item.role)}
-                    className="w-full py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all"
-                  >
-                    Switch to this Persona
-                  </button>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}

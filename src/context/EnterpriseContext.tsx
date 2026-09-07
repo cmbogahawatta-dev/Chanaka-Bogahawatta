@@ -10,6 +10,7 @@ import {
 } from '../types/enterpriseTypes';
 import { Enterprise } from '../types';
 import { initialEnterprises } from '../data/enterpriseData';
+import { useAuth } from './AuthContext';
 
 interface EnterpriseContextType {
   currentEnterprise?: Enterprise;
@@ -279,12 +280,51 @@ const INITIAL_NOTIFICATIONS: EnterpriseNotification[] = [
 ];
 
 export const EnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { currentUser: authUser } = useAuth();
   const [currentModule, setCurrentModule] = useState<EnterpriseModule>('overview');
   const [activeSubTab, setActiveSubTab] = useState<string>('dashboard');
-  const [currentRole, setCurrentRole] = useState<EnterpriseRole>('ADMIN');
-  const [currentUser, setCurrentUser] = useState<string>('BUDDIKA');
+
+  const mapRole = (roleCode?: string): EnterpriseRole => {
+    switch (roleCode) {
+      case 'SUPER_ADMIN':
+        return 'ADMIN';
+      case 'MANAGING_DIRECTOR':
+        return 'OWNER';
+      case 'ACCOUNTANT':
+        return 'FINANCE';
+      case 'HR_ADMIN':
+        return 'HR';
+      case 'PROJECT_MANAGER':
+        return 'PROJECT_MANAGER';
+      case 'SITE_ENGINEER':
+      case 'PLANNING_ENGINEER':
+      case 'QUANTITY_SURVEYOR':
+        return 'SITE_ENGINEER';
+      case 'PROCUREMENT_OFFICER':
+      case 'SUPERVISOR':
+        return 'SUPERVISOR';
+      case 'FLEET_MANAGER':
+        return 'FLEET_MANAGER';
+      case 'DRIVER':
+        return 'DRIVER';
+      case 'VIEWER':
+      default:
+        return 'VIEWER';
+    }
+  };
+
+  const [currentRole, setCurrentRole] = useState<EnterpriseRole>(() => mapRole(authUser?.roleCode));
+  const [currentUser, setCurrentUser] = useState<string>(() => authUser?.fullName || 'BUDDIKA');
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('ONLINE');
   const [lastSyncTime, setLastSyncTime] = useState<string>(new Date().toLocaleTimeString());
+
+  // Automatically update when authenticated user changes
+  useEffect(() => {
+    if (authUser) {
+      setCurrentUser(authUser.fullName);
+      setCurrentRole(mapRole(authUser.roleCode));
+    }
+  }, [authUser]);
 
   // Data Collections with local persistence
   const [procurementOrders, setProcurementOrders] = useState<ProcurementOrder[]>(() => {

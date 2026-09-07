@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Building2,
   Wallet,
@@ -28,10 +28,16 @@ import {
   PanelLeft,
   DollarSign,
   Fuel,
-  ArrowRightLeft
+  ArrowRightLeft,
+  LogOut,
+  Shield,
+  Key,
+  Lock,
+  Building
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
+import { useAuth } from '../../context/AuthContext';
 import { EnterpriseRole } from '../../types/enterpriseTypes';
 
 interface EnterpriseTopUtilityBarProps {
@@ -79,6 +85,8 @@ export const EnterpriseTopUtilityBar: React.FC<EnterpriseTopUtilityBarProps> = (
     navigateToModule
   } = useEnterprise();
 
+  const { currentUser: authUser, logout, hasPermission, hasProjectAccess } = useAuth();
+
   const {
     projects = [],
     supervisors = [],
@@ -93,6 +101,13 @@ export const EnterpriseTopUtilityBar: React.FC<EnterpriseTopUtilityBarProps> = (
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showProjectMenu, setShowProjectMenu] = useState(false);
   const [syncToastMessage, setSyncToastMessage] = useState<string | null>(null);
+
+  const accessibleProjects = useMemo(() => {
+    return projects.filter(p => {
+      if (!authUser) return true;
+      return hasProjectAccess(p.PROJECT_CODE);
+    });
+  }, [projects, authUser, hasProjectAccess]);
 
   const roles: EnterpriseRole[] = [
     'ADMIN',
@@ -187,19 +202,21 @@ export const EnterpriseTopUtilityBar: React.FC<EnterpriseTopUtilityBarProps> = (
                 <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Select Active Project Context
                 </div>
-                <button
-                  onClick={() => { onSelectProjectFilter('ALL'); setShowProjectMenu(false); }}
-                  className={`w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between text-xs font-semibold ${
-                    selectedProjectFilter === 'ALL'
-                      ? 'bg-purple-950 text-purple-300 border border-purple-800'
-                      : 'hover:bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  <span>All Projects (Consolidated)</span>
-                  {selectedProjectFilter === 'ALL' && <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />}
-                </button>
+                {(authUser?.hasAllProjectAccess || hasPermission('projects.view')) && (
+                  <button
+                    onClick={() => { onSelectProjectFilter('ALL'); setShowProjectMenu(false); }}
+                    className={`w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between text-xs font-semibold ${
+                      selectedProjectFilter === 'ALL'
+                        ? 'bg-purple-950 text-purple-300 border border-purple-800'
+                        : 'hover:bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <span>All Projects (Consolidated)</span>
+                    {selectedProjectFilter === 'ALL' && <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />}
+                  </button>
+                )}
                 <div className="border-t border-slate-800 my-1"></div>
-                {projects.map(p => (
+                {accessibleProjects.map(p => (
                   <button
                     key={p.id}
                     onClick={() => { onSelectProjectFilter(p.PROJECT_CODE); setShowProjectMenu(false); }}
@@ -444,42 +461,85 @@ export const EnterpriseTopUtilityBar: React.FC<EnterpriseTopUtilityBarProps> = (
           )}
         </div>
 
-        {/* Active User Persona Avatar */}
+        {/* Active User Persona Avatar / Session Card */}
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-1.5 p-0.5 sm:px-1.5 sm:py-0.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 text-xs"
           >
             <div className="w-5 h-5 rounded bg-gradient-to-br from-emerald-600 to-teal-700 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
-              {currentUser.slice(0, 2).toUpperCase()}
+              {(authUser?.fullName || currentUser).slice(0, 2).toUpperCase()}
             </div>
-            <span className="hidden xl:inline font-semibold text-[11px] text-slate-200 max-w-[80px] truncate">{currentUser}</span>
+            <span className="hidden xl:inline font-semibold text-[11px] text-slate-200 max-w-[90px] truncate">{authUser?.fullName || currentUser}</span>
           </button>
 
           {showUserMenu && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-              <div className="absolute right-0 mt-1.5 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-1.5 text-xs space-y-0.5">
-                <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Switch Active User
-                </div>
-                {supervisors.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => handleUserChange(s.SUPERVISOR_NAME)}
-                    className={`w-full text-left px-2 py-1 rounded-lg flex items-center justify-between text-xs ${
-                      currentUser === s.SUPERVISOR_NAME
-                        ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-800'
-                        : 'hover:bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    <div>
-                      <span className="block font-bold">{s.SUPERVISOR_NAME}</span>
-                      <span className="text-[9px] text-slate-400">{s.DEFAULT_PROJECT || 'General'}</span>
+              <div className="absolute right-0 mt-1.5 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-2 text-xs space-y-2 animate-in fade-in zoom-in-95">
+                <div className="pb-2 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-md">
+                      {(authUser?.fullName || currentUser).slice(0, 2).toUpperCase()}
                     </div>
-                    {currentUser === s.SUPERVISOR_NAME && <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-100 truncate text-xs">{authUser?.fullName || currentUser}</div>
+                      <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                        <span>{authUser?.employeeId || 'EMP-001'}</span>
+                        <span>•</span>
+                        <span className="text-emerald-400 font-semibold">{authUser?.roleCode || currentRole}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-[10px] text-slate-400 flex flex-col gap-0.5 bg-slate-950 p-1.5 rounded-lg border border-slate-800/80">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Dept/Pos:</span>
+                      <span className="text-slate-300 font-medium">{authUser?.department || 'Operations'} / {authUser?.position || 'Staff'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Scope:</span>
+                      <span className="text-slate-300 font-medium truncate max-w-[130px]" title={authUser?.hasAllProjectAccess ? 'All Projects' : authUser?.assignedProjects?.join(', ') || 'General'}>
+                        {authUser?.hasAllProjectAccess ? 'Universal (All)' : authUser?.assignedProjects?.join(', ') || 'General'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Supervisor Persona Switch (for testing) */}
+                <div className="space-y-0.5">
+                  <div className="px-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                    Quick Persona Switch
+                  </div>
+                  <div className="max-h-24 overflow-y-auto space-y-0.5">
+                    {supervisors.slice(0, 4).map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => handleUserChange(s.SUPERVISOR_NAME)}
+                        className={`w-full text-left px-2 py-1 rounded-md flex items-center justify-between text-[11px] ${
+                          currentUser === s.SUPERVISOR_NAME
+                            ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-800'
+                            : 'hover:bg-slate-800 text-slate-300'
+                        }`}
+                      >
+                        <span className="truncate">{s.SUPERVISOR_NAME}</span>
+                        {currentUser === s.SUPERVISOR_NAME && <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-1.5 border-t border-slate-800">
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      logout();
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out & Terminate Session</span>
                   </button>
-                ))}
+                </div>
               </div>
             </>
           )}

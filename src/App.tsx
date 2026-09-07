@@ -22,6 +22,8 @@ import { EnterpriseBankingProvider } from './context/EnterpriseBankingContext';
 import { EnterpriseComplianceProvider } from './context/EnterpriseComplianceContext';
 import { EnterpriseCorrespondenceProvider } from './context/EnterpriseCorrespondenceContext';
 import { TaxInvoiceProvider } from './context/TaxInvoiceContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { LoginView } from './components/auth/LoginView';
 
 // Global Navigation Shell
 import { EnterpriseTopUtilityBar } from './components/navigation/EnterpriseTopUtilityBar';
@@ -685,7 +687,25 @@ const EnterpriseAppContent: React.FC = () => {
   );
 };
 
-export default function App() {
+const AuthenticatedAppShell: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen bg-slate-950 flex flex-col items-center justify-center text-slate-200">
+        <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 animate-pulse mb-4 shadow-lg shadow-amber-500/5">
+          <Layers className="w-6 h-6" />
+        </div>
+        <div className="text-sm font-bold text-slate-200">EMA Construction ERP</div>
+        <div className="text-xs text-slate-500 font-mono mt-1">Verifying encrypted credentials & role authority...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginView />;
+  }
+
   return (
     <StaffProvider>
       <FleetProvider>
@@ -726,6 +746,14 @@ export default function App() {
         </PettyCashProvider>
       </FleetProvider>
     </StaffProvider>
+  );
+};
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AuthenticatedAppShell />
+    </AuthProvider>
   );
 }
 

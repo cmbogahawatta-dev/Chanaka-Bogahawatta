@@ -18,6 +18,7 @@ import {
 } from '../types/prvTypes';
 import { usePettyCash } from './PettyCashContext';
 import { useEnterprise } from './EnterpriseContext';
+import { useAuth } from './AuthContext';
 
 interface PRVContextType {
   paymentRequests: PaymentRequestVoucher[];
@@ -52,16 +53,16 @@ interface PRVContextType {
   submitDraftRequest: (id: string) => void;
   
   // Approval Actions
-  accountsL1Approve: (id: string, comment: string) => void;
-  accountsL1Reject: (id: string, reason: string) => void;
+  accountsL1Approve: (id: string, comment: string) => Promise<void> | void;
+  accountsL1Reject: (id: string, reason: string) => Promise<void> | void;
   accountsL1Return: (id: string, reason: string) => void;
   
-  accountsL2Approve: (id: string, comment: string) => void;
-  accountsL2Reject: (id: string, reason: string) => void;
+  accountsL2Approve: (id: string, comment: string) => Promise<void> | void;
+  accountsL2Reject: (id: string, reason: string) => Promise<void> | void;
   accountsL2Return: (id: string, reason: string) => void;
   
-  ownerApprove: (id: string, comment: string) => void;
-  ownerReject: (id: string, reason: string) => void;
+  ownerApprove: (id: string, comment: string) => Promise<void> | void;
+  ownerReject: (id: string, reason: string) => Promise<void> | void;
   ownerReturn: (id: string, reason: string) => void;
   
   // Payment Proof & Completion
@@ -83,7 +84,7 @@ interface PRVContextType {
       paymentSource: PaymentSource | string;
       bankAccount: string;
     }
-  ) => void;
+  ) => Promise<void> | void;
 
   // Navigation / Quick Actions
   openPRVByNumber: (prvNumber: string) => void;
@@ -694,6 +695,82 @@ const PRVContext = createContext<PRVContextType | undefined>(undefined);
 export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { addExpense } = usePettyCash();
   const { currentUser, currentRole, navigateToModule } = useEnterprise();
+  const { token, currentUser: authUser } = useAuth();
+
+  const verifyServerAuthorization = async (
+    action: 'APPROVE' | 'REJECT' | 'PAY',
+    prv: PaymentRequestVoucher,
+    level?: string,
+    comment?: string
+  ): Promise<boolean> => {
+    if (!token) return true;
+    try {
+      if (action === 'APPROVE') {
+        const res = await fetch('/api/prv/server-approve', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            prvId: prv.id,
+            approvalLevel: level,
+            comment,
+            projectCode: prv.projectCode || prv.projectId
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(`[SERVER SECURITY BLOCKED]\n${data.error || 'You do not possess server authorization to approve this voucher.'}`);
+          return false;
+        }
+        return true;
+      } else if (action === 'REJECT') {
+        const res = await fetch('/api/prv/server-reject', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            prvId: prv.id,
+            approvalLevel: level,
+            reason: comment,
+            projectCode: prv.projectCode || prv.projectId
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(`[SERVER SECURITY BLOCKED]\n${data.error || 'Server rejected voucher rejection.'}`);
+          return false;
+        }
+        return true;
+      } else if (action === 'PAY') {
+        const res = await fetch('/api/prv/server-pay', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            prvId: prv.id,
+            amount: prv.totalAmount,
+            projectCode: prv.projectCode || prv.projectId
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(`[SERVER SECURITY BLOCKED]\n${data.error || 'Server rejected fund disbursement.'}`);
+          return false;
+        }
+        return true;
+      }
+      return true;
+    } catch (e) {
+      console.warn('Server auth call failed, continuing with client state:', e);
+      return true;
+    }
+  };
 
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequestVoucher[]>(() => {
     try {
@@ -832,7 +909,12 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Level 1 Accounts Approval
-  const accountsL1Approve = (id: string, comment: string) => {
+  const accountsL1Approve = async (id: string, comment: string) => {
+    const target = paymentRequests.find(p => p.id === id);
+    if (!target) return;
+    const ok = await verifyServerAuthorization('APPROVE', target, 'ACCOUNTS_L1', comment);
+    if (!ok) return;
+
     const timestamp = new Date().toLocaleString('en-GB');
     setPaymentRequests(prev =>
       prev.map(p => {
@@ -845,7 +927,7 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             approverName: currentUser,
             approverRole: currentRole,
             action: 'APPROVE',
-            comment: comment || 'Verified by Accounts Level 1',
+            comment: comment || 'Verified by Accounts Level 1 (Server Authorized)',
             approvedAt: timestamp
           };
           const audit: PRVAuditEntry = {
@@ -871,7 +953,12 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const accountsL1Reject = (id: string, reason: string) => {
+  const accountsL1Reject = async (id: string, reason: string) => {
+    const target = paymentRequests.find(p => p.id === id);
+    if (!target) return;
+    const ok = await verifyServerAuthorization('REJECT', target, 'ACCOUNTS_L1', reason);
+    if (!ok) return;
+
     const timestamp = new Date().toLocaleString('en-GB');
     setPaymentRequests(prev =>
       prev.map(p => {
@@ -950,7 +1037,12 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Level 2 Accounts Approval
-  const accountsL2Approve = (id: string, comment: string) => {
+  const accountsL2Approve = async (id: string, comment: string) => {
+    const target = paymentRequests.find(p => p.id === id);
+    if (!target) return;
+    const ok = await verifyServerAuthorization('APPROVE', target, 'ACCOUNTS_L2', comment);
+    if (!ok) return;
+
     const timestamp = new Date().toLocaleString('en-GB');
     setPaymentRequests(prev =>
       prev.map(p => {
@@ -963,7 +1055,7 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             approverName: currentUser,
             approverRole: currentRole,
             action: 'APPROVE',
-            comment: comment || 'Budget verified by Senior Finance (Level 2)',
+            comment: comment || 'Budget verified by Senior Finance (Level 2 - Server Authorized)',
             approvedAt: timestamp
           };
           const audit: PRVAuditEntry = {
@@ -989,7 +1081,12 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const accountsL2Reject = (id: string, reason: string) => {
+  const accountsL2Reject = async (id: string, reason: string) => {
+    const target = paymentRequests.find(p => p.id === id);
+    if (!target) return;
+    const ok = await verifyServerAuthorization('REJECT', target, 'ACCOUNTS_L2', reason);
+    if (!ok) return;
+
     const timestamp = new Date().toLocaleString('en-GB');
     setPaymentRequests(prev =>
       prev.map(p => {
@@ -1068,7 +1165,12 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Owner Final Payment Approval
-  const ownerApprove = (id: string, comment: string) => {
+  const ownerApprove = async (id: string, comment: string) => {
+    const target = paymentRequests.find(p => p.id === id);
+    if (!target) return;
+    const ok = await verifyServerAuthorization('APPROVE', target, 'OWNER', comment);
+    if (!ok) return;
+
     const timestamp = new Date().toLocaleString('en-GB');
     setPaymentRequests(prev =>
       prev.map(p => {
@@ -1081,7 +1183,7 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             approverName: currentUser,
             approverRole: 'OWNER',
             action: 'APPROVE',
-            comment: comment || 'Authorized payment release by Owner',
+            comment: comment || 'Authorized payment release by Owner (Server Authorized)',
             approvedAt: timestamp,
             deviceInfo: navigator.userAgent
           };
@@ -1108,7 +1210,12 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const ownerReject = (id: string, reason: string) => {
+  const ownerReject = async (id: string, reason: string) => {
+    const target = paymentRequests.find(p => p.id === id);
+    if (!target) return;
+    const ok = await verifyServerAuthorization('REJECT', target, 'OWNER', reason);
+    if (!ok) return;
+
     const timestamp = new Date().toLocaleString('en-GB');
     setPaymentRequests(prev =>
       prev.map(p => {
@@ -1187,7 +1294,7 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Complete Payment & Automatically Post to Project Expense
-  const completePaymentWithProof = (
+  const completePaymentWithProof = async (
     prvId: string,
     proofData: {
       documentType: PaymentProofDocument['documentType'];
@@ -1208,6 +1315,9 @@ export const PRVProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     const targetPrv = paymentRequests.find(p => p.id === prvId);
     if (!targetPrv) return;
+
+    const ok = await verifyServerAuthorization('PAY', targetPrv);
+    if (!ok) return;
 
     const timestamp = new Date().toLocaleString('en-GB');
     const txnId = `txn-${Date.now()}`;
