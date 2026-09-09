@@ -33,6 +33,9 @@ interface EnterpriseCompanyContextType {
   addClient: (client: Omit<Client, 'id'>) => void;
   updateClient: (id: string, client: Partial<Client>) => void;
   deleteClient: (id: string) => void;
+  clearClientsHistory: () => void;
+  resetClientsToDefault: () => void;
+  clearClientAuditHistory: (clientId: string) => void;
 }
 
 const defaultProfile: EnterpriseProfileDetails = {
@@ -746,33 +749,11 @@ export const EnterpriseCompanyProvider: React.FC<{ children: ReactNode }> = ({ c
   const [clients, setClients] = useState<Client[]>(() => {
     try {
       const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_clients`);
-      if (saved) {
+      if (saved !== null) {
         const parsed: Client[] = JSON.parse(saved);
-        const map = new Map<string, Client>();
-        initialClients.forEach(c => map.set(c.id, c));
-        parsed.forEach(c => {
-          const init = map.get(c.id);
-          if (init) {
-            map.set(c.id, {
-              ...init,
-              ...c,
-              taxDetails: { ...init.taxDetails, ...c.taxDetails },
-              taxInvoiceMasterData: { ...init.taxInvoiceMasterData, ...c.taxInvoiceMasterData },
-              primaryContact: { ...init.primaryContact, ...c.primaryContact },
-              commercialContacts: { ...init.commercialContacts, ...c.commercialContacts },
-              registeredAddress: { ...init.registeredAddress, ...c.registeredAddress },
-              billingAddress: { ...init.billingAddress, ...c.billingAddress },
-              paymentTerms: { ...init.paymentTerms, ...c.paymentTerms },
-              bankAccounts: c.bankAccounts && c.bankAccounts.length > 0 ? c.bankAccounts : init.bankAccounts,
-              contacts: c.contacts && c.contacts.length > 0 ? c.contacts : init.contacts,
-              documents: c.documents && c.documents.length > 0 ? c.documents : init.documents,
-              initialContract: { ...init.initialContract, ...c.initialContract }
-            });
-          } else {
-            map.set(c.id, c);
-          }
-        });
-        return Array.from(map.values());
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
       }
     } catch {}
     return initialClients;
@@ -949,6 +930,34 @@ export const EnterpriseCompanyProvider: React.FC<{ children: ReactNode }> = ({ c
     setClients(prev => prev.filter(c => c.id !== id));
   };
 
+  const clearClientsHistory = () => {
+    setClients([]);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_clients`, JSON.stringify([]));
+    } catch {}
+  };
+
+  const resetClientsToDefault = () => {
+    setClients(initialClients);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_clients`, JSON.stringify(initialClients));
+    } catch {}
+  };
+
+  const clearClientAuditHistory = (clientId: string) => {
+    setClients(prev =>
+      prev.map(c => {
+        if (c.id === clientId) {
+          return {
+            ...c,
+            auditTrail: []
+          };
+        }
+        return c;
+      })
+    );
+  };
+
   return (
     <EnterpriseCompanyContext.Provider
       value={{
@@ -973,7 +982,10 @@ export const EnterpriseCompanyProvider: React.FC<{ children: ReactNode }> = ({ c
         deleteAuthorizedPerson,
         addClient,
         updateClient,
-        deleteClient
+        deleteClient,
+        clearClientsHistory,
+        resetClientsToDefault,
+        clearClientAuditHistory
       }}
     >
       {children}

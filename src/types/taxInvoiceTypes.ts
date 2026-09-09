@@ -32,6 +32,7 @@ export interface TaxInvoiceAuditEntry {
     | 'APPROVED'
     | 'ISSUED'
     | 'PAYMENT_RECORDED'
+    | 'PAYMENT_DELETED'
     | 'CANCELLED'
     | 'CREDIT_NOTE_CREATED'
     | 'QBO_SYNCED';
@@ -80,6 +81,18 @@ export interface PurchaserSnapshot {
   capturedAt: string; // ISO timestamp when snapshot was taken
 }
 
+export interface InvoiceBankDetails {
+  bankAccountId?: string;
+  accountName: string;
+  bankName: string;
+  branchName: string;
+  accountNumber: string;
+  swiftCode?: string;
+  currency?: string;
+  purpose?: string;
+  isPrimary?: boolean;
+}
+
 export interface TaxInvoice {
   id: string;
   serialNumber: string; // YYMMM_QQQQ_XXXXX (Permanent once issued) or PREVIEW_...
@@ -89,6 +102,10 @@ export interface TaxInvoice {
   // Client Master Link & Immutable Historical Snapshot
   clientId?: string;
   purchaserSnapshot?: PurchaserSnapshot;
+
+  // Settlement Bank Details (Selected from Registered Bank Accounts)
+  bankAccountId?: string;
+  settlementBankDetails?: InvoiceBankDetails;
 
   // Key Dates
   invoiceDate: string; // YYYY-MM-DD - Controls the YY and MMM in serial number
@@ -200,6 +217,7 @@ export interface TaxInvoiceSettings {
   companyEmail: string;
   defaultPaymentTerms: string;
   defaultBankDetails: string;
+  autoSyncPettyCashInvoices?: boolean; // Controls whether project invoices from Petty Cash income ledger automatically re-sync into the Tax Invoice register
 }
 
 export interface ComplianceTestResult {

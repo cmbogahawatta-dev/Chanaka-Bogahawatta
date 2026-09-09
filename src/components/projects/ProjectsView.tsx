@@ -24,7 +24,8 @@ import {
   Trash2,
   LayoutGrid,
   List,
-  Mail
+  Mail,
+  Scale
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -44,6 +45,7 @@ import { useFleet } from '../../context/FleetContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { Project } from '../../types/pettyCashTypes';
 import { ProjectModal } from './ProjectModal';
+import { ProjectProfitDashboard } from './ProjectProfitDashboard';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { UniversalBulkImportModal } from '../common/UniversalBulkImportModal';
 import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
@@ -57,6 +59,7 @@ export const ProjectsView: React.FC = () => {
 
   const isAdmin = userRole === 'ADMIN' || currentRole === 'ADMIN';
 
+  const [activeTab, setActiveTab] = useState<'profit-dashboard' | 'cost-tracking' | 'registry'>('profit-dashboard');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [selectedProjectCode, setSelectedProjectCode] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -235,60 +238,125 @@ export const ProjectsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Top Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Contract Value</span>
-          <div className="text-xl font-mono font-bold text-slate-100 mt-1">{formatLKR(totalContractValue)}</div>
-          <span className="text-[10px] text-emerald-400 font-medium">Across {projects.length} Construction Packages</span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Committed Cost</span>
-          <div className="text-xl font-mono font-bold text-purple-400 mt-1">{formatLKR(totalActualExpenditure)}</div>
-          <span className="text-[10px] text-slate-400 font-medium">
-            {((totalActualExpenditure / (totalContractValue || 1)) * 100).toFixed(1)}% of total portfolio
+      {/* Navigation Tabs: Profit & Loss Dashboard vs Cost Tracking vs Projects Directory */}
+      <div className="flex flex-wrap items-center gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 w-fit">
+        <button
+          id="tab-projects-profit-dashboard"
+          type="button"
+          onClick={() => setActiveTab('profit-dashboard')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'profit-dashboard'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <Scale className="w-4 h-4" />
+          <span>Project Profit & Loss Dashboard</span>
+          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700">
+            SLFRS 15
           </span>
-        </div>
+        </button>
 
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Site Petty Cash Spent</span>
-          <div className="text-xl font-mono font-bold text-emerald-400 mt-1">{formatLKR(totalPettyCashAllocated)}</div>
-          <span className="text-[10px] text-emerald-300 font-medium">Live from field supervisor vouchers</span>
-        </div>
+        <button
+          id="tab-projects-cost-tracking"
+          type="button"
+          onClick={() => setActiveTab('cost-tracking')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'cost-tracking'
+              ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          <span>Construction Cost Tracking</span>
+        </button>
 
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Site Fleet</span>
-          <div className="text-xl font-mono font-bold text-blue-400 mt-1">{vehicles.length} Vehicles</div>
-          <span className="text-[10px] text-blue-300 font-medium">Allocated to RDA & provincial packages</span>
-        </div>
+        <button
+          id="tab-projects-directory"
+          type="button"
+          onClick={() => setActiveTab('registry')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'registry'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Projects Registry ({projects.length})</span>
+        </button>
       </div>
 
-      {/* 3. Cost Distribution Chart */}
-      <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
-        <h3 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-purple-400" />
-          <span>Project-Wise Expenditure by Cost Component (LKR)</span>
-        </h3>
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
-              <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={(v) => `${v / 1000}k`} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
-                formatter={(val: number) => [formatLKR(val), '']}
-              />
-              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-              <Bar dataKey="PettyCash" name="Petty Cash" fill="#10b981" stackId="a" />
-              <Bar dataKey="Fuel" name="Vehicle Fuel" fill="#3b82f6" stackId="a" />
-              <Bar dataKey="Procurement" name="Materials / PO" fill="#a855f7" stackId="a" />
-              <Bar dataKey="Payments" name="Disbursals" fill="#f43f5e" stackId="a" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+      {/* Tab 1: Project Profit & Loss Dashboard */}
+      {activeTab === 'profit-dashboard' && (
+        <ProjectProfitDashboard
+          onSelectProjectForCost={(code) => {
+            setSelectedProjectCode(code);
+            setActiveTab('cost-tracking');
+          }}
+        />
+      )}
+
+      {/* Tab 2 & 3: Cost Tracking & Projects Directory */}
+      {activeTab !== 'profit-dashboard' && (
+        <>
+          {activeTab === 'cost-tracking' && (
+            <>
+              {/* 2. Top Summary KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Contract Value</span>
+                  <div className="text-xl font-mono font-bold text-slate-100 mt-1">{formatLKR(totalContractValue)}</div>
+                  <span className="text-[10px] text-emerald-400 font-medium">Across {projects.length} Construction Packages</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Committed Cost</span>
+                  <div className="text-xl font-mono font-bold text-purple-400 mt-1">{formatLKR(totalActualExpenditure)}</div>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    {((totalActualExpenditure / (totalContractValue || 1)) * 100).toFixed(1)}% of total portfolio
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Site Petty Cash Spent</span>
+                  <div className="text-xl font-mono font-bold text-emerald-400 mt-1">{formatLKR(totalPettyCashAllocated)}</div>
+                  <span className="text-[10px] text-emerald-300 font-medium">Live from field supervisor vouchers</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Site Fleet</span>
+                  <div className="text-xl font-mono font-bold text-blue-400 mt-1">{vehicles.length} Vehicles</div>
+                  <span className="text-[10px] text-blue-300 font-medium">Allocated to RDA & provincial packages</span>
+                </div>
+              </div>
+
+              {/* 3. Cost Distribution Chart */}
+              <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
+                <h3 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-purple-400" />
+                  <span>Project-Wise Expenditure by Cost Component (LKR)</span>
+                </h3>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                      <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={(v) => `${v / 1000}k`} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
+                        formatter={(val: number) => [formatLKR(val), '']}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                      <Bar dataKey="PettyCash" name="Petty Cash" fill="#10b981" stackId="a" />
+                      <Bar dataKey="Fuel" name="Vehicle Fuel" fill="#3b82f6" stackId="a" />
+                      <Bar dataKey="Procurement" name="Materials / PO" fill="#a855f7" stackId="a" />
+                      <Bar dataKey="Payments" name="Disbursals" fill="#f43f5e" stackId="a" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </>
+          )}
 
       {/* 4. Filters, Search Bar & View Mode */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
@@ -561,6 +629,8 @@ export const ProjectsView: React.FC = () => {
             </div>
           ))}
         </div>
+      )}
+        </>
       )}
 
       {/* Project Modal for Add / Edit */}

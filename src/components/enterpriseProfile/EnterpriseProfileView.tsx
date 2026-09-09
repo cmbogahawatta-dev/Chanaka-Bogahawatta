@@ -36,7 +36,9 @@ import {
   Landmark,
   Upload,
   Receipt,
-  Filter
+  Filter,
+  History,
+  RotateCcw
 } from 'lucide-react';
 import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
 import { useEnterpriseBanking } from '../../context/EnterpriseBankingContext';
@@ -45,6 +47,7 @@ import { useEnterpriseCompliance } from '../../context/EnterpriseComplianceConte
 import { useFleet } from '../../context/FleetContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { adminSecurityService } from '../../services/adminSecurityService';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import {
   EnterpriseProfileDetails,
   StatutoryRegistration,
@@ -87,7 +90,10 @@ export const EnterpriseProfileView: React.FC = () => {
     deleteAuthorizedPerson,
     addClient,
     updateClient,
-    deleteClient
+    deleteClient,
+    clearClientsHistory,
+    resetClientsToDefault,
+    clearClientAuditHistory
   } = useEnterpriseCompany();
 
   const {
@@ -359,6 +365,9 @@ export const EnterpriseProfileView: React.FC = () => {
 
   const [isAddClientOpen, setIsAddClientOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
+  const [clientModalInitialTab, setClientModalInitialTab] = useState<
+    'basic' | 'tax' | 'contact' | 'address' | 'payment' | 'project' | 'documents' | 'audit'
+  >('basic');
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [clientTaxFilter, setClientTaxFilter] = useState<'ALL' | 'VAT' | 'NON_VAT'>('ALL');
   const [clientForm, setClientForm] = useState<Omit<Client, 'id'>>({
@@ -1368,10 +1377,34 @@ export const EnterpriseProfileView: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              {clients.length === 0 && (
+                <button
+                  type="button"
+                  onClick={resetClientsToDefault}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-semibold border border-slate-700 transition-colors"
+                  title="Restore default demonstration client records"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Restore Demo Clients</span>
+                </button>
+              )}
+              <AdminClearHistoryButton
+                id="btn-admin-clear-clients-history"
+                moduleName="Clients & Employers Master Registry"
+                itemCount={clients.length}
+                itemDescription="registered enterprise clients, statutory tax profiles, and master audit trails"
+                preservedItemsDescription="Linked project master packages, issued tax invoices, and accounting vouchers remain safely preserved."
+                buttonText="Clear History"
+                alwaysShow={true}
+                onClear={() => {
+                  clearClientsHistory();
+                }}
+              />
               <button
                 type="button"
                 onClick={() => {
                   setClientToEdit(null);
+                  setClientModalInitialTab('basic');
                   setIsAddClientOpen(true);
                 }}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors shadow-lg shadow-emerald-600/20"
@@ -1391,8 +1424,18 @@ export const EnterpriseProfileView: React.FC = () => {
                 value={clientSearchTerm}
                 onChange={e => setClientSearchTerm(e.target.value)}
                 placeholder="Search by client name, client code, TIN, VAT, contact person, or city..."
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                className="w-full pl-9 pr-8 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:border-purple-500 focus:outline-none"
               />
+              {clientSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setClientSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-200"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -1454,10 +1497,38 @@ export const EnterpriseProfileView: React.FC = () => {
             }).length === 0 ? (
               <div className="col-span-full p-10 text-center bg-slate-800/40 border border-slate-700/50 rounded-xl">
                 <Briefcase className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-slate-300">No matching clients or employers found</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Try adjusting your search criteria or register a new client.
+                <p className="text-sm font-medium text-slate-300">
+                  {clients.length === 0 ? 'Client & Employer Registry is Empty' : 'No matching clients or employers found'}
                 </p>
+                <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                  {clients.length === 0
+                    ? 'All historical client records have been cleared. You can register new enterprise clients or restore demonstration defaults.'
+                    : 'Try adjusting your search criteria or register a new client.'}
+                </p>
+                {clients.length === 0 && (
+                  <div className="mt-4 flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={resetClientsToDefault}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-semibold transition-colors"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Restore Demo Clients</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClientToEdit(null);
+                        setClientModalInitialTab('basic');
+                        setIsAddClientOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Register Client</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               clients
@@ -1769,6 +1840,7 @@ export const EnterpriseProfileView: React.FC = () => {
                             type="button"
                             onClick={() => {
                               setClientToEdit(cli);
+                              setClientModalInitialTab('basic');
                               setIsAddClientOpen(true);
                             }}
                             className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-all"
@@ -1777,6 +1849,21 @@ export const EnterpriseProfileView: React.FC = () => {
                             <Edit2 className="w-3 h-3" />
                             <span>Edit Master</span>
                           </button>
+                          {cli.auditTrail && cli.auditTrail.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setClientToEdit(cli);
+                                setClientModalInitialTab('audit');
+                                setIsAddClientOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-purple-300 hover:text-purple-200 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg transition-all"
+                              title={`View ${cli.auditTrail.length} history change logs for ${cli.name}`}
+                            >
+                              <History className="w-3 h-3 text-purple-400" />
+                              <span>History ({cli.auditTrail.length})</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() =>
@@ -2402,7 +2489,7 @@ export const EnterpriseProfileView: React.FC = () => {
                   required
                   placeholder="e.g. Authorized Signatory / Finance Manager"
                   value={signatoryForm.role}
-                  onChange={e => setSignatoryForm({ ...signatoryForm, role: e.target.value })}
+                  onChange={e => setSignatoryForm({ ...signatoryForm, role: e.target.value as any })}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
                 />
               </div>
@@ -2462,8 +2549,10 @@ export const EnterpriseProfileView: React.FC = () => {
         onClose={() => {
           setIsAddClientOpen(false);
           setClientToEdit(null);
+          setClientModalInitialTab('basic');
         }}
         clientToEdit={clientToEdit}
+        initialTab={clientModalInitialTab}
       />
 
       {/* MODAL: DELETE / REMOVE CONFIRMATION */}

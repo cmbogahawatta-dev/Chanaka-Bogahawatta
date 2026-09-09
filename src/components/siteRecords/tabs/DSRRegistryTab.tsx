@@ -430,8 +430,8 @@ export const DSRRegistryTab: React.FC<DSRRegistryTabProps> = ({
           recordCode={recordToDelete.dsrNumber}
           recordName={recordToDelete.projectName}
           recordId={recordToDelete.id}
-          additionalDetails={`Project: ${recordToDelete.projectCode} • Prepared by: ${recordToDelete.signOff.preparedBy || 'N/A'}`}
-          module="Daily Site Records"
+          additionalDetails={`Project: ${recordToDelete.projectCode} • Prepared by: ${recordToDelete.signOff.preparedByName || 'N/A'}`}
+          module="SITE_RECORDS"
           onDelete={async () => {
             deleteRecord(recordToDelete.id);
             setRecordToDelete(null);

@@ -25,7 +25,7 @@ import { UniversalBulkImportModal } from '../common/UniversalBulkImportModal';
 import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 interface RunningChartViewProps {
-  onOpenNewTrip: () => void;
+  onOpenNewTrip?: () => void;
 }
 
 export const RunningChartView: React.FC<RunningChartViewProps> = ({ onOpenNewTrip }) => {

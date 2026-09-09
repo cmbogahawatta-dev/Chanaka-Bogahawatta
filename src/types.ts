@@ -1,4 +1,4 @@
-export type VehicleStatus = 'active' | 'in-service' | 'idle' | 'transferred';
+export type VehicleStatus = 'active' | 'in-service' | 'idle' | 'transferred' | 'Active' | 'In-Service' | 'Idle' | 'Transferred';
 export type FuelType = 'Petrol (92/95)' | 'Diesel' | 'Hybrid' | 'Electric' | 'CNG';
 export type ServiceStatus = 'overdue' | 'due-soon' | 'good';
 
@@ -30,6 +30,11 @@ export interface Vehicle {
   gpsProvider?: GPSProvider;    // e.g. "protrack" | "traccar" | "teltonika" | "custom_webhook"
   gpsAutoOdometerSync?: boolean;// whether to auto-sync odometer from GPS telemetry
   lastGpsTelemetry?: GPSTelemetry;
+  currentSite?: string;
+  site?: string;
+  registrationNo?: string;
+  makeModel?: string;
+  assignedProject?: string;
 }
 
 export interface Driver {
@@ -74,6 +79,8 @@ export interface RunningChartEntry {
   status: 'in-progress' | 'completed';
   remarks?: string;
   createdAt: string;
+  projectCode?: string;
+  vehicleRegistration?: string;
 }
 
 export interface FuelRecord {
@@ -96,6 +103,9 @@ export interface FuelRecord {
   receiptPhotoUrl?: string;
   notes?: string;
   createdAt: string;
+  siteOrProject?: string;
+  projectCode?: string;
+  vehicleRegistration?: string;
 }
 
 export interface ServiceSchedule {
@@ -109,6 +119,7 @@ export interface ServiceSchedule {
   lastServiceDate: string;    // YYYY-MM-DD
   nextDueOdometerKm: number;  // lastServiceOdometerKm + intervalKm
   nextDueDate: string;        // calculated next date
+  lastPerformedDate?: string;
   description?: string;
   estimatedCost?: number;
 }
@@ -120,14 +131,17 @@ export interface MaintenanceLog {
   vehicleId: string;
   serviceType: string;
   completedDate: string;
+  date?: string;
   odometerKm: number;
   performedBy: string;        // Workshop / Mechanic Name
+  serviceCenter?: string;
   cost: number;
   invoiceNumber?: string;
   partsReplaced?: string;
   notes?: string;
   receiptUrl?: string;
   createdAt: string;
+  vehicleRegistration?: string;
 }
 
 export interface VehicleConditionChecklist {

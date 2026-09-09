@@ -22,6 +22,7 @@ export interface EnterpriseProfileDetails {
   postalAddress?: string;
   telephone?: string;
   mobile?: string;
+  email?: string;
   website?: string;
   companyStatus?: 'Active' | 'Dormant' | 'Under Liquidation' | 'Struck Off';
   vatNumber?: string;

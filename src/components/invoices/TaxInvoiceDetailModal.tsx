@@ -19,12 +19,15 @@ import {
   RefreshCw,
   Copy,
   Trash2,
-  Edit3
+  Edit3,
+  Landmark
 } from 'lucide-react';
-import { TaxInvoice } from '../../types/taxInvoiceTypes';
+import { TaxInvoice, InvoiceBankDetails } from '../../types/taxInvoiceTypes';
 import { useTaxInvoice } from '../../context/TaxInvoiceContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
-import { formatDateToGazette, validateTaxInvoiceForIssuance } from '../../utils/taxInvoiceUtils';
+import { useEnterpriseBanking } from '../../context/EnterpriseBankingContext';
+import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
+import { formatDateToGazette, validateTaxInvoiceForIssuance, cleanTaxInvoiceSerialNumber, resolvePurchaserFullAddress } from '../../utils/taxInvoiceUtils';
 
 interface TaxInvoiceDetailModalProps {
   isOpen: boolean;
@@ -53,16 +56,58 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
     issueInvoice,
     syncToQuickBooks,
     downloadInvoicePdf,
-    printInvoicePdf
+    printInvoicePdf,
+    updateInvoice
   } = useTaxInvoice();
 
   const { currentUser, currentRole } = useEnterprise();
+  const { accounts } = useEnterpriseBanking();
+  const { clients } = useEnterpriseCompany();
 
   const [activeTab, setActiveTab] = useState<'preview' | 'compliance' | 'audit' | 'qbo'>('preview');
   const [issueError, setIssueError] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState(false);
 
   if (!isOpen || !invoice) return null;
+
+  const cleanSerial = cleanTaxInvoiceSerialNumber(invoice.serialNumber);
+  const fullPurchaserAddress = resolvePurchaserFullAddress(invoice, clients);
+
+  const currentBankDetails: InvoiceBankDetails = invoice.settlementBankDetails || {
+    bankAccountId: 'bank-01',
+    accountName: 'Apex Global Logistics Corporation (Pvt) Ltd - Operations',
+    bankName: 'Commercial Bank of Ceylon PLC',
+    branchName: 'World Trade Centre Branch',
+    accountNumber: '1000849201',
+    swiftCode: 'CCEYLKFX',
+    currency: 'LKR',
+    purpose: 'Main Operating Cashflow & Fleet Running Costs',
+    isPrimary: true
+  };
+
+  const selectedBankAccountId = invoice.bankAccountId || invoice.settlementBankDetails?.bankAccountId || accounts.find(a => a.isPrimary)?.id || accounts[0]?.id || '';
+
+  const handleBankChange = (accountId: string) => {
+    const targetAccount = accounts.find(a => a.id === accountId);
+    if (!targetAccount) return;
+
+    const newBankDetails: InvoiceBankDetails = {
+      bankAccountId: targetAccount.id,
+      accountName: targetAccount.accountName,
+      bankName: targetAccount.bank,
+      branchName: targetAccount.branch,
+      accountNumber: targetAccount.accountNumber,
+      swiftCode: targetAccount.swift,
+      currency: targetAccount.currency,
+      purpose: targetAccount.purpose,
+      isPrimary: targetAccount.isPrimary
+    };
+
+    updateInvoice(invoice.id, {
+      bankAccountId: targetAccount.id,
+      settlementBankDetails: newBankDetails
+    });
+  };
 
   const isDraft = invoice.isDraft || invoice.status === 'DRAFT' || invoice.status === 'SUBMITTED' || invoice.status === 'APPROVED';
   const isSubmitted = invoice.status === 'SUBMITTED';
@@ -83,7 +128,7 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
   };
 
   const handleCopySerial = () => {
-    navigator.clipboard.writeText(invoice.serialNumber);
+    navigator.clipboard.writeText(cleanSerial);
     setCopyNotice(true);
     setTimeout(() => setCopyNotice(false), 2000);
   };
@@ -112,7 +157,7 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
                   className="flex items-center gap-1 font-mono font-bold text-xs text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800 hover:bg-cyan-900/60 transition-colors"
                   title="Click to copy serial"
                 >
-                  <span>{invoice.serialNumber}</span>
+                  <span>{cleanSerial}</span>
                   {copyNotice ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                 </button>
 
@@ -303,7 +348,7 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
                   </h1>
                   <div className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                     <span className="text-slate-400 font-sans font-medium">Tax Invoice Number :-</span>
-                    <span className="font-mono font-bold text-cyan-300 text-base">{invoice.serialNumber}</span>
+                    <span className="font-mono font-bold text-cyan-300 text-base">{cleanSerial}</span>
                   </div>
                   <div className="flex items-center gap-3 text-[11px] text-slate-400 pt-1">
                     <span>Date: <strong className="text-white">{invoice.invoiceDate}</strong></span>
@@ -380,7 +425,7 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
                     </div>
                     <div className="mt-1">
                       <span className="text-[10px] text-slate-500 block">Registered Address:</span>
-                      <p className="text-slate-300 leading-relaxed text-[11px] break-words">{invoice.purchaserAddress || 'Not specified'}</p>
+                      <p className="text-slate-300 leading-relaxed text-[11px] break-words">{fullPurchaserAddress || invoice.purchaserAddress || 'Not specified'}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
@@ -467,8 +512,55 @@ export const TaxInvoiceDetailModal: React.FC<TaxInvoiceDetailModalProps> = ({
                     <span className="text-slate-500 block text-[10px]">Amount in Words:</span>
                     <p className="font-semibold text-white italic">{invoice.amountInWords}</p>
                   </div>
-                  <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-                    <span className="font-bold text-slate-300">Bank Details:</span> Commercial Bank PLC • Echelon Square Corporate • A/C 1000-8491-0028
+                  <div className="pt-2.5 border-t border-slate-800 text-[11px] text-slate-300 space-y-1.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 font-bold text-white">
+                        <Landmark className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Settlement Bank Account:</span>
+                        {currentBankDetails.isPrimary && (
+                          <span className="text-[9.5px] bg-cyan-950 text-cyan-300 border border-cyan-800 font-semibold px-1.5 py-0.2 rounded">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <label htmlFor="detail-modal-bank-select" className="text-[10px] text-slate-400 font-semibold">
+                          Switch Account:
+                        </label>
+                        <select
+                          id="detail-modal-bank-select"
+                          value={selectedBankAccountId}
+                          onChange={e => handleBankChange(e.target.value)}
+                          className="bg-slate-900 border border-slate-700 hover:border-cyan-500 rounded px-2 py-0.5 text-xs text-cyan-200 outline-none cursor-pointer"
+                          title="Choose from registered company bank accounts"
+                        >
+                          {accounts.map(acc => (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.bank} • {acc.branch} ({acc.accountNumber}) {acc.isPrimary ? '★ Primary' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-lg p-2.5 space-y-1 text-slate-300">
+                      <div>Account Name: <strong className="text-white">{currentBankDetails.accountName}</strong></div>
+                      <div>Bank &amp; Branch: <strong className="text-slate-200">{currentBankDetails.bankName}</strong> • {currentBankDetails.branchName}</div>
+                      <div>
+                        Account Number: <strong className="font-mono text-cyan-300">{currentBankDetails.accountNumber}</strong>
+                        {currentBankDetails.swiftCode && (
+                          <> • Swift: <strong className="font-mono text-slate-200">{currentBankDetails.swiftCode}</strong></>
+                        )}
+                        {currentBankDetails.currency && (
+                          <> • Currency: <strong className="font-mono text-slate-200">{currentBankDetails.currency}</strong></>
+                        )}
+                      </div>
+                      {currentBankDetails.purpose && (
+                        <div className="text-[10px] text-slate-400 italic">
+                          Remittance Purpose: {currentBankDetails.purpose}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

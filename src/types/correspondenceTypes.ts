@@ -1,10 +1,28 @@
 export type LetterDirection = 'Incoming' | 'Outgoing' | 'Reply';
-export type LetterStatus = 'Draft' | 'Review' | 'Pending Approval' | 'Approved' | 'Issued' | 'Archived';
+export type LetterStatus =
+  | 'Draft'
+  | 'External Editing'
+  | 'Submitted for Review'
+  | 'Revision Required'
+  | 'Final Review'
+  | 'Finalized'
+  | 'Pending Approval'
+  | 'Approved'
+  | 'Issued'
+  | 'Archived'
+  | 'Review';
 export type LetterPriority = 'Low' | 'Normal' | 'High' | 'Urgent';
 export type LetterConfidentiality = 'Normal' | 'Restricted' | 'Confidential';
 export type LetterheadVariant = 'Company' | 'Project' | 'Finance' | 'Tender' | 'Confidential';
 export type LetterheadScope = 'Corporate' | 'Client' | 'Project' | 'Finance' | 'Tender' | 'Confidential';
 export type LetterTone = 'Formal' | 'Firm' | 'Diplomatic' | 'Contractual' | 'Conciliatory' | 'Urgent';
+export type DocumentSource =
+  | 'Application Editor'
+  | 'Google Docs'
+  | 'Microsoft Word'
+  | 'Imported PDF'
+  | 'AI Generated'
+  | 'Manual Revision';
 
 export interface Letter {
   id: string;
@@ -54,10 +72,63 @@ export interface Letter {
   version: number;
   isLocked: boolean;
   attachedDocumentIds: string[];
+  attachments?: CorrespondenceAttachment[];
+  downloadHistory?: LetterDownloadRecord[];
   aiGenerated?: boolean;
   aiSourcesUsed?: string[];
   createdAt: string;
   issuedAt?: string;
+
+  // External Document Editing & Google Workspace Integration
+  googleDocumentId?: string;
+  googleDocumentUrl?: string;
+  googleDriveFileId?: string;
+  externalEditor?: 'WORD' | 'GOOGLE_DOCS' | 'NONE';
+  externalDocumentCreatedAt?: string;
+  externalDocumentUpdatedAt?: string;
+  externalLastEditedBy?: string;
+  finalDocumentId?: string;
+  finalDocumentUrl?: string;
+  finalizedAt?: string;
+  finalizedBy?: string;
+  referencedLetters?: string[];
+}
+
+export interface LetterDownloadRecord {
+  id: string;
+  letterId: string;
+  downloadedAt: string;
+  downloadedBy: string;
+  format: 'PDF' | 'DOCX' | 'PRINT';
+  filename: string;
+  version: number;
+  fileSize?: number;
+  letterheadId?: string;
+  letterheadName?: string;
+  notes?: string;
+}
+
+export interface CorrespondenceAttachment {
+  id: string;
+  letterId: string;
+  name: string;
+  size: number;
+  fileType: string;
+  uploadedAt: string;
+  uploadedBy: string;
+  category:
+    | 'DRAFT'
+    | 'SUPPORTING_DOCUMENT'
+    | 'FINAL_DOCUMENT'
+    | 'SIGNED_DOCUMENT'
+    | 'MODIFIED_WORD_DOC'
+    | 'SIGNED_SCAN'
+    | 'SUPPORTING_DOC'
+    | 'TECHNICAL_ANNEXURE';
+  description?: string;
+  dataUrl?: string;
+  wordExtractedText?: string;
+  versionTagged?: number;
 }
 
 export interface LetterVersion {
@@ -68,6 +139,11 @@ export interface LetterVersion {
   changedBy: string;
   changedAt: string;
   changeDescription?: string;
+  source?: DocumentSource;
+  status?: LetterStatus;
+  isFinal?: boolean;
+  documentUrl?: string;
+  documentName?: string;
 }
 
 export interface LetterTemplate {

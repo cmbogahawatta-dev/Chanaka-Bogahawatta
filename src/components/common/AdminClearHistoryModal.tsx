@@ -14,6 +14,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
+import { useFleet } from '../../context/FleetContext';
 import { adminSecurityService } from '../../services/adminSecurityService';
 
 export interface AdminClearHistoryModalProps {
@@ -38,8 +39,9 @@ export const AdminClearHistoryModal: React.FC<AdminClearHistoryModalProps> = ({
   requirePin = true
 }) => {
   const { currentRole, currentUser } = useEnterprise();
+  const { isAdmin } = useFleet();
 
-  const isRoleAdmin = currentRole === 'ADMIN' || currentRole === 'OWNER';
+  const isRoleAdmin = currentRole === 'ADMIN' || currentRole === 'OWNER' || isAdmin;
   
   // Stages: 'AUTH' | 'SETUP' | 'CONFIRM' | 'SUCCESS'
   const [step, setStep] = useState<'AUTH' | 'SETUP' | 'CONFIRM' | 'SUCCESS'>('AUTH');

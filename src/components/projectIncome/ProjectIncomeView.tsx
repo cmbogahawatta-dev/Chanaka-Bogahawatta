@@ -14,13 +14,15 @@ import {
   Download,
   Calendar,
   Layers,
-  FileText
+  FileText,
+  Scale
 } from 'lucide-react';
 import { useTaxInvoice } from '../../context/TaxInvoiceContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { TaxInvoiceRegisterView } from '../invoices/TaxInvoiceRegisterView';
 import { ClientPaymentsView } from '../payments/views/ClientPaymentsView';
+import { ProjectProfitDashboard } from '../projects/ProjectProfitDashboard';
 import { formatLkr } from '../../utils/vatCalculations';
 
 export type ProjectIncomeTab =
@@ -252,19 +254,22 @@ export const ProjectIncomeView: React.FC<ProjectIncomeViewProps> = ({
             )}
           </button>
 
-          {/* Tab 4: Revenue & Billing Matrix */}
+          {/* Tab 4: Project Profit & Loss Dashboard */}
           <button
             id="tab-project-revenue-matrix"
             type="button"
             onClick={() => setActiveTab('revenue_matrix')}
             className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'revenue_matrix'
-                ? 'bg-amber-600 text-white shadow-md shadow-amber-950/50'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/50'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>Billing Matrix</span>
+            <Scale className="w-3.5 h-3.5" />
+            <span>Project Profit & Loss</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700">
+              SLFRS 15
+            </span>
           </button>
         </div>
 
@@ -398,141 +403,12 @@ export const ProjectIncomeView: React.FC<ProjectIncomeViewProps> = ({
         </div>
       )}
 
-      {/* Tab 4 Content: Revenue & Billing Matrix */}
+      {/* Tab 4 Content: Project Profit & Loss Dashboard (Expenses vs Income, Advances as Liability) */}
       {activeTab === 'revenue_matrix' && (
         <div className="space-y-4 animate-in fade-in duration-200">
-          {/* KPI Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-1">
-              <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>Total Corporate Billing</span>
-                <Building className="w-4 h-4 text-emerald-400" />
-              </div>
-              <p className="text-xl font-mono font-black text-white">
-                {formatLkr(overallTotals.billed)}
-              </p>
-              <span className="text-[11px] text-slate-500 block">
-                Across {projectMatrix.reduce((acc, p) => acc + p.invoiceCount, 0)} billing certificates
-              </span>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-1">
-              <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>Total Receipts Collected</span>
-                <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-              </div>
-              <p className="text-xl font-mono font-black text-cyan-400">
-                {formatLkr(overallTotals.collected)}
-              </p>
-              <span className="text-[11px] text-slate-500 block">
-                Direct bank & cheque settlements
-              </span>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-1">
-              <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>Outstanding Receivables</span>
-                <Clock className="w-4 h-4 text-amber-400" />
-              </div>
-              <p className="text-xl font-mono font-black text-amber-400">
-                {formatLkr(overallTotals.balance)}
-              </p>
-              <span className="text-[11px] text-slate-500 block">
-                Pending client settlement
-              </span>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-1">
-              <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>Collection Efficiency</span>
-                <TrendingUp className="w-4 h-4 text-indigo-400" />
-              </div>
-              <p className="text-xl font-mono font-black text-indigo-300">
-                {overallTotals.collectionRate.toFixed(1)}%
-              </p>
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
-                <div
-                  className="bg-indigo-500 h-full rounded-full transition-all"
-                  style={{ width: `${Math.min(100, overallTotals.collectionRate)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Project Billing Matrix Table */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-amber-400" />
-                  <span>Project-Wise Income & Receivables Matrix</span>
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Real-time billing, collection rates, and outstanding balances by project code
-                </p>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-950/80 border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4">Project Code</th>
-                    <th className="py-3 px-4">Project Description</th>
-                    <th className="py-3 px-4">Client / Authority</th>
-                    <th className="py-3 px-4 text-right">Total Billed</th>
-                    <th className="py-3 px-4 text-right">Total Collected</th>
-                    <th className="py-3 px-4 text-right">Outstanding Due</th>
-                    <th className="py-3 px-4 text-center">Collection %</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 font-medium">
-                  {projectMatrix.map((p) => {
-                    const colPct = p.totalBilled > 0 ? (p.totalCollected / p.totalBilled) * 100 : 0;
-                    return (
-                      <tr key={p.projectCode} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3 px-4">
-                          <span className="font-mono font-bold text-purple-300 bg-slate-950 px-2.5 py-1 rounded border border-purple-900/50">
-                            {p.projectCode}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-slate-200 font-semibold">
-                          {p.projectName}
-                        </td>
-                        <td className="py-3 px-4 text-slate-400">
-                          {p.client}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-200 font-bold">
-                          {formatLkr(p.totalBilled)}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono text-cyan-400 font-bold">
-                          {formatLkr(p.totalCollected)}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-amber-400">
-                          {formatLkr(p.balanceDue)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="w-16 bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all ${
-                                  colPct >= 80 ? 'bg-emerald-500' : colPct >= 50 ? 'bg-amber-500' : 'bg-rose-500'
-                                }`}
-                                style={{ width: `${Math.min(100, colPct)}%` }}
-                              />
-                            </div>
-                            <span className="font-mono text-[11px] text-slate-300 min-w-[36px] text-right">
-                              {colPct.toFixed(0)}%
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <ProjectProfitDashboard
+            onNavigateToInvoice={() => setActiveTab('tax_invoices')}
+          />
         </div>
       )}
     </div>

@@ -551,7 +551,7 @@ const EnterpriseAppContent: React.FC = () => {
                 {fleetTab === 'gps' && <LiveGPSMapView />}
                 {fleetTab === 'analytics' && <AnalyticsDashboardView />}
                 {fleetTab === 'runningChart' && <RunningChartView />}
-                {fleetTab === 'fuel' && <FuelRecordView />}
+                {fleetTab === 'fuel' && <FuelRecordView onOpenNewFuel={() => setShowFuelModal(true)} />}
                 {fleetTab === 'maintenance' && <MaintenanceView />}
                 {fleetTab === 'transfers' && (
                   <VehicleTransferView

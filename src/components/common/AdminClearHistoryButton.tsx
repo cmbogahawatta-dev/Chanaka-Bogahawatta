@@ -16,6 +16,7 @@ export interface AdminClearHistoryButtonProps {
   variant?: 'danger' | 'ghost' | 'outline' | 'compact';
   className?: string;
   buttonClassName?: string;
+  alwaysShow?: boolean;
 }
 
 export const AdminClearHistoryButton: React.FC<AdminClearHistoryButtonProps> = ({
@@ -29,7 +30,8 @@ export const AdminClearHistoryButton: React.FC<AdminClearHistoryButtonProps> = (
   onClear,
   variant = 'outline',
   className = '',
-  buttonClassName = ''
+  buttonClassName = '',
+  alwaysShow = false
 }) => {
   const displayLabel = label || buttonText || 'Clear History';
   const customClass = className || buttonClassName;
@@ -37,10 +39,10 @@ export const AdminClearHistoryButton: React.FC<AdminClearHistoryButtonProps> = (
   const { isAdmin } = useFleet();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const isRoleAdmin = currentRole === 'ADMIN' || isAdmin;
+  const isRoleAdmin = currentRole === 'ADMIN' || currentRole === 'OWNER' || isAdmin;
 
-  // Only visible for Admin
-  if (!isRoleAdmin) {
+  // Only visible for Admin unless alwaysShow is set
+  if (!isRoleAdmin && !alwaysShow) {
     return null;
   }
 

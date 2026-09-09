@@ -19,7 +19,15 @@ import {
   MapPin,
   ExternalLink,
   Eye,
-  Ruler
+  Ruler,
+  Download,
+  Upload,
+  Globe,
+  Lock,
+  AlertTriangle,
+  FileCheck,
+  ShieldCheck,
+  Info
 } from 'lucide-react';
 import { useEnterpriseCorrespondence } from '../../context/EnterpriseCorrespondenceContext';
 import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
@@ -31,9 +39,15 @@ import {
   LetterTemplate,
   LetterheadVariant,
   LetterTone,
-  LetterheadTemplate
+  LetterheadTemplate,
+  CorrespondenceAttachment
 } from '../../types/correspondenceTypes';
 import { LetterheadPreviewModal } from './LetterheadPreviewModal';
+import { GoogleDocsConnectModal } from './GoogleDocsConnectModal';
+import { CorrespondenceFinalizeModal } from './CorrespondenceFinalizeModal';
+import { exportLetterToWord } from '../../services/export/wordExportService';
+import { readWordDocumentFile } from '../../services/export/wordImportService';
+import { validateImportedLetterIntegrity } from '../../utils/letterheadProtection';
 import {
   extractClientAffix,
   extractProjectAffix,
@@ -75,7 +89,7 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
     getRecommendedLetterhead
   } = useEnterpriseCorrespondence();
 
-  const { clients } = useEnterpriseCompany();
+  const { clients, profile } = useEnterpriseCompany();
   const { registeredBanks } = useEnterpriseBanking();
   const { projects } = usePettyCash();
   const { currentEnterprise } = useEnterprise();
@@ -367,6 +381,142 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
   const [aiTone, setAiTone] = useState<LetterTone>('Formal');
   const [isAiDrafting, setIsAiDrafting] = useState(false);
 
+  // MS Word & Google Docs Document Editing States & Handlers
+  const [importedWordFileName, setImportedWordFileName] = useState<string | null>(null);
+  const [isImportingWord, setIsImportingWord] = useState(false);
+  const [isExportingWord, setIsExportingWord] = useState(false);
+  const wordFileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const pdfFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const [googleDocUrl, setGoogleDocUrl] = useState<string | null>(null);
+  const [googleDocId, setGoogleDocId] = useState<string | null>(null);
+  const [isGoogleDocsModalOpen, setIsGoogleDocsModalOpen] = useState(false);
+  const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
+  const [isPreviewFinalModalOpen, setIsPreviewFinalModalOpen] = useState(false);
+  const [wordInstructionBanner, setWordInstructionBanner] = useState<string | null>(null);
+  const [attachedFinalPdf, setAttachedFinalPdf] = useState<{
+    name: string;
+    dataUrl: string;
+    size: number;
+  } | null>(null);
+  const [integrityWarning, setIntegrityWarning] = useState<{
+    missingFields: string[];
+    missingElements: string[];
+    htmlPayload: string;
+    fileName: string;
+  } | null>(null);
+
+  const handleImportWordFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsImportingWord(true);
+      const parsed = await readWordDocumentFile(file);
+      if (parsed.html && parsed.html.trim()) {
+        // Letterhead Protection Check: Validate essential header/reference fields
+        const draftLetterForCheck = {
+          letterNumber: liveReference,
+          subject: subject,
+          recipientOrganization: recipientOrg,
+        } as Letter;
+
+        const validation = validateImportedLetterIntegrity(
+          parsed.html,
+          draftLetterForCheck,
+          currentEnterprise?.name || profile?.legalName || 'Apex Global'
+        );
+
+        if (!validation.isValid && validation.missingElements.length > 0) {
+          setIntegrityWarning({
+            missingFields: validation.missingElements,
+            missingElements: validation.missingElements,
+            htmlPayload: parsed.html,
+            fileName: file.name
+          });
+        } else {
+          setBodyHtml(parsed.html);
+          setImportedWordFileName(file.name);
+          setWordInstructionBanner(null);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to parse Word document:', err);
+      alert('Could not read Word document: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsImportingWord(false);
+      if (wordFileInputRef.current) wordFileInputRef.current.value = '';
+    }
+  };
+
+  const handleConfirmIntegrityBypass = () => {
+    if (integrityWarning) {
+      setBodyHtml(integrityWarning.htmlPayload);
+      setImportedWordFileName(integrityWarning.fileName);
+      setIntegrityWarning(null);
+      setWordInstructionBanner(null);
+    }
+  };
+
+  const handleUploadFinalPdf = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachedFinalPdf({
+        name: file.name,
+        dataUrl: reader.result as string,
+        size: file.size
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleExportDraftToWord = async () => {
+    try {
+      setIsExportingWord(true);
+      const draftLetterObj: Letter = {
+        id: 'draft-temp',
+        letterNumber: liveReference,
+        ourReference: liveReference,
+        direction: 'Outgoing',
+        category,
+        subject: subject || 'OFFICIAL DRAFT CORRESPONDENCE',
+        bodyHtml,
+        date: letterDate,
+        recipientOrganization: recipientOrg,
+        recipientAddress,
+        attention,
+        projectAffix,
+        projectName,
+        preparedBy,
+        status: 'Draft',
+        version: 1,
+        isLocked: false,
+        attachedDocumentIds: [],
+        priority: 'Normal',
+        confidentiality: 'Normal',
+        createdAt: new Date().toISOString()
+      };
+
+      await exportLetterToWord(
+        draftLetterObj,
+        profile,
+        currentEnterprise?.name || 'EMA CORPORATE ENTERPRISE',
+        activeLetterheadObj
+      );
+
+      setWordInstructionBanner(
+        "Edit this document in Microsoft Word and upload the completed version using 'Import Edited Word Document'."
+      );
+    } catch (err) {
+      console.error('Failed to export draft to MS Word:', err);
+      alert('Failed to export draft to MS Word');
+    } finally {
+      setIsExportingWord(false);
+    }
+  };
+
   // Template Handler
   const handleApplyTemplate = (tmplId: string) => {
     const tmpl = templates.find(t => t.id === tmplId);
@@ -409,6 +559,23 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const initialAttachments: CorrespondenceAttachment[] = [];
+    if (attachedFinalPdf) {
+      initialAttachments.push({
+        id: `att-pdf-${Date.now()}`,
+        letterId: 'pending',
+        name: attachedFinalPdf.name,
+        size: attachedFinalPdf.size,
+        fileType: 'application/pdf',
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: preparedBy,
+        category: 'FINAL_DOCUMENT',
+        description: 'Uploaded official final PDF document',
+        dataUrl: attachedFinalPdf.dataUrl,
+        versionTagged: 1
+      });
+    }
+
     const newLetterData = {
       letterNumber: liveReference,
       ourReference: liveReference,
@@ -438,7 +605,11 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
       preparedBy,
       status: 'Draft' as const,
       attachedDocumentIds: [],
-      enterpriseId: currentEnterprise?.id || 'ent-apex'
+      enterpriseId: currentEnterprise?.id || 'ent-apex',
+      googleDocumentUrl: googleDocUrl || undefined,
+      googleDocumentId: googleDocId || undefined,
+      externalEditor: googleDocUrl ? ('GOOGLE_DOCS' as const) : importedWordFileName ? ('WORD' as const) : ('NONE' as const),
+      attachments: initialAttachments
     };
 
     const created = createLetter(newLetterData);
@@ -1055,10 +1226,192 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
               />
             </div>
 
+            {/* PROMINENT SECTION: DOCUMENT EDITING */}
+            <div className="bg-slate-950/80 border border-blue-500/40 rounded-xl p-4 space-y-3.5 shadow-md">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-blue-900/40 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                      DOCUMENT EDITING
+                    </h3>
+                    <p className="text-[10px] text-slate-400">
+                      Collaborate in Google Docs or Microsoft Word for complex document formatting
+                    </p>
+                  </div>
+                </div>
+
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800/60 font-mono font-semibold">
+                  External Control Bridges
+                </span>
+              </div>
+
+              {/* Instructions banner when Edit in Word was clicked */}
+              {wordInstructionBanner && (
+                <div className="p-3 bg-blue-950/60 border border-blue-500/40 rounded-lg text-xs text-blue-200 flex items-start justify-between gap-3 animate-fade-in">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block font-semibold text-white mb-0.5">Workflow Instruction:</strong>
+                      {wordInstructionBanner}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWordInstructionBanner(null)}
+                    className="text-slate-400 hover:text-slate-200 text-xs font-semibold shrink-0"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {/* Google Docs Status Banner */}
+              {googleDocUrl && (
+                <div className="p-3 bg-blue-950/40 border border-blue-500/30 rounded-lg text-xs text-blue-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2 truncate">
+                    <Globe className="w-4 h-4 text-blue-400 shrink-0" />
+                    <span className="truncate">Google Document linked: <strong className="text-white font-mono">{googleDocUrl}</strong></span>
+                  </div>
+                  <a
+                    href={googleDocUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-300 hover:text-white underline text-[11px] font-semibold flex items-center gap-1 shrink-0 ml-2"
+                  >
+                    Open <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+
+              {/* Imported Word Status Banner */}
+              {importedWordFileName && (
+                <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-lg text-xs text-emerald-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Imported edited Word document: <strong className="text-white">{importedWordFileName}</strong></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setImportedWordFileName(null)}
+                    className="text-slate-400 hover:text-slate-200 text-xs font-semibold"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {/* Attached Final PDF Banner */}
+              {attachedFinalPdf && (
+                <div className="p-3 bg-purple-950/40 border border-purple-500/30 rounded-lg text-xs text-purple-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileCheck className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span>Official Final PDF attached: <strong className="text-white">{attachedFinalPdf.name}</strong> ({Math.round(attachedFinalPdf.size / 1024)} KB)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedFinalPdf(null)}
+                    className="text-slate-400 hover:text-slate-200 text-xs font-semibold"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+
+              {/* Action Buttons Toolbar */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                {/* 1. Edit in Google Docs */}
+                <button
+                  type="button"
+                  onClick={() => setIsGoogleDocsModalOpen(true)}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition-colors"
+                >
+                  <Globe className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Edit in Google Docs</span>
+                </button>
+
+                {/* 2. Download / Edit in Microsoft Word */}
+                <button
+                  type="button"
+                  onClick={handleExportDraftToWord}
+                  disabled={isExportingWord}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                  title="Generate Word (.docx) with letterhead for offline editing"
+                >
+                  <Download className="w-3.5 h-3.5 text-blue-400" />
+                  <span>{isExportingWord ? 'Exporting...' : 'Download / Edit in Microsoft Word'}</span>
+                </button>
+
+                {/* 3. Import Edited Word Document */}
+                <input
+                  ref={wordFileInputRef}
+                  type="file"
+                  accept=".docx,.doc"
+                  onChange={handleImportWordFile}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => wordFileInputRef.current?.click()}
+                  disabled={isImportingWord}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 shadow-xs"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{isImportingWord ? 'Importing...' : 'Import Edited Word Document'}</span>
+                </button>
+
+                {/* 4. Upload Final PDF */}
+                <input
+                  ref={pdfFileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleUploadFinalPdf}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => pdfFileInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition-colors"
+                >
+                  <FileCheck className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Upload Final PDF</span>
+                </button>
+
+                {/* 5. Preview Final Letter */}
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewFinalModalOpen(true)}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Preview Final Letter</span>
+                </button>
+
+                {/* 6. Finalize Letter */}
+                <button
+                  type="button"
+                  onClick={() => setIsFinalizeModalOpen(true)}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-colors shadow-lg shadow-amber-600/20"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Finalize Letter</span>
+                </button>
+              </div>
+            </div>
+
+            {/* LETTER CONTENT BODY */}
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Letter Content Body (HTML formatted)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-300">
+                  Letter Content Body (In-App Editor & Controlled Justified Preview)
+                </label>
+                <span className="text-[11px] text-slate-400">
+                  {bodyHtml.length} characters
+                </span>
+              </div>
+
               <textarea
                 rows={8}
                 required
@@ -1127,6 +1480,201 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
           </div>
         </form>
       </div>
+
+      {/* Google Docs Integration Modal */}
+      {isGoogleDocsModalOpen && (
+        <GoogleDocsConnectModal
+          isOpen={isGoogleDocsModalOpen}
+          onClose={() => setIsGoogleDocsModalOpen(false)}
+          letter={{
+            id: 'temp-draft',
+            letterNumber: liveReference,
+            ourReference: liveReference,
+            direction: 'Outgoing',
+            category,
+            subject: subject || 'OFFICIAL CORRESPONDENCE',
+            bodyHtml,
+            date: letterDate,
+            recipientOrganization: recipientOrg,
+            recipientAddress,
+            attention,
+            projectAffix,
+            projectName,
+            preparedBy,
+            status: 'Draft',
+            version: 1,
+            isLocked: false,
+            attachedDocumentIds: [],
+            priority: 'Normal',
+            confidentiality: 'Normal',
+            googleDocumentUrl: googleDocUrl || undefined,
+            googleDocumentId: googleDocId || undefined,
+            createdAt: new Date().toISOString()
+          }}
+          profile={profile}
+          letterhead={activeLetterheadObj}
+          onLinkUpdated={(docUrl, docId) => {
+            setGoogleDocUrl(docUrl);
+            if (docId) setGoogleDocId(docId);
+          }}
+          onSyncContent={(newBodyHtml) => {
+            setBodyHtml(newBodyHtml);
+          }}
+        />
+      )}
+
+      {/* Preview Final Letter Modal */}
+      {isPreviewFinalModalOpen && activeLetterheadObj && (
+        <LetterheadPreviewModal
+          isOpen={isPreviewFinalModalOpen}
+          onClose={() => setIsPreviewFinalModalOpen(false)}
+          letterhead={activeLetterheadObj}
+        />
+      )}
+
+      {/* Finalize Letter Modal in Compose Flow */}
+      {isFinalizeModalOpen && (
+        <CorrespondenceFinalizeModal
+          isOpen={isFinalizeModalOpen}
+          onClose={() => setIsFinalizeModalOpen(false)}
+          letter={{
+            id: 'temp-draft',
+            letterNumber: liveReference,
+            ourReference: liveReference,
+            direction: 'Outgoing',
+            category,
+            subject: subject || 'OFFICIAL CORRESPONDENCE',
+            bodyHtml,
+            date: letterDate,
+            recipientOrganization: recipientOrg,
+            recipientAddress,
+            attention,
+            projectAffix,
+            projectName,
+            preparedBy,
+            status: 'Draft',
+            version: 1,
+            isLocked: false,
+            attachedDocumentIds: [],
+            priority: 'Normal',
+            confidentiality: 'Normal',
+            googleDocumentUrl: googleDocUrl || undefined,
+            createdAt: new Date().toISOString()
+          }}
+          letterhead={activeLetterheadObj}
+          onConfirmFinalize={async (officerName) => {
+            // Create finalized letter directly
+            const initialAttachments: CorrespondenceAttachment[] = [];
+            if (attachedFinalPdf) {
+              initialAttachments.push({
+                id: `att-pdf-${Date.now()}`,
+                letterId: 'pending',
+                name: attachedFinalPdf.name,
+                size: attachedFinalPdf.size,
+                fileType: 'application/pdf',
+                uploadedAt: new Date().toISOString(),
+                uploadedBy: officerName,
+                category: 'FINAL_DOCUMENT',
+                description: 'Uploaded official final PDF document',
+                dataUrl: attachedFinalPdf.dataUrl,
+                versionTagged: 1
+              });
+            }
+
+            const created = createLetter({
+              letterNumber: liveReference,
+              ourReference: liveReference,
+              direction: 'Outgoing' as const,
+              category,
+              clientId: selectedClientId && selectedClientId !== 'CUSTOM' ? selectedClientId : undefined,
+              clientName: clientName || recipientOrg,
+              clientAffix: clientAffix.toUpperCase(),
+              linkedEntityType: entityType === 'BANK' ? ('BANK_ACCOUNT' as const) : undefined,
+              linkedEntityId: entityType === 'BANK' && selectedBankObj ? selectedBankObj.id : undefined,
+              projectId: selectedProjectId && selectedProjectId !== 'CUSTOM' ? selectedProjectId : undefined,
+              projectCode: projectCode || projectAffix,
+              projectName: projectName || `Project ${projectAffix}`,
+              projectAffix: projectAffix.toUpperCase(),
+              sequenceYear: initiatedYear,
+              sequenceNumber: parseInt(suffix, 10) || 1,
+              recipientOrganization: recipientOrg,
+              recipientAddress,
+              attention,
+              subject,
+              date: letterDate,
+              priority: 'Normal' as const,
+              confidentiality: 'Normal' as const,
+              bodyHtml,
+              letterheadId: selectedLetterheadId || undefined,
+              letterheadVariant,
+              preparedBy: officerName,
+              status: 'Finalized' as const,
+              isLocked: true,
+              finalizedAt: new Date().toISOString(),
+              finalizedBy: officerName,
+              attachedDocumentIds: [],
+              enterpriseId: currentEnterprise?.id || 'ent-apex',
+              googleDocumentUrl: googleDocUrl || undefined,
+              googleDocumentId: googleDocId || undefined,
+              externalEditor: googleDocUrl ? 'GOOGLE_DOCS' : importedWordFileName ? 'WORD' : 'NONE',
+              attachments: initialAttachments
+            });
+
+            onLetterCreated(created);
+            onClose();
+          }}
+        />
+      )}
+
+      {/* Letterhead Protection Integrity Warning Modal */}
+      {integrityWarning && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-amber-600/50 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-600/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-100">
+                  Letterhead Integrity Warning
+                </h3>
+                <p className="text-xs text-amber-300/80">
+                  Official letterhead elements appear to be missing from the imported document.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-amber-950/40 border border-amber-500/40 rounded-xl text-xs text-amber-200/90 space-y-2">
+              <p>The system detected missing verification anchors in the imported Word document:</p>
+              <ul className="list-disc list-inside space-y-1 text-slate-300 font-mono">
+                {integrityWarning.missingElements.map((elem, idx) => (
+                  <li key={idx}>{elem}</li>
+                ))}
+              </ul>
+              <p className="text-slate-400 text-[11px] pt-1">
+                Importing without letterhead elements may affect formal company compliance. Do you want to proceed with import anyway?
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIntegrityWarning(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-colors"
+              >
+                Cancel / Keep Current
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmIntegrityBypass}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-colors shadow-lg shadow-amber-600/20"
+              >
+                Proceed with Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {previewLetterheadTarget && (
         <LetterheadPreviewModal

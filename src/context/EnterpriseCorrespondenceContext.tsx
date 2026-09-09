@@ -8,8 +8,11 @@ import {
   LetterDirection,
   LetterPriority,
   LetterConfidentiality,
-  LetterTone
+  LetterTone,
+  CorrespondenceAttachment,
+  LetterDownloadRecord
 } from '../types/correspondenceTypes';
+import { readWordDocumentFile } from '../services/export/wordImportService';
 import {
   formatCorrespondenceReference,
   getNextLetterSuffix,
@@ -25,12 +28,18 @@ interface EnterpriseCorrespondenceContextType {
   templates: LetterTemplate[];
   letterheads: LetterheadTemplate[];
   activeLetterheads: LetterheadTemplate[];
-  createLetter: (letter: Omit<Letter, 'id' | 'version' | 'isLocked' | 'createdAt'> & { letterNumber?: string }) => Letter;
+  createLetter: (
+    letter: Omit<Letter, 'id' | 'version' | 'isLocked' | 'createdAt'> & {
+      letterNumber?: string;
+      isLocked?: boolean;
+      version?: number;
+    }
+  ) => Letter;
   updateLetter: (id: string, updates: Partial<Letter>, changeDesc?: string, editorName?: string) => void;
-  advanceStatus: (id: string, newStatus: LetterStatus, actorName: string) => void;
+  advanceStatus: (id: string, newStatus: LetterStatus, actorName: string) => boolean;
   submitForApproval: (id: string, actorName?: string) => void;
   approveLetter: (id: string, actorName?: string) => void;
-  issueLetter: (id: string, actorName: string) => void;
+  issueLetter: (id: string, actorName: string) => boolean;
   archiveLetter: (id: string) => void;
   deleteLetter: (id: string) => boolean;
   addTemplate: (tmpl: Omit<LetterTemplate, 'id' | 'createdAt'>) => void;
@@ -88,6 +97,44 @@ interface EnterpriseCorrespondenceContextType {
   }) => void;
   clearAllCorrespondenceHistory: () => void;
   resetCorrespondenceToDefaults: () => void;
+  addAttachmentToLetter: (
+    letterId: string,
+    attachment: Omit<CorrespondenceAttachment, 'id' | 'uploadedAt'>
+  ) => CorrespondenceAttachment;
+  removeAttachmentFromLetter: (letterId: string, attachmentId: string) => void;
+  importWordDocToLetter: (
+    letterId: string,
+    file: File,
+    options?: {
+      updateLetterBody?: boolean;
+      changeDescription?: string;
+      actorName?: string;
+      category?: CorrespondenceAttachment['category'];
+      notes?: string;
+    }
+  ) => Promise<CorrespondenceAttachment>;
+  recordLetterDownload: (
+    letterId: string,
+    record: {
+      format: 'PDF' | 'DOCX' | 'PRINT';
+      filename: string;
+      downloadedBy?: string;
+      fileSize?: number;
+      letterheadId?: string;
+      letterheadName?: string;
+      notes?: string;
+    }
+  ) => LetterDownloadRecord;
+  finalizeLetter: (
+    id: string,
+    finalizedBy: string,
+    finalDocxBlob?: Blob,
+    finalPdfDataUrl?: string
+  ) => Promise<Letter>;
+  createRevision: (id: string, actorName: string, reason?: string) => Letter;
+  updateGoogleDocLink: (id: string, docUrl: string, docId?: string, actorName?: string) => void;
+  syncFromGoogleDoc: (id: string, newBodyHtml: string, actorName?: string) => void;
+  importWordRevision: (id: string, extractedHtml: string, file: File, actorName?: string) => Promise<Letter>;
 }
 
 const defaultTemplates: LetterTemplate[] = [
@@ -196,6 +243,32 @@ const initialLetters: Letter[] = [
     version: 1,
     isLocked: true,
     attachedDocumentIds: [],
+    downloadHistory: [
+      {
+        id: 'dl-init-001',
+        letterId: 'ltr-001',
+        downloadedAt: '2026-08-14T11:05:00Z',
+        downloadedBy: 'Samantha Perera (Admin)',
+        format: 'PDF',
+        filename: 'EMA_RDA_PIDM26_2026_001_Official_Correspondence.pdf',
+        version: 1,
+        letterheadName: '[Project] Kadawatha-Mirigama Site Stationery',
+        fileSize: 142300,
+        notes: 'Official PDF issued to Employer & Project Director'
+      },
+      {
+        id: 'dl-init-002',
+        letterId: 'ltr-001',
+        downloadedAt: '2026-08-14T09:45:00Z',
+        downloadedBy: 'Samantha Perera (Admin)',
+        format: 'DOCX',
+        filename: 'EMA_RDA_PIDM26_2026_001_Official_Correspondence.docx',
+        version: 1,
+        letterheadName: '[Project] Kadawatha-Mirigama Site Stationery',
+        fileSize: 84200,
+        notes: 'Draft exported to MS Word for Resident Engineer review'
+      }
+    ],
     createdAt: '2026-08-14T09:30:00Z',
     issuedAt: '2026-08-14T11:00:00Z'
   },
@@ -640,7 +713,11 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
   };
 
   const createLetter = (
-    data: Omit<Letter, 'id' | 'version' | 'isLocked' | 'createdAt'> & { letterNumber?: string }
+    data: Omit<Letter, 'id' | 'version' | 'isLocked' | 'createdAt'> & {
+      letterNumber?: string;
+      isLocked?: boolean;
+      version?: number;
+    }
   ): Letter => {
     // Determine letter reference number
     let assignedLetterNumber = data.letterNumber;
@@ -678,8 +755,8 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
       letterNumber: assignedLetterNumber,
       ourReference: data.ourReference || assignedLetterNumber,
       letterheadId: assignedLetterheadId,
-      version: 1,
-      isLocked: false,
+      version: data.version ?? 1,
+      isLocked: data.isLocked ?? false,
       createdAt: new Date().toISOString()
     };
 
@@ -737,7 +814,18 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
     }
   };
 
-  const advanceStatus = (id: string, newStatus: LetterStatus, actorName: string) => {
+  const advanceStatus = (id: string, newStatus: LetterStatus, actorName: string): boolean => {
+    const target = letters.find(l => l.id === id);
+    if (!target) return false;
+
+    if (newStatus === 'Issued') {
+      // Must be finalized and approved!
+      if (target.status !== 'Approved' && !target.isLocked) {
+        console.warn('Cannot issue correspondence: Document must be finalized and approved by authorized signatory before issuance.');
+        return false;
+      }
+    }
+
     setLetters(prev =>
       prev.map(l => {
         if (l.id !== id) return l;
@@ -750,10 +838,27 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
         };
       })
     );
+
+    try {
+      AuditService.log({
+        enterpriseId: target.enterpriseId || 'ent-apex',
+        userId: 'usr-admin',
+        userName: actorName,
+        userRole: 'admin',
+        action: newStatus === 'Issued' ? 'ISSUE' : 'UPDATE',
+        module: 'CORRESPONDENCE',
+        recordId: id,
+        recordTitle: target.letterNumber,
+        details: `Status advanced to ${newStatus} by ${actorName}`
+      });
+    } catch (e) {
+      console.error('Audit log error:', e);
+    }
+    return true;
   };
 
-  const issueLetter = (id: string, actorName: string) => {
-    advanceStatus(id, 'Issued', actorName);
+  const issueLetter = (id: string, actorName: string): boolean => {
+    return advanceStatus(id, 'Issued', actorName);
   };
 
   const submitForApproval = (id: string, actorName: string = 'Legal Secretariat') => {
@@ -762,6 +867,267 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
 
   const approveLetter = (id: string, actorName: string = 'Managing Director') => {
     advanceStatus(id, 'Approved', actorName);
+  };
+
+  const finalizeLetter = async (
+    id: string,
+    finalizedBy: string,
+    finalDocxBlob?: Blob,
+    finalPdfDataUrl?: string
+  ): Promise<Letter> => {
+    const target = letters.find(l => l.id === id);
+    if (!target) throw new Error('Letter not found');
+
+    const nextVer = target.version + 1;
+    const nowIso = new Date().toISOString();
+
+    let newAttachments = target.attachments ? [...target.attachments] : [];
+
+    // If PDF data URL provided, store as controlled FINAL_DOCUMENT attachment
+    if (finalPdfDataUrl) {
+      const pdfAttachment: CorrespondenceAttachment = {
+        id: `att-final-pdf-${Date.now()}`,
+        letterId: id,
+        name: `${target.letterNumber.replace(/[\/\\]/g, '_')}_FINAL.pdf`,
+        size: Math.round(finalPdfDataUrl.length * 0.75),
+        fileType: 'application/pdf',
+        uploadedAt: nowIso,
+        uploadedBy: finalizedBy,
+        category: 'FINAL_DOCUMENT',
+        description: `Controlled official final PDF generated upon finalization (v${nextVer})`,
+        dataUrl: finalPdfDataUrl,
+        versionTagged: nextVer
+      };
+      newAttachments = [pdfAttachment, ...newAttachments];
+    }
+
+    const updated: Letter = {
+      ...target,
+      status: 'Finalized',
+      version: nextVer,
+      isLocked: true,
+      finalizedAt: nowIso,
+      finalizedBy: finalizedBy,
+      externalDocumentUpdatedAt: nowIso,
+      attachments: newAttachments
+    };
+
+    setLetters(prev => prev.map(l => (l.id === id ? updated : l)));
+
+    // Record immutable final version
+    const finalVer: LetterVersion = {
+      id: `ver-${Date.now()}`,
+      letterId: id,
+      version: nextVer,
+      bodyHtml: target.bodyHtml,
+      changedBy: finalizedBy,
+      changedAt: nowIso,
+      changeDescription: `Document finalized and locked by ${finalizedBy}. Ready for executive approval sequence.`,
+      source: target.externalEditor === 'WORD' ? 'Microsoft Word' : target.externalEditor === 'GOOGLE_DOCS' ? 'Google Docs' : 'Application Editor',
+      status: 'Finalized',
+      isFinal: true
+    };
+    setVersions(prev => [finalVer, ...prev]);
+
+    try {
+      AuditService.log({
+        enterpriseId: target.enterpriseId || 'ent-apex',
+        userId: 'usr-admin',
+        userName: finalizedBy,
+        userRole: 'admin',
+        action: 'UPDATE',
+        module: 'CORRESPONDENCE',
+        recordId: id,
+        recordTitle: target.letterNumber,
+        details: `Finalized and locked letter version V${nextVer} by ${finalizedBy}`
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
+    return updated;
+  };
+
+  const createRevision = (id: string, actorName: string, reason?: string): Letter => {
+    const target = letters.find(l => l.id === id);
+    if (!target) throw new Error('Letter not found');
+
+    const nextVer = target.version + 1;
+    const nowIso = new Date().toISOString();
+
+    const updated: Letter = {
+      ...target,
+      status: 'Revision Required',
+      version: nextVer,
+      isLocked: false,
+      externalEditor: 'NONE',
+      finalizedAt: undefined,
+      finalizedBy: undefined
+    };
+
+    setLetters(prev => prev.map(l => (l.id === id ? updated : l)));
+
+    const revVer: LetterVersion = {
+      id: `ver-${Date.now()}`,
+      letterId: id,
+      version: nextVer,
+      bodyHtml: target.bodyHtml,
+      changedBy: actorName,
+      changedAt: nowIso,
+      changeDescription: reason || `Created new draft revision v${nextVer} from approved/finalized state`,
+      source: 'Manual Revision',
+      status: 'Revision Required'
+    };
+    setVersions(prev => [revVer, ...prev]);
+
+    try {
+      AuditService.log({
+        enterpriseId: target.enterpriseId || 'ent-apex',
+        userId: 'usr-admin',
+        userName: actorName,
+        userRole: 'admin',
+        action: 'UPDATE',
+        module: 'CORRESPONDENCE',
+        recordId: id,
+        recordTitle: target.letterNumber,
+        details: `Created new revision v${nextVer}: ${reason || 'Manual revision initiated'}`
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
+    return updated;
+  };
+
+  const updateGoogleDocLink = (id: string, docUrl: string, docId?: string, actorName: string = 'Current User') => {
+    setLetters(prev =>
+      prev.map(l => {
+        if (l.id !== id) return l;
+        return {
+          ...l,
+          googleDocumentUrl: docUrl,
+          googleDocumentId: docId || (docUrl.match(/\/d\/([a-zA-Z0-9-_]+)/)?.[1]),
+          externalEditor: 'GOOGLE_DOCS',
+          externalDocumentUpdatedAt: new Date().toISOString(),
+          externalLastEditedBy: actorName,
+          status: l.status === 'Draft' ? 'External Editing' : l.status
+        };
+      })
+    );
+  };
+
+  const syncFromGoogleDoc = (id: string, newBodyHtml: string, actorName: string = 'Google Docs Sync') => {
+    const target = letters.find(l => l.id === id);
+    if (!target) return;
+
+    const nextVer = target.version + 1;
+    const nowIso = new Date().toISOString();
+
+    const updated: Letter = {
+      ...target,
+      bodyHtml: newBodyHtml,
+      version: nextVer,
+      status: 'External Editing',
+      externalEditor: 'GOOGLE_DOCS',
+      externalDocumentUpdatedAt: nowIso,
+      externalLastEditedBy: actorName
+    };
+
+    setLetters(prev => prev.map(l => (l.id === id ? updated : l)));
+
+    const ver: LetterVersion = {
+      id: `ver-${Date.now()}`,
+      letterId: id,
+      version: nextVer,
+      bodyHtml: newBodyHtml,
+      changedBy: actorName,
+      changedAt: nowIso,
+      changeDescription: `Synchronized latest changes from Google Docs (v${nextVer})`,
+      source: 'Google Docs',
+      status: 'External Editing'
+    };
+    setVersions(prev => [ver, ...prev]);
+  };
+
+  const importWordRevision = async (
+    id: string,
+    extractedHtml: string,
+    file: File,
+    actorName: string = 'Word Reviewer'
+  ): Promise<Letter> => {
+    const target = letters.find(l => l.id === id);
+    if (!target) throw new Error('Letter not found');
+
+    const nextVer = target.version + 1;
+    const nowIso = new Date().toISOString();
+
+    // Convert file to data URL for persistent offline preview/download
+    const dataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+
+    const attachment: CorrespondenceAttachment = {
+      id: `att-docx-${Date.now()}`,
+      letterId: id,
+      name: file.name,
+      size: file.size,
+      fileType: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      uploadedAt: nowIso,
+      uploadedBy: actorName,
+      category: 'MODIFIED_WORD_DOC',
+      description: `Externally edited Microsoft Word document imported as v${nextVer}`,
+      dataUrl,
+      wordExtractedText: extractedHtml.replace(/<[^>]+>/g, ' ').slice(0, 500),
+      versionTagged: nextVer
+    };
+
+    const currentAttachments = target.attachments || [];
+    const updated: Letter = {
+      ...target,
+      bodyHtml: extractedHtml,
+      version: nextVer,
+      status: 'External Editing',
+      externalEditor: 'WORD',
+      externalDocumentUpdatedAt: nowIso,
+      externalLastEditedBy: actorName,
+      attachments: [attachment, ...currentAttachments]
+    };
+
+    setLetters(prev => prev.map(l => (l.id === id ? updated : l)));
+
+    const ver: LetterVersion = {
+      id: `ver-${Date.now()}`,
+      letterId: id,
+      version: nextVer,
+      bodyHtml: extractedHtml,
+      changedBy: actorName,
+      changedAt: nowIso,
+      changeDescription: `Imported edited Word document: ${file.name} (v${nextVer})`,
+      source: 'Microsoft Word',
+      status: 'External Editing'
+    };
+    setVersions(prev => [ver, ...prev]);
+
+    try {
+      AuditService.log({
+        enterpriseId: target.enterpriseId || 'ent-apex',
+        userId: 'usr-admin',
+        userName: actorName,
+        userRole: 'admin',
+        action: 'UPDATE',
+        module: 'CORRESPONDENCE',
+        recordId: id,
+        recordTitle: target.letterNumber,
+        details: `Imported Word revision v${nextVer} from file: ${file.name}`
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
+    return updated;
   };
 
   const getNextLetterNumber = (prefix?: string): string => {
@@ -939,6 +1305,161 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
     clearCorrespondenceHistory();
   };
 
+  const addAttachmentToLetter = (
+    letterId: string,
+    attachmentData: Omit<CorrespondenceAttachment, 'id' | 'uploadedAt'>
+  ): CorrespondenceAttachment => {
+    const newAttachment: CorrespondenceAttachment = {
+      ...attachmentData,
+      id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      uploadedAt: new Date().toISOString()
+    };
+
+    setLetters(prev =>
+      prev.map(l => {
+        if (l.id !== letterId) return l;
+        const currentAtts = l.attachments || [];
+        return {
+          ...l,
+          attachments: [newAttachment, ...currentAtts],
+          attachedDocumentIds: Array.from(new Set([...(l.attachedDocumentIds || []), newAttachment.id]))
+        };
+      })
+    );
+
+    try {
+      AuditService.log({
+        enterpriseId: 'ent-apex',
+        userId: 'usr-admin',
+        userName: attachmentData.uploadedBy || 'Executive User',
+        userRole: 'admin',
+        action: 'UPDATE',
+        module: 'CORRESPONDENCE',
+        recordId: letterId,
+        recordTitle: newAttachment.name,
+        details: `Attached document correspondence: ${newAttachment.name} (${newAttachment.category})`
+      });
+    } catch {}
+
+    return newAttachment;
+  };
+
+  const removeAttachmentFromLetter = (letterId: string, attachmentId: string) => {
+    setLetters(prev =>
+      prev.map(l => {
+        if (l.id !== letterId) return l;
+        const currentAtts = l.attachments || [];
+        return {
+          ...l,
+          attachments: currentAtts.filter(a => a.id !== attachmentId),
+          attachedDocumentIds: (l.attachedDocumentIds || []).filter(id => id !== attachmentId)
+        };
+      })
+    );
+  };
+
+  const importWordDocToLetter = async (
+    letterId: string,
+    file: File,
+    options?: {
+      updateLetterBody?: boolean;
+      changeDescription?: string;
+      actorName?: string;
+      category?: CorrespondenceAttachment['category'];
+      notes?: string;
+    }
+  ): Promise<CorrespondenceAttachment> => {
+    const parsed = await readWordDocumentFile(file);
+    const actor = options?.actorName || 'Executive User';
+
+    const targetLetter = letters.find(l => l.id === letterId);
+    const versionTagged = targetLetter ? targetLetter.version : 1;
+
+    const attachment = addAttachmentToLetter(letterId, {
+      letterId,
+      name: parsed.fileName,
+      size: parsed.fileSize,
+      fileType: parsed.fileType,
+      uploadedBy: actor,
+      category: options?.category || 'MODIFIED_WORD_DOC',
+      description: options?.notes || 'Modified in Microsoft Office Word',
+      dataUrl: parsed.dataUrl,
+      wordExtractedText: parsed.rawText,
+      versionTagged
+    });
+
+    if (options?.updateLetterBody && parsed.html && parsed.html.trim()) {
+      updateLetter(
+        letterId,
+        { bodyHtml: parsed.html },
+        options.changeDescription || `Imported modifications from MS Word (${parsed.fileName})`,
+        actor
+      );
+    }
+
+    return attachment;
+  };
+
+  const recordLetterDownload = (
+    letterId: string,
+    record: {
+      format: 'PDF' | 'DOCX' | 'PRINT';
+      filename: string;
+      downloadedBy?: string;
+      fileSize?: number;
+      letterheadId?: string;
+      letterheadName?: string;
+      notes?: string;
+    }
+  ): LetterDownloadRecord => {
+    const actor = record.downloadedBy || 'Executive Secretariat';
+    const target = letters.find(l => l.id === letterId);
+    const version = target ? target.version : 1;
+
+    const newRecord: LetterDownloadRecord = {
+      id: `dl-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      letterId,
+      downloadedAt: new Date().toISOString(),
+      downloadedBy: actor,
+      format: record.format,
+      filename: record.filename,
+      version,
+      fileSize: record.fileSize,
+      letterheadId: record.letterheadId,
+      letterheadName: record.letterheadName,
+      notes: record.notes
+    };
+
+    setLetters(prev =>
+      prev.map(l => {
+        if (l.id !== letterId) return l;
+        const currentHist = l.downloadHistory || [];
+        return {
+          ...l,
+          downloadHistory: [newRecord, ...currentHist]
+        };
+      })
+    );
+
+    try {
+      AuditService.log({
+        enterpriseId: target?.enterpriseId || 'ent-apex',
+        userId: 'usr-admin',
+        userName: actor,
+        userRole: 'admin',
+        action: 'EXPORT',
+        module: 'CORRESPONDENCE',
+        recordId: letterId,
+        recordTitle: target?.letterNumber || 'Correspondence',
+        details: `Downloaded ${record.format} copy: ${record.filename} (v${version})`
+      });
+    } catch (e) {
+      console.error('Failed to log audit for download:', e);
+    }
+
+    return newRecord;
+  };
+
   const resetCorrespondenceToDefaults = () => {
     setLetters(initialLetters);
     setVersions([]);
@@ -985,7 +1506,16 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
         transformLetterWithAi,
         clearCorrespondenceHistory,
         clearAllCorrespondenceHistory,
-        resetCorrespondenceToDefaults
+        resetCorrespondenceToDefaults,
+        addAttachmentToLetter,
+        removeAttachmentFromLetter,
+        importWordDocToLetter,
+        recordLetterDownload,
+        finalizeLetter,
+        createRevision,
+        updateGoogleDocLink,
+        syncFromGoogleDoc,
+        importWordRevision
       }}
     >
       {children}

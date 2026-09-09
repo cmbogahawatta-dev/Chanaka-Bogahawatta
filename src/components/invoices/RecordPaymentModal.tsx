@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, CreditCard, CheckCircle2, DollarSign, Receipt, AlertCircle } from 'lucide-react';
+import { X, CreditCard, CheckCircle2, DollarSign, Receipt, AlertCircle, Landmark } from 'lucide-react';
 import { TaxInvoice, ClientPaymentRecord } from '../../types/taxInvoiceTypes';
 import { useTaxInvoice } from '../../context/TaxInvoiceContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
+import { useEnterpriseBanking } from '../../context/EnterpriseBankingContext';
 import { amountToWordsLKR } from '../../utils/taxInvoiceUtils';
 
 interface RecordPaymentModalProps {
@@ -18,17 +19,24 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 }) => {
   const { recordClientPayment } = useTaxInvoice();
   const { currentUser } = useEnterprise();
+  const { accounts } = useEnterpriseBanking();
 
   if (!isOpen || !invoice) return null;
 
   const today = new Date().toISOString().split('T')[0];
+
+  const defaultBankLabel = invoice.settlementBankDetails
+    ? `${invoice.settlementBankDetails.bankName} (${invoice.settlementBankDetails.accountNumber})`
+    : accounts.length > 0
+    ? `${accounts[0].bank} • ${accounts[0].branch} (${accounts[0].accountNumber})`
+    : 'Commercial Bank of Ceylon (1000849201)';
 
   const [paymentDate, setPaymentDate] = useState(today);
   const [amountReceived, setAmountReceived] = useState<number>(invoice.balanceDue);
   const [paymentMethod, setPaymentMethod] = useState<ClientPaymentRecord['paymentMethod']>('Bank Transfer (RTGS)');
   const [paymentReference, setPaymentReference] = useState('');
   const [receiptNumber, setReceiptNumber] = useState(`RCP-${Date.now().toString().slice(-6)}`);
-  const [bankAccount, setBankAccount] = useState('Commercial Bank Echelon Square (1000-8491-0028)');
+  const [bankAccount, setBankAccount] = useState(defaultBankLabel);
   const [notes, setNotes] = useState('');
 
   const remainingAfterPayment = Math.max(0, invoice.balanceDue - (Number(amountReceived) || 0));
@@ -187,13 +195,30 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-slate-400 font-semibold mb-1">Remittance Bank Account</label>
-            <input
-              type="text"
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-slate-400 font-semibold flex items-center gap-1.5">
+                <Landmark className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Receiving Bank Account</span>
+              </label>
+              <span className="text-[10px] text-cyan-400">From Registered Accounts</span>
+            </div>
+            <select
               value={bankAccount}
               onChange={e => setBankAccount(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs outline-none"
-            />
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-cyan-500"
+            >
+              {accounts.map(acc => {
+                const label = `${acc.bank} • ${acc.branch} (${acc.accountNumber})`;
+                return (
+                  <option key={acc.id} value={label}>
+                    {label} {acc.isPrimary ? '★ (Primary)' : ''}
+                  </option>
+                );
+              })}
+              {defaultBankLabel && !accounts.some(acc => `${acc.bank} • ${acc.branch} (${acc.accountNumber})` === defaultBankLabel) && (
+                <option value={defaultBankLabel}>{defaultBankLabel} (Invoice Settlement Bank)</option>
+              )}
+            </select>
           </div>
 
           <div>

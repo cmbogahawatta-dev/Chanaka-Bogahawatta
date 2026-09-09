@@ -24,6 +24,7 @@ export type PRVPaymentMethod =
   | 'Cheque'
   | 'Card'
   | 'Online Payment'
+  | 'Petty Cash'
   | 'Other';
 
 export type PaymentSource =

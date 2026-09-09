@@ -223,28 +223,58 @@ const STORAGE_KEYS = {
 export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Enterprise State
   const [enterprises, setEnterprises] = useState<Enterprise[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.ENTERPRISES);
-    return saved ? JSON.parse(saved) : initialEnterprises;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.ENTERPRISES);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to parse enterprises from storage, using initial:', e);
+    }
+    return initialEnterprises;
   });
 
   const [activeEnterpriseId, setActiveEnterpriseId] = useState<string>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_ENTERPRISE_ID);
-    return saved || (initialEnterprises[0]?.id ?? 'ent-apex');
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_ENTERPRISE_ID);
+      if (saved && typeof saved === 'string' && saved.trim()) return saved.trim();
+    } catch {}
+    return (initialEnterprises[0]?.id ?? 'ent-apex');
   });
 
   const [enterpriseUsers, setEnterpriseUsers] = useState<EnterpriseUser[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.ENTERPRISE_USERS);
-    return saved ? JSON.parse(saved) : initialEnterpriseUsers;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.ENTERPRISE_USERS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to parse enterprise users from storage, using initial:', e);
+    }
+    return initialEnterpriseUsers;
   });
 
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-    return saved || 'usr-1';
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+      if (saved && typeof saved === 'string' && saved.trim()) return saved.trim();
+    } catch {}
+    return 'usr-1';
   });
 
   const [invitations, setInvitations] = useState<EnterpriseInvitation[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.INVITATIONS);
-    return saved ? JSON.parse(saved) : initialInvitations;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.INVITATIONS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to parse invitations from storage, using initial:', e);
+    }
+    return initialInvitations;
   });
 
   // Fleet Assets & Records (Raw storage arrays across all enterprises)

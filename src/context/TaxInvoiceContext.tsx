@@ -38,8 +38,14 @@ interface TaxInvoiceContextType {
   downloadInvoicePdf: (invoice: TaxInvoice) => void;
   printInvoicePdf: (invoice: TaxInvoice) => void;
   deleteInvoice: (id: string) => void;
-  clearTaxInvoicesHistory: () => void;
+  clearTaxInvoicesHistory: (filterStatus?: string) => void;
+  resetTaxInvoicesToDefault: () => void;
   importTaxInvoices: (imported: Partial<TaxInvoice>[]) => { count: number; totalGross: number };
+  autoSyncPettyCashInvoices: boolean;
+  setAutoSyncPettyCashInvoices: (enabled: boolean) => void;
+  syncFromPettyCash: (forceIncludeDeleted?: boolean) => { addedCount: number; skippedCount: number; message: string };
+  deletedIdentifiersCount: number;
+  resetDeletedIdentifiers: () => void;
 }
 
 const DEFAULT_SETTINGS: TaxInvoiceSettings = {
@@ -55,7 +61,8 @@ const DEFAULT_SETTINGS: TaxInvoiceSettings = {
   companyPhone: '+94 11 244 8900',
   companyEmail: 'finance@apexlogistics.lk',
   defaultPaymentTerms: 'Net 30 Days from milestone certification',
-  defaultBankDetails: 'Commercial Bank PLC • Echelon Square Corporate • A/C 1000-8491-0028'
+  defaultBankDetails: 'Commercial Bank PLC • Echelon Square Corporate • A/C 1000-8491-0028',
+  autoSyncPettyCashInvoices: false // Set to false by default to prevent unexpected resurrection after clear or delete
 };
 
 const INITIAL_INVOICES: TaxInvoice[] = [
@@ -120,6 +127,18 @@ const INITIAL_INVOICES: TaxInvoice[] = [
     balanceDue: 0,
     paymentStatus: 'Paid',
     isGazetteCompliant: true,
+    bankAccountId: 'bank-01',
+    settlementBankDetails: {
+      bankAccountId: 'bank-01',
+      accountName: 'Apex Global Logistics Corporation (Pvt) Ltd - Operations',
+      bankName: 'Commercial Bank of Ceylon PLC',
+      branchName: 'World Trade Centre Branch',
+      accountNumber: '1000849201',
+      swiftCode: 'CCEYLKFX',
+      currency: 'LKR',
+      purpose: 'Main Operating Cashflow & Fleet Running Costs',
+      isPrimary: true
+    },
     qbo: {
       status: 'Synced',
       qboInvoiceId: 'QBO-91024',
@@ -226,6 +245,18 @@ const INITIAL_INVOICES: TaxInvoice[] = [
     balanceDue: 3447200,
     paymentStatus: 'Partially Paid',
     isGazetteCompliant: true,
+    bankAccountId: 'bank-01',
+    settlementBankDetails: {
+      bankAccountId: 'bank-01',
+      accountName: 'Apex Global Logistics Corporation (Pvt) Ltd - Operations',
+      bankName: 'Commercial Bank of Ceylon PLC',
+      branchName: 'World Trade Centre Branch',
+      accountNumber: '1000849201',
+      swiftCode: 'CCEYLKFX',
+      currency: 'LKR',
+      purpose: 'Main Operating Cashflow & Fleet Running Costs',
+      isPrimary: true
+    },
     qbo: {
       status: 'Synced',
       qboInvoiceId: 'QBO-91025',
@@ -341,7 +372,7 @@ const INITIAL_INVOICES: TaxInvoice[] = [
   },
   {
     id: 'inv-draft-001',
-    serialNumber: 'PREVIEW_26SEP_EMA_00004',
+    serialNumber: '26SEP_EMA_00004',
     isDraft: true,
     status: 'SUBMITTED',
     invoiceDate: '2026-09-04',
@@ -457,11 +488,20 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [invoices, setInvoices] = useState<TaxInvoice[]>(() => {
     try {
       const stored = localStorage.getItem('apex_tax_invoices');
-      if (stored) return JSON.parse(stored);
+      if (stored !== null) {
+        const parsed: TaxInvoice[] = JSON.parse(stored);
+        return parsed.map(inv => ({
+          ...inv,
+          serialNumber: inv.serialNumber ? inv.serialNumber.replace(/^PREVIEW_/i, '') : inv.serialNumber
+        }));
+      }
     } catch (e) {
       console.error('Failed to load tax invoices from localStorage:', e);
     }
-    return INITIAL_INVOICES;
+    return INITIAL_INVOICES.map(inv => ({
+      ...inv,
+      serialNumber: inv.serialNumber ? inv.serialNumber.replace(/^PREVIEW_/i, '') : inv.serialNumber
+    }));
   });
 
   const [settings, setSettings] = useState<TaxInvoiceSettings>(() => {
@@ -477,7 +517,7 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [payments, setPayments] = useState<ClientPaymentRecord[]>(() => {
     try {
       const stored = localStorage.getItem('apex_client_payments');
-      if (stored) return JSON.parse(stored);
+      if (stored !== null) return JSON.parse(stored);
     } catch (e) {
       console.error('Failed to load payments from localStorage:', e);
     }
@@ -485,6 +525,17 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [activeInvoiceTab, setActiveInvoiceTab] = useState<'tax-invoices' | 'drafts' | 'issued' | 'credit-notes' | 'cancelled' | 'compliance' | 'settings'>('tax-invoices');
+
+  // Track deleted invoice identifiers so they are never automatically resurrected
+  const [deletedIdentifiers, setDeletedIdentifiers] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('apex_tax_invoices_deleted_ids');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error('Failed to load deleted identifiers from localStorage:', e);
+    }
+    return [];
+  });
 
   // Persistence to localStorage
   useEffect(() => {
@@ -511,8 +562,93 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [payments]);
 
-  // Ensure historical project invoices from PettyCashContext are merged seamlessly into TaxInvoice master register
   useEffect(() => {
+    try {
+      localStorage.setItem('apex_tax_invoices_deleted_ids', JSON.stringify(deletedIdentifiers));
+    } catch (e) {
+      console.error('Failed to persist deleted identifiers:', e);
+    }
+  }, [deletedIdentifiers]);
+
+  // Helper to convert historical project income into official Tax Invoice format
+  const convertIncomeToTaxInvoice = (inc: any, currentSettings: TaxInvoiceSettings): TaxInvoice => {
+    const serial = inc.invoiceNumber || inc.INCOME_ID || `INV-LEGACY-${inc.id}`;
+    const gross = Number(inc.grossAmount) || Number(inc.AMOUNT) || 0;
+    const vatRate = Number(inc.vatRate) || 18;
+    const taxable = Number(inc.taxableAmount) || Number(inc.netAmount) || Math.round(gross / (1 + vatRate / 100) * 100) / 100;
+    const vatAmt = Number(inc.vatAmount) || Math.round((gross - taxable) * 100) / 100;
+    const rec = Number(inc.amountReceived) || 0;
+    const bal = Number(inc.balanceDue) || Math.max(0, gross - rec);
+    const invDate = inc.invoiceDate || inc.DATE_REF || inc.RECEIPT_DATE || new Date().toISOString().split('T')[0];
+    const statusStr = inc.paymentStatus || 'Pending';
+    const finalStatus: TaxInvoiceStatus = statusStr === 'Paid' ? 'PAID' : statusStr === 'Partially Paid' ? 'PARTIALLY_PAID' : 'ISSUED';
+    const description = inc.billingDescription || inc.invoiceDescription || inc.DESCRIPTION || inc.REMARKS || 'Project Milestone Billing';
+
+    return {
+      id: `legacy-${inc.id}`,
+      legacyIncomeId: inc.id,
+      serialNumber: serial,
+      isDraft: false,
+      status: finalStatus,
+      invoiceDate: invDate,
+      dueDate: inc.dueDate || new Date(new Date(invDate).getTime() + 30 * 86400000).toISOString().split('T')[0],
+      supplierName: currentSettings.companyName,
+      supplierTin: currentSettings.companyTin,
+      supplierVatNumber: currentSettings.companyVatNumber,
+      supplierAddress: currentSettings.companyAddress,
+      supplierContact: `${currentSettings.companyPhone} / ${currentSettings.companyEmail}`,
+      purchaserName: inc.clientName || 'Project Client',
+      purchaserTin: inc.clientTin || 'N/A',
+      purchaserAddress: inc.clientAddress || '',
+      projectCode: inc.PROJECT || 'PRJ-LEGACY',
+      projectName: inc.projectName || inc.PROJECT || 'Enterprise Construction Project',
+      billingDescription: description,
+      lineItems: [
+        {
+          id: `item-legacy-${inc.id}`,
+          itemNumber: 1,
+          description,
+          unitOfMeasure: 'Lot',
+          quantity: 1,
+          unitPrice: taxable,
+          taxableValue: taxable,
+          vatRate,
+          vatAmount: vatAmt,
+          totalAmount: gross
+        }
+      ],
+      currency: 'LKR',
+      totalTaxableValue: taxable,
+      vatRate,
+      vatAmount: vatAmt,
+      totalConsideration: gross,
+      amountInWords: amountToWordsLKR(gross),
+      amountReceived: rec,
+      balanceDue: bal,
+      paymentStatus: bal <= 0.05 ? 'Paid' : rec > 0 ? 'Partially Paid' : 'Unpaid',
+      isGazetteCompliant: true,
+      preparedBy: inc.SUPERVISOR_NAME || 'Finance Officer',
+      issuedBy: inc.SUPERVISOR_NAME || 'Finance Officer',
+      issuedAt: invDate,
+      auditTrail: [
+        {
+          id: `aud-leg-${inc.id}`,
+          timestamp: new Date().toISOString(),
+          action: 'ISSUED',
+          performedBy: 'System Migration',
+          notes: 'Historical project invoice synchronized with official Tax Invoice register'
+        }
+      ],
+      createdAt: invDate,
+      updatedAt: new Date().toISOString()
+    };
+  };
+
+  // Ensure historical project invoices from PettyCashContext are merged ONLY if auto-sync is explicitly enabled
+  useEffect(() => {
+    // STOP RESYNC: If auto-sync option is disabled or history was explicitly cleared, DO NOT auto-sync
+    if (!settings.autoSyncPettyCashInvoices) return;
+    if (localStorage.getItem('apex_tax_invoices_cleared') === 'true') return;
     if (!income || income.length === 0) return;
 
     const legacyInvoices = income.filter(inc =>
@@ -522,6 +658,8 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     );
 
     if (legacyInvoices.length === 0) return;
+
+    const deletedSet = new Set(deletedIdentifiers.map(d => (d || '').trim().toUpperCase()));
 
     setInvoices(prev => {
       let hasChanges = false;
@@ -533,89 +671,29 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       legacyInvoices.forEach(inc => {
         const serial = inc.invoiceNumber || inc.INCOME_ID || `INV-LEGACY-${inc.id}`;
-        if (existingSerials.has(serial.toUpperCase()) || existingIds.has(inc.id) || existingLegacyIds.has(inc.id)) {
+        const serialUpper = serial.toUpperCase();
+        const incIdUpper = String(inc.id || '').trim().toUpperCase();
+
+        // CRITICAL: Stop re-syncing if already existing or previously deleted / cleared
+        if (
+          existingSerials.has(serialUpper) ||
+          existingIds.has(inc.id) ||
+          existingLegacyIds.has(inc.id) ||
+          deletedSet.has(incIdUpper) ||
+          deletedSet.has(serialUpper) ||
+          deletedSet.has(`LEGACY-${incIdUpper}`)
+        ) {
           return;
         }
 
         hasChanges = true;
-        const gross = Number(inc.grossAmount) || Number(inc.AMOUNT) || 0;
-        const vatRate = Number(inc.vatRate) || 18;
-        const taxable = Number(inc.taxableAmount) || Number(inc.netAmount) || Math.round(gross / (1 + vatRate / 100) * 100) / 100;
-        const vatAmt = Number(inc.vatAmount) || Math.round((gross - taxable) * 100) / 100;
-        const rec = Number(inc.amountReceived) || 0;
-        const bal = Number(inc.balanceDue) || Math.max(0, gross - rec);
-        const invDate = inc.invoiceDate || inc.DATE_REF || inc.RECEIPT_DATE || new Date().toISOString().split('T')[0];
-        const statusStr = inc.paymentStatus || 'Pending';
-        const finalStatus: TaxInvoiceStatus = statusStr === 'Paid' ? 'PAID' : statusStr === 'Partially Paid' ? 'PARTIALLY_PAID' : 'ISSUED';
-
-        const description = inc.billingDescription || inc.invoiceDescription || inc.DESCRIPTION || inc.REMARKS || 'Project Milestone Billing';
-
-        const converted: TaxInvoice = {
-          id: `legacy-${inc.id}`,
-          legacyIncomeId: inc.id,
-          serialNumber: serial,
-          isDraft: false,
-          status: finalStatus,
-          invoiceDate: invDate,
-          dueDate: inc.dueDate || new Date(new Date(invDate).getTime() + 30 * 86400000).toISOString().split('T')[0],
-          supplierName: settings.companyName,
-          supplierTin: settings.companyTin,
-          supplierVatNumber: settings.companyVatNumber,
-          supplierAddress: settings.companyAddress,
-          supplierContact: `${settings.companyPhone} / ${settings.companyEmail}`,
-          purchaserName: inc.clientName || 'Project Client',
-          purchaserTin: inc.clientTin || 'N/A',
-          purchaserAddress: inc.clientAddress || '',
-          projectCode: inc.PROJECT || 'PRJ-LEGACY',
-          projectName: inc.projectName || inc.PROJECT || 'Enterprise Construction Project',
-          billingDescription: description,
-          lineItems: [
-            {
-              id: `item-legacy-${inc.id}`,
-              itemNumber: 1,
-              description,
-              unitOfMeasure: 'Lot',
-              quantity: 1,
-              unitPrice: taxable,
-              taxableValue: taxable,
-              vatRate,
-              vatAmount: vatAmt,
-              totalAmount: gross
-            }
-          ],
-          currency: 'LKR',
-          totalTaxableValue: taxable,
-          vatRate,
-          vatAmount: vatAmt,
-          totalConsideration: gross,
-          amountInWords: amountToWordsLKR(gross),
-          amountReceived: rec,
-          balanceDue: bal,
-          paymentStatus: bal <= 0.05 ? 'Paid' : rec > 0 ? 'Partially Paid' : 'Unpaid',
-          isGazetteCompliant: true,
-          preparedBy: inc.SUPERVISOR_NAME || 'Finance Officer',
-          issuedBy: inc.SUPERVISOR_NAME || 'Finance Officer',
-          issuedAt: invDate,
-          auditTrail: [
-            {
-              id: `aud-leg-${inc.id}`,
-              timestamp: new Date().toISOString(),
-              action: 'ISSUED',
-              performedBy: 'System Migration',
-              notes: 'Historical project invoice synchronized with official Tax Invoice register'
-            }
-          ],
-          createdAt: invDate,
-          updatedAt: new Date().toISOString()
-        };
-
-        newInvoices.push(converted);
+        newInvoices.push(convertIncomeToTaxInvoice(inc, settings));
       });
 
       if (!hasChanges) return prev;
       return [...newInvoices, ...prev];
     });
-  }, [income, settings]);
+  }, [income, settings, deletedIdentifiers]);
 
   // Preview next serial
   const previewNextSerialNumber = (dateInput?: string): string => {
@@ -643,7 +721,7 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Increment sequence
       setSettings(prev => ({ ...prev, currentSequence: prev.currentSequence + 1 }));
     } else {
-      serialNumber = `PREVIEW_${generateTaxInvoiceSerialNumber(invoiceDate, settings.entityCode, settings.currentSequence)}`;
+      serialNumber = generateTaxInvoiceSerialNumber(invoiceDate, settings.entityCode, settings.currentSequence);
       status = 'DRAFT';
       isDraft = true;
     }
@@ -668,6 +746,18 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       status,
       clientId: data.clientId || purchaserSnapshot.clientId,
       purchaserSnapshot,
+      bankAccountId: data.bankAccountId || 'bank-01',
+      settlementBankDetails: data.settlementBankDetails || {
+        bankAccountId: 'bank-01',
+        accountName: 'Apex Global Logistics Corporation (Pvt) Ltd - Operations',
+        bankName: 'Commercial Bank of Ceylon PLC',
+        branchName: 'World Trade Centre Branch',
+        accountNumber: '1000849201',
+        swiftCode: 'CCEYLKFX',
+        currency: 'LKR',
+        purpose: 'Main Operating Cashflow & Fleet Running Costs',
+        isPrimary: true
+      },
       invoiceDate,
       supplyDate: data.supplyDate || invoiceDate,
       dueDate: data.dueDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
@@ -1226,9 +1316,31 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     iframe.contentWindow?.print();
   };
 
-  // Delete invoice
+  // Delete invoice with permanent resurrection prevention (tombstone)
   const deleteInvoice = (id: string) => {
     const target = invoices.find(inv => inv.id === id || inv.serialNumber === id);
+    
+    // Extract all identifiable keys for this invoice to prevent auto-syncing it back
+    const idsToBlacklist: string[] = [
+      id,
+      target?.id,
+      target?.serialNumber,
+      target?.legacyIncomeId,
+      id.startsWith('legacy-') ? id.replace('legacy-', '') : undefined,
+      target?.id?.startsWith('legacy-') ? target.id.replace('legacy-', '') : undefined,
+    ].filter((val): val is string => Boolean(val && val.trim()));
+
+    setDeletedIdentifiers(prev => {
+      const combined = new Set([...prev, ...idsToBlacklist]);
+      const updated = Array.from(combined);
+      try {
+        localStorage.setItem('apex_tax_invoices_deleted_ids', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to store deleted invoice IDs:', e);
+      }
+      return updated;
+    });
+
     setInvoices(prev => prev.filter(inv => inv.id !== id && inv.serialNumber !== id));
     // Also remove associated payment records for this invoice
     if (target) {
@@ -1238,16 +1350,189 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  // Clear tax invoices history (Admin action)
-  const clearTaxInvoicesHistory = () => {
-    setInvoices([]);
-    setPayments([]);
-    try {
-      localStorage.removeItem('apex_tax_invoices');
-      localStorage.removeItem('apex_client_payments');
-    } catch (e) {
-      console.error('Failed to clear tax invoices in localStorage:', e);
+  // Clear tax invoices history (Admin action) - permanently stops auto-sync to avoid re-syncing
+  const clearTaxInvoicesHistory = (filterStatus?: string) => {
+    if (filterStatus && filterStatus !== 'ALL') {
+      const matchingInvoices = invoices.filter(inv => {
+        if (filterStatus === 'DRAFT' && (inv.isDraft || inv.status === 'DRAFT' || inv.status === 'SUBMITTED' || inv.status === 'APPROVED')) return true;
+        if (filterStatus === 'CANCELLED' && (inv.status === 'CANCELLED' || inv.isCancelled)) return true;
+        if (inv.status === filterStatus) return true;
+        return false;
+      });
+
+      const idsToBlacklist: string[] = [];
+      matchingInvoices.forEach(inv => {
+        if (inv.id) idsToBlacklist.push(inv.id);
+        if (inv.serialNumber) idsToBlacklist.push(inv.serialNumber);
+        if (inv.legacyIncomeId) idsToBlacklist.push(inv.legacyIncomeId);
+        if (inv.id.startsWith('legacy-')) idsToBlacklist.push(inv.id.replace('legacy-', ''));
+      });
+
+      setDeletedIdentifiers(prev => {
+        const next = Array.from(new Set([...prev, ...idsToBlacklist]));
+        try {
+          localStorage.setItem('apex_tax_invoices_deleted_ids', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      setInvoices(prev => {
+        const next = prev.filter(inv => !matchingInvoices.some(m => m.id === inv.id));
+        try {
+          localStorage.setItem('apex_tax_invoices', JSON.stringify(next));
+        } catch (e) {
+          console.error('Failed to update tax invoices in localStorage:', e);
+        }
+        return next;
+      });
+    } else {
+      // Full clear: blacklist all existing invoices and all current Petty Cash income IDs
+      const idsToBlacklist: string[] = [];
+      invoices.forEach(inv => {
+        if (inv.id) idsToBlacklist.push(inv.id);
+        if (inv.serialNumber) idsToBlacklist.push(inv.serialNumber);
+        if (inv.legacyIncomeId) idsToBlacklist.push(inv.legacyIncomeId);
+        if (inv.id.startsWith('legacy-')) idsToBlacklist.push(inv.id.replace('legacy-', ''));
+      });
+
+      if (income && income.length > 0) {
+        income.forEach(inc => {
+          if (inc.id) idsToBlacklist.push(inc.id);
+          if (inc.invoiceNumber) idsToBlacklist.push(inc.invoiceNumber);
+          if (inc.INCOME_ID) idsToBlacklist.push(inc.INCOME_ID);
+        });
+      }
+
+      setDeletedIdentifiers(prev => {
+        const next = Array.from(new Set([...prev, ...idsToBlacklist]));
+        try {
+          localStorage.setItem('apex_tax_invoices_deleted_ids', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      // Automatically turn OFF auto-sync in settings so deleted invoices never re-sync
+      setSettings(prev => ({
+        ...prev,
+        autoSyncPettyCashInvoices: false
+      }));
+
+      setInvoices([]);
+      setPayments([]);
+      try {
+        localStorage.setItem('apex_tax_invoices', JSON.stringify([]));
+        localStorage.setItem('apex_client_payments', JSON.stringify([]));
+        localStorage.setItem('apex_tax_invoices_cleared', 'true');
+      } catch (e) {
+        console.error('Failed to clear tax invoices in localStorage:', e);
+      }
     }
+  };
+
+  // Reset tax invoices to default demo records
+  const resetTaxInvoicesToDefault = () => {
+    try {
+      localStorage.removeItem('apex_tax_invoices_cleared');
+      localStorage.removeItem('apex_tax_invoices_deleted_ids');
+      localStorage.setItem('apex_tax_invoices', JSON.stringify(INITIAL_INVOICES));
+      localStorage.setItem('apex_client_payments', JSON.stringify(INITIAL_PAYMENTS));
+    } catch (e) {
+      console.error('Failed to reset tax invoices:', e);
+    }
+    setDeletedIdentifiers([]);
+    setInvoices(INITIAL_INVOICES.map(inv => ({
+      ...inv,
+      serialNumber: inv.serialNumber ? inv.serialNumber.replace(/^PREVIEW_/i, '') : inv.serialNumber
+    })));
+    setPayments(INITIAL_PAYMENTS);
+  };
+
+  // Toggle or arrange the option to auto-sync Petty Cash invoices
+  const setAutoSyncPettyCashInvoices = (enabled: boolean) => {
+    setSettings(prev => ({
+      ...prev,
+      autoSyncPettyCashInvoices: enabled
+    }));
+    if (enabled) {
+      try {
+        localStorage.removeItem('apex_tax_invoices_cleared');
+      } catch {}
+    }
+  };
+
+  // Manual on-demand synchronization from Petty Cash ledger
+  const syncFromPettyCash = (forceIncludeDeleted = false) => {
+    if (!income || income.length === 0) {
+      return { addedCount: 0, skippedCount: 0, message: 'No project invoices found in Petty Cash income ledger.' };
+    }
+
+    const legacyInvoices = income.filter(inc =>
+      inc.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME' ||
+      Boolean(inc.invoiceNumber) ||
+      inc.INCOME_SOURCE === 'Project Income / Invoice'
+    );
+
+    if (legacyInvoices.length === 0) {
+      return { addedCount: 0, skippedCount: 0, message: 'No project invoices found in Petty Cash income ledger.' };
+    }
+
+    const deletedSet = new Set(deletedIdentifiers.map(d => (d || '').trim().toUpperCase()));
+    const existingSerials = new Set(invoices.map(i => (i.serialNumber || '').trim().toUpperCase()));
+    const existingIds = new Set(invoices.map(i => i.id));
+    const existingLegacyIds = new Set(invoices.map(i => i.legacyIncomeId).filter(Boolean));
+
+    const newInvoices: TaxInvoice[] = [];
+    let skippedCount = 0;
+
+    legacyInvoices.forEach(inc => {
+      const serial = inc.invoiceNumber || inc.INCOME_ID || `INV-LEGACY-${inc.id}`;
+      const serialUpper = serial.toUpperCase();
+      const incIdUpper = String(inc.id || '').trim().toUpperCase();
+
+      if (existingSerials.has(serialUpper) || existingIds.has(inc.id) || existingLegacyIds.has(inc.id)) {
+        skippedCount++;
+        return;
+      }
+
+      if (!forceIncludeDeleted && (
+        deletedSet.has(incIdUpper) ||
+        deletedSet.has(serialUpper) ||
+        deletedSet.has(`LEGACY-${incIdUpper}`)
+      )) {
+        skippedCount++;
+        return;
+      }
+
+      newInvoices.push(convertIncomeToTaxInvoice(inc, settings));
+    });
+
+    if (newInvoices.length > 0) {
+      setInvoices(prev => [...newInvoices, ...prev]);
+      try {
+        localStorage.removeItem('apex_tax_invoices_cleared');
+      } catch {}
+      return {
+        addedCount: newInvoices.length,
+        skippedCount,
+        message: `Successfully synchronized ${newInvoices.length} project invoice${newInvoices.length === 1 ? '' : 's'} from Petty Cash.`
+      };
+    }
+
+    return {
+      addedCount: 0,
+      skippedCount,
+      message: skippedCount > 0
+        ? `All ${skippedCount} project invoice(s) are already registered or were previously deleted.`
+        : 'No un-synchronized project invoices found.'
+    };
+  };
+
+  // Reset the tombstone list of deleted invoices
+  const resetDeletedIdentifiers = () => {
+    setDeletedIdentifiers([]);
+    try {
+      localStorage.removeItem('apex_tax_invoices_deleted_ids');
+    } catch {}
   };
 
   // Bulk import tax invoices
@@ -1381,9 +1666,15 @@ export const TaxInvoiceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       printInvoicePdf,
       deleteInvoice,
       clearTaxInvoicesHistory,
-      importTaxInvoices
+      resetTaxInvoicesToDefault,
+      importTaxInvoices,
+      autoSyncPettyCashInvoices: settings.autoSyncPettyCashInvoices ?? false,
+      setAutoSyncPettyCashInvoices,
+      syncFromPettyCash,
+      deletedIdentifiersCount: deletedIdentifiers.length,
+      resetDeletedIdentifiers
     }),
-    [invoices, settings, payments, activeInvoiceTab]
+    [invoices, settings, payments, activeInvoiceTab, deletedIdentifiers]
   );
 
   return <TaxInvoiceContext.Provider value={value}>{children}</TaxInvoiceContext.Provider>;

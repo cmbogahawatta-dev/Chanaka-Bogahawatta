@@ -31,22 +31,22 @@ export interface FieldDefinition {
 
 export const EXPENSE_FIELDS: FieldDefinition[] = [
   {
-    key: 'EXPENSES_ID',
-    label: 'Expense ID / Reference',
-    required: false,
-    type: 'string',
-    description: 'Unique historical voucher or expense code (auto-generated if omitted)',
-    aliases: ['expense id', 'expenses_id', 'exp id', 'ref no', 'reference', 'voucher no', 'voucher number', 'id', 'trans id', 'transaction id', 'doc no'],
-    example: 'EXP-2024-0891'
-  },
-  {
     key: 'DATE',
     label: 'Expense Date',
     required: true,
     type: 'date',
     description: 'Transaction date (YYYY-MM-DD or DD/MM/YYYY)',
-    aliases: ['date', 'expense date', 'txn date', 'transaction date', 'voucher date', 'bill date', 'paid date'],
+    aliases: ['date', 'expense date', 'txn date', 'transaction date', 'voucher date', 'bill date', 'paid date', 'payment date'],
     example: '15/04/2024'
+  },
+  {
+    key: 'AMOUNT',
+    label: 'Amount (LKR)',
+    required: true,
+    type: 'number',
+    description: 'Total transaction value in Sri Lankan Rupees (must be positive)',
+    aliases: ['amount', 'total', 'cost', 'value', 'lkr', 'total amount', 'net amount', 'paid amount', 'sum', 'expense amount', 'total cost'],
+    example: '18500'
   },
   {
     key: 'SUPERVISOR',
@@ -62,17 +62,17 @@ export const EXPENSE_FIELDS: FieldDefinition[] = [
     label: 'Project Code / Name',
     required: true,
     type: 'string',
-    description: 'Project code (e.g. PIDM 26, HAVELOCK)',
-    aliases: ['project', 'project code', 'project name', 'job code', 'site', 'location', 'cost center', 'wbs'],
+    description: 'Project code or site code (e.g. PIDM 26, HAVELOCK)',
+    aliases: ['project', 'project code', 'project name', 'job code', 'site', 'site code', 'location', 'cost center', 'wbs'],
     example: 'PIDM 26'
   },
   {
     key: 'EXPENSES_CATEGORY',
-    label: 'Expense Category / GL Code',
+    label: 'Expense Category / Code',
     required: true,
     type: 'string',
-    description: 'Account GL or budget category',
-    aliases: ['category', 'expense category', 'expenses_category', 'gl category', 'cost code', 'account', 'type', 'head of account'],
+    description: 'Account GL or budget category (from master chart of accounts)',
+    aliases: ['category', 'expense category', 'expenses_category', 'gl category', 'cost code', 'account', 'head of account', 'chart of accounts'],
     example: '5000 Construction Materials'
   },
   {
@@ -81,17 +81,26 @@ export const EXPENSE_FIELDS: FieldDefinition[] = [
     required: true,
     type: 'string',
     description: 'Detail of items or service purchased',
-    aliases: ['description', 'expenses_description', 'particulars', 'item description', 'details', 'purpose', 'narrative', 'remark'],
-    example: 'Urgent cement and sand purchase for slab cast'
+    aliases: ['description', 'expenses_description', 'particulars', 'item description', 'details', 'purpose', 'narrative', 'item particulars'],
+    example: 'High-tensile binding wire & cutting discs'
   },
   {
-    key: 'AMOUNT',
-    label: 'Amount (LKR / Currency)',
-    required: true,
-    type: 'number',
-    description: 'Total transaction amount',
-    aliases: ['amount', 'total', 'cost', 'value', 'lkr', 'total amount', 'net amount', 'paid amount', 'sum'],
-    example: '45000'
+    key: 'EXPENSES_ID',
+    label: 'Expense ID (Ref ID)',
+    required: false,
+    type: 'string',
+    description: 'Internal reference code (auto-generated if omitted; distinct from PRV)',
+    aliases: ['expense id', 'expenses_id', 'exp id', 'ref no', 'reference', 'trans id', 'transaction id', 'doc no', 'expense code', 'exp no'],
+    example: 'EXP-2024-0891'
+  },
+  {
+    key: 'PRV_NUMBER',
+    label: 'PRV Number (Voucher No)',
+    required: false,
+    type: 'string',
+    description: 'Physical voucher reference or PRV slip number (distinct from Expense ID)',
+    aliases: ['voucher no', 'voucher number', 'prv number', 'prv_number', 'prv no', 'pv no', 'pv number', 'voucher', 'prv', 'slip no', 'receipt no'],
+    example: 'PRV-2024-00124'
   },
   {
     key: 'PAYMENT_SOURCE',
@@ -101,15 +110,6 @@ export const EXPENSE_FIELDS: FieldDefinition[] = [
     description: 'Disbursement method (Petty Cash, Bank Transfer, Cheque, etc.)',
     aliases: ['payment source', 'source', 'payment mode', 'mode of payment', 'bank account', 'method', 'paid from', 'channel'],
     example: 'Petty Cash'
-  },
-  {
-    key: 'PRV_NUMBER',
-    label: 'Voucher / PRV Number',
-    required: false,
-    type: 'string',
-    description: 'Physical voucher reference or PRV slip number',
-    aliases: ['voucher no', 'voucher number', 'prv number', 'prv_number', 'prv no', 'pv no', 'bill no', 'receipt no', 'invoice no'],
-    example: 'PRV-2024-00124'
   },
   {
     key: 'PAYMENT_STATUS',
@@ -126,8 +126,8 @@ export const EXPENSE_FIELDS: FieldDefinition[] = [
     required: false,
     type: 'string',
     description: 'Additional historical notes or audit annotations',
-    aliases: ['remarks', 'notes', 'comments', 'additional info', 'memo'],
-    example: 'Migrated from previous Excel logbook'
+    aliases: ['remarks', 'notes', 'comments', 'additional info', 'memo', 'audit notes'],
+    example: 'Site purchase receipt attached'
   }
 ];
 
@@ -709,7 +709,13 @@ export class DataImportService {
   }
 
   /**
-   * Generate automatic mapping suggestions between file headers and target fields
+   * Generate automatic mapping suggestions between file headers and target fields.
+   * STRICT INTEGRITY RULE: One source Excel column can map to ONLY ONE destination field.
+   * Follows strict deterministic priority:
+   * 1. Exact Canonical Key Match
+   * 2. Exact Label Match
+   * 3. Exact Alias Match
+   * 4. Strict Prefix / High-Confidence Word-Boundary Match (min length >= 3)
    */
   static autoMapColumns(
     importType: ImportType,
@@ -717,24 +723,67 @@ export class DataImportService {
   ): Record<string, string> {
     const fields = this.getFieldsForType(importType);
     const mapping: Record<string, string> = {};
+    const usedHeaders = new Set<string>();
 
+    const normalize = (str: string) => str.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Priority 1: Exact Canonical Key Match (e.g. clean header === clean key)
     fields.forEach((field) => {
-      const match = fileHeaders.find((header) => {
-        const cleanHeader = header.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        const cleanLabel = field.label.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        const cleanKey = field.key.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-
-        if (cleanHeader === cleanLabel || cleanHeader === cleanKey) return true;
-
-        return field.aliases.some((alias) => {
-          const cleanAlias = alias.toLowerCase().replace(/[^a-z0-9]/g, '');
-          return cleanHeader === cleanAlias || cleanHeader.includes(cleanAlias);
-        });
-      });
-
+      const cleanKey = normalize(field.key);
+      const match = fileHeaders.find(h => !usedHeaders.has(h) && normalize(h) === cleanKey);
       if (match) {
         mapping[field.key] = match;
-      } else {
+        usedHeaders.add(match);
+      }
+    });
+
+    // Priority 2: Exact Label Match (e.g. clean header === clean label)
+    fields.forEach((field) => {
+      if (mapping[field.key]) return;
+      const cleanLabel = normalize(field.label);
+      const match = fileHeaders.find(h => !usedHeaders.has(h) && normalize(h) === cleanLabel);
+      if (match) {
+        mapping[field.key] = match;
+        usedHeaders.add(match);
+      }
+    });
+
+    // Priority 3: Exact Alias Match (clean header === clean alias)
+    fields.forEach((field) => {
+      if (mapping[field.key]) return;
+      const match = fileHeaders.find(h => {
+        if (usedHeaders.has(h)) return false;
+        const cleanH = normalize(h);
+        return field.aliases.some(alias => normalize(alias) === cleanH);
+      });
+      if (match) {
+        mapping[field.key] = match;
+        usedHeaders.add(match);
+      }
+    });
+
+    // Priority 4: Strict Word-Boundary / Prefix Match (length >= 3)
+    fields.forEach((field) => {
+      if (mapping[field.key]) return;
+      const match = fileHeaders.find(h => {
+        if (usedHeaders.has(h)) return false;
+        const cleanH = normalize(h);
+        if (cleanH.length < 3) return false;
+        return field.aliases.some(alias => {
+          const cleanA = normalize(alias);
+          if (cleanA.length < 3) return false;
+          return cleanH.startsWith(cleanA) || cleanH.endsWith(cleanA);
+        });
+      });
+      if (match) {
+        mapping[field.key] = match;
+        usedHeaders.add(match);
+      }
+    });
+
+    // Ensure all target fields are initialized in mapping object
+    fields.forEach((field) => {
+      if (!mapping[field.key]) {
         mapping[field.key] = '';
       }
     });
@@ -743,48 +792,192 @@ export class DataImportService {
   }
 
   /**
-   * Parse various date representations into standard format (YYYY-MM-DD and DD/MM/YYYY)
+   * Strict calendar date validator. Rejects impossible dates (e.g., 31/02/2026, month 13, day 32).
+   * Supports YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, and Excel numeric serial numbers.
    */
-  static normalizeDate(val: any): { isoDate: string; displayDate: string; isValid: boolean } {
-    if (!val) return { isoDate: '', displayDate: '', isValid: false };
-
-    let dateObj: Date | null = null;
-
-    if (val instanceof Date && !isNaN(val.getTime())) {
-      dateObj = val;
-    } else if (typeof val === 'number') {
-      // Excel serial date number
-      dateObj = new Date(Math.round((val - 25569) * 86400 * 1000));
-    } else if (typeof val === 'string') {
-      const str = val.trim();
-      // Match DD/MM/YYYY or DD-MM-YYYY
-      const ddmmyyyy = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
-      if (ddmmyyyy) {
-        const day = parseInt(ddmmyyyy[1], 10);
-        const month = parseInt(ddmmyyyy[2], 10) - 1;
-        const year = parseInt(ddmmyyyy[3], 10);
-        dateObj = new Date(year, month, day);
-      } else {
-        // Try standard Date.parse
-        const parsed = new Date(str);
-        if (!isNaN(parsed.getTime())) {
-          dateObj = parsed;
-        }
-      }
+  static normalizeDateStrict(val: any): { isoDate: string; displayDate: string; isValid: boolean; error?: string } {
+    if (val === null || val === undefined || val === '') {
+      return { isoDate: '', displayDate: '', isValid: false, error: 'Date is required and cannot be blank.' };
     }
 
-    if (dateObj && !isNaN(dateObj.getTime())) {
-      const yyyy = dateObj.getFullYear();
-      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-      const dd = String(dateObj.getDate()).padStart(2, '0');
+    const validateCalendarDate = (year: number, month: number, day: number): { isValid: boolean; error?: string } => {
+      if (year < 1990 || year > 2100) {
+        return { isValid: false, error: `Invalid year ${year}. Must be between 1990 and 2100.` };
+      }
+      if (month < 1 || month > 12) {
+        return { isValid: false, error: `Invalid month ${month}. Must be between 1 and 12.` };
+      }
+      const daysInMonth = (y: number, m: number): number => {
+        if ([1, 3, 5, 7, 8, 10, 12].includes(m)) return 31;
+        if ([4, 6, 9, 11].includes(m)) return 30;
+        const isLeap = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+        return isLeap ? 29 : 28;
+      };
+      const maxDays = daysInMonth(year, month);
+      if (day < 1 || day > maxDays) {
+        const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return { isValid: false, error: `Invalid calendar date: ${day}/${month}/${year}. ${monthNames[month]} ${year} has only ${maxDays} days.` };
+      }
+      return { isValid: true };
+    };
+
+    const formatOutput = (year: number, month: number, day: number) => {
+      const yyyy = String(year);
+      const mm = String(month).padStart(2, '0');
+      const dd = String(day).padStart(2, '0');
       return {
         isoDate: `${yyyy}-${mm}-${dd}`,
         displayDate: `${dd}/${mm}/${yyyy}`,
         isValid: true
       };
+    };
+
+    // 1. JavaScript Date object
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      const y = val.getFullYear();
+      const m = val.getMonth() + 1;
+      const d = val.getDate();
+      const check = validateCalendarDate(y, m, d);
+      if (!check.isValid) return { isoDate: '', displayDate: String(val), isValid: false, error: check.error };
+      return formatOutput(y, m, d);
     }
 
-    return { isoDate: '', displayDate: String(val), isValid: false };
+    // 2. Excel numeric serial date (e.g. 45000)
+    if (typeof val === 'number') {
+      if (val < 1 || val > 100000 || isNaN(val)) {
+        return { isoDate: '', displayDate: String(val), isValid: false, error: `Invalid Excel date serial number: ${val}` };
+      }
+      const dateObj = new Date(Math.round((val - 25569) * 86400 * 1000));
+      if (isNaN(dateObj.getTime())) {
+        return { isoDate: '', displayDate: String(val), isValid: false, error: 'Could not convert numeric value to valid date.' };
+      }
+      const y = dateObj.getUTCFullYear();
+      const m = dateObj.getUTCMonth() + 1;
+      const d = dateObj.getUTCDate();
+      const check = validateCalendarDate(y, m, d);
+      if (!check.isValid) return { isoDate: '', displayDate: String(val), isValid: false, error: check.error };
+      return formatOutput(y, m, d);
+    }
+
+    // 3. String date representation
+    if (typeof val === 'string') {
+      const str = val.trim();
+      if (!str) {
+        return { isoDate: '', displayDate: '', isValid: false, error: 'Date is empty.' };
+      }
+
+      // Check ISO format YYYY-MM-DD or YYYY/MM/DD
+      const isoMatch = str.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/);
+      if (isoMatch) {
+        const y = parseInt(isoMatch[1], 10);
+        const m = parseInt(isoMatch[2], 10);
+        const d = parseInt(isoMatch[3], 10);
+        const check = validateCalendarDate(y, m, d);
+        if (!check.isValid) return { isoDate: '', displayDate: str, isValid: false, error: check.error };
+        return formatOutput(y, m, d);
+      }
+
+      // Check DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+      const ddmmyyyyMatch = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+      if (ddmmyyyyMatch) {
+        const first = parseInt(ddmmyyyyMatch[1], 10);
+        const second = parseInt(ddmmyyyyMatch[2], 10);
+        const y = parseInt(ddmmyyyyMatch[3], 10);
+
+        let d = first;
+        let m = second;
+        // In case of US-formatted string where first <= 12 and second > 12:
+        if (first <= 12 && second > 12) {
+          m = first;
+          d = second;
+        }
+
+        const check = validateCalendarDate(y, m, d);
+        if (!check.isValid) return { isoDate: '', displayDate: str, isValid: false, error: check.error };
+        return formatOutput(y, m, d);
+      }
+
+      // Fallback: standard Date.parse with calendar validation
+      const parsed = new Date(str);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        const m = parsed.getMonth() + 1;
+        const d = parsed.getDate();
+        const check = validateCalendarDate(y, m, d);
+        if (check.isValid) {
+          return formatOutput(y, m, d);
+        }
+      }
+
+      return { isoDate: '', displayDate: str, isValid: false, error: `Unrecognized or invalid date format '${str}'. Supported: DD/MM/YYYY or YYYY-MM-DD.` };
+    }
+
+    return { isoDate: '', displayDate: String(val), isValid: false, error: 'Invalid date type.' };
+  }
+
+  /**
+   * Parse various date representations into standard format (YYYY-MM-DD and DD/MM/YYYY)
+   */
+  static normalizeDate(val: any): { isoDate: string; displayDate: string; isValid: boolean } {
+    const res = this.normalizeDateStrict(val);
+    return {
+      isoDate: res.isoDate,
+      displayDate: res.displayDate,
+      isValid: res.isValid
+    };
+  }
+
+  /**
+   * Strict positive expense amount validator.
+   * Fails validation if missing, non-numeric (e.g. 'ABC', '$--'), or <= 0.
+   * Does NOT silently default to 0.
+   */
+  static normalizeAmountStrict(val: any): { numberValue: number; isValid: boolean; error?: string } {
+    if (val === null || val === undefined || val === '') {
+      return { numberValue: 0, isValid: false, error: 'Amount is required and cannot be blank.' };
+    }
+
+    if (typeof val === 'number') {
+      if (isNaN(val) || !isFinite(val)) {
+        return { numberValue: 0, isValid: false, error: 'Amount is not a valid number.' };
+      }
+      if (val <= 0) {
+        return { numberValue: val, isValid: false, error: 'Amount must be greater than zero.' };
+      }
+      return { numberValue: Math.round(val * 100) / 100, isValid: true };
+    }
+
+    if (typeof val === 'string') {
+      let str = val.trim();
+      if (!str) {
+        return { numberValue: 0, isValid: false, error: 'Amount is blank.' };
+      }
+
+      // Strip currency prefixes and suffixes: LKR, Rs, USD, $
+      str = str.replace(/^(LKR|Rs\.?|USD|\$)\s*/i, '').trim();
+      str = str.replace(/\s*(LKR|Rs\.?|USD|\$)$/i, '').trim();
+
+      // Remove thousand commas
+      str = str.replace(/,/g, '');
+
+      // Check strictly for standard number formatting
+      if (!/^-?\d+(\.\d+)?$/.test(str)) {
+        return { numberValue: 0, isValid: false, error: `Invalid amount '${val}'. Non-numeric characters detected.` };
+      }
+
+      const num = parseFloat(str);
+      if (isNaN(num) || !isFinite(num)) {
+        return { numberValue: 0, isValid: false, error: `Invalid amount '${val}'.` };
+      }
+
+      if (num <= 0) {
+        return { numberValue: num, isValid: false, error: 'Expense amount must be a positive number greater than zero.' };
+      }
+
+      return { numberValue: Math.round(num * 100) / 100, isValid: true };
+    }
+
+    return { numberValue: 0, isValid: false, error: 'Invalid amount value type.' };
   }
 
   /**
@@ -798,7 +991,6 @@ export class DataImportService {
       return { numberValue: val, isValid: !isNaN(val) };
     }
     if (typeof val === 'string') {
-      // Strip currency prefixes, commas, whitespace
       const clean = val.replace(/[^0-9.-]/g, '').trim();
       const num = parseFloat(clean);
       return {
@@ -859,6 +1051,11 @@ export class DataImportService {
     let errorsCount = 0;
     let duplicatesCount = 0;
 
+    // Track file-internal duplicates across rows (for in-file duplicate detection)
+    const fileSeenExpIds = new Map<string, number>();
+    const fileSeenPrvNumbers = new Map<string, number>();
+    const fileSeenSignatures = new Map<string, number>();
+
     const validatedRows = rawRows.map((raw, idx) => {
       const rowIndex = idx + 1;
       const mapped: Record<string, any> = {};
@@ -876,14 +1073,14 @@ export class DataImportService {
 
       // 1. Specific Validation for HISTORICAL_EXPENSES
       if (importType === 'HISTORICAL_EXPENSES') {
-        // Date validation
-        const dateResult = this.normalizeDate(mapped['DATE']);
+        // Date validation (strict calendar validation)
+        const dateResult = this.normalizeDateStrict(mapped['DATE']);
         if (!dateResult.isValid) {
           rowErrors.push({
             row: rowIndex,
             field: 'DATE',
             value: mapped['DATE'],
-            error: 'Invalid or missing expense date. Must be DD/MM/YYYY or YYYY-MM-DD.',
+            error: dateResult.error || 'Invalid or missing expense date. Must be DD/MM/YYYY or YYYY-MM-DD.',
             severity: 'ERROR'
           });
         } else {
@@ -891,73 +1088,87 @@ export class DataImportService {
           mapped['DATE'] = dateResult.displayDate;
         }
 
-        // Amount validation
-        const amtResult = this.normalizeNumber(mapped['AMOUNT']);
-        if (!amtResult.isValid || amtResult.numberValue <= 0) {
+        // Amount validation (strictly positive, non-empty, numeric)
+        const amtResult = this.normalizeAmountStrict(mapped['AMOUNT']);
+        if (!amtResult.isValid) {
           rowErrors.push({
             row: rowIndex,
             field: 'AMOUNT',
             value: mapped['AMOUNT'],
-            error: 'Amount must be a positive numeric value.',
+            error: amtResult.error || 'Amount must be a positive numeric value greater than zero.',
             severity: 'ERROR'
           });
         } else {
           mapped['AMOUNT'] = amtResult.numberValue;
         }
 
-        // Supervisor validation
+        // Supervisor validation (mandatory, no silent defaults)
         const supVal = String(mapped['SUPERVISOR'] || '').trim();
         if (!supVal) {
           rowErrors.push({
             row: rowIndex,
             field: 'SUPERVISOR',
             value: '',
-            error: 'Supervisor is required for petty cash accountability.',
+            error: 'Supervisor is mandatory for petty cash accountability.',
             severity: 'ERROR'
           });
         } else {
-          const matchSup = masterContext.existingSupervisors.find(
-            s => s.SUPERVISOR_NAME.trim().toUpperCase() === supVal.toUpperCase() ||
-                 s.SUPERVISOR_ID.trim().toUpperCase() === supVal.toUpperCase()
-          );
-          if (!matchSup) {
+          const normSup = supVal.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const matchSup = (masterContext.existingSupervisors || []).find(s => {
+            const sName = (s.SUPERVISOR_NAME || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const sId = (s.SUPERVISOR_ID || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const sStaff = (s.staffId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return sName === normSup || sId === normSup || sStaff === normSup;
+          });
+
+          if (matchSup) {
+            mapped['SUPERVISOR'] = matchSup.SUPERVISOR_NAME;
+            mapped['SUPERVISOR_ID'] = matchSup.SUPERVISOR_ID || matchSup.id;
+          } else {
             rowWarnings.push({
               row: rowIndex,
               field: 'SUPERVISOR',
               value: supVal,
-              error: `Supervisor '${supVal}' is not in the Supervisor Directory. A new supervisor record will be registered automatically if imported.`,
+              error: `Supervisor '${supVal}' not in supervisor directory. Will be registered if auto-register is enabled.`,
               severity: 'WARNING'
             });
+            mapped['SUPERVISOR'] = supVal.toUpperCase();
           }
         }
 
-        // Project validation
+        // Project validation (mandatory, no silent defaults)
         const prjVal = String(mapped['PROJECT'] || '').trim();
         if (!prjVal) {
           rowErrors.push({
             row: rowIndex,
             field: 'PROJECT',
             value: '',
-            error: 'Project code is required.',
+            error: 'Project code is mandatory.',
             severity: 'ERROR'
           });
         } else {
-          const matchPrj = masterContext.existingProjects.find(
-            p => p.PROJECT_CODE.trim().toUpperCase() === prjVal.toUpperCase() ||
-                 p.PROJECT_NAME.trim().toUpperCase() === prjVal.toUpperCase()
-          );
-          if (!matchPrj) {
+          const normPrj = prjVal.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const matchPrj = (masterContext.existingProjects || []).find(p => {
+            const pCode = (p.PROJECT_CODE || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const pName = (p.PROJECT_NAME || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return pCode === normPrj || pName === normPrj;
+          });
+
+          if (matchPrj) {
+            mapped['PROJECT'] = matchPrj.PROJECT_CODE;
+          } else {
             rowWarnings.push({
               row: rowIndex,
               field: 'PROJECT',
               value: prjVal,
-              error: `Project code '${prjVal}' was not found in active projects. Will register as site code '${prjVal}'.`,
+              error: `Project code '${prjVal}' not found in active projects directory. Will register as site code '${prjVal}'.`,
               severity: 'WARNING'
             });
+            mapped['PROJECT'] = prjVal.toUpperCase();
           }
         }
 
-        // Description validation
+        // Description validation (mandatory)
         const descVal = String(mapped['EXPENSES_DESCRIPTION'] || '').trim();
         if (!descVal) {
           rowErrors.push({
@@ -967,69 +1178,157 @@ export class DataImportService {
             error: 'Expense description/particulars is mandatory.',
             severity: 'ERROR'
           });
+        } else {
+          mapped['EXPENSES_DESCRIPTION'] = descVal;
         }
 
-        // Category validation
+        // Category validation (mandatory, NO silent default to 5000 Construction Materials)
         const catVal = String(mapped['EXPENSES_CATEGORY'] || '').trim();
         if (!catVal) {
-          mapped['EXPENSES_CATEGORY'] = '5000 Construction Materials';
-          rowWarnings.push({
+          rowErrors.push({
             row: rowIndex,
             field: 'EXPENSES_CATEGORY',
             value: '',
-            error: 'Category omitted; defaulted to "5000 Construction Materials".',
-            severity: 'WARNING'
+            error: 'Expense Category is mandatory. No silent default applied.',
+            severity: 'ERROR'
           });
+        } else {
+          const normCat = catVal.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const matchCat = (masterContext.existingCategories || []).find(c => {
+            const cName = (c.CATEGORY_NAME || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cCode = (c.CATEGORY_CODE || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return cName === normCat || cCode === normCat || (normCat.length >= 4 && cName.includes(normCat));
+          });
+
+          if (matchCat) {
+            mapped['EXPENSES_CATEGORY'] = matchCat.CATEGORY_NAME;
+          } else if (masterContext.existingCategories && masterContext.existingCategories.length > 0) {
+            rowErrors.push({
+              row: rowIndex,
+              field: 'EXPENSES_CATEGORY',
+              value: catVal,
+              error: `Category '${catVal}' does not exist in master chart of accounts.`,
+              severity: 'ERROR'
+            });
+          } else {
+            mapped['EXPENSES_CATEGORY'] = catVal;
+          }
         }
 
         // Payment Source validation
         if (!mapped['PAYMENT_SOURCE'] || !String(mapped['PAYMENT_SOURCE']).trim()) {
-          mapped['PAYMENT_SOURCE'] = 'Historical / Not Specified';
-          rowWarnings.push({
-            row: rowIndex,
-            field: 'PAYMENT_SOURCE',
-            value: '',
-            error: 'Payment Source omitted; set to "Historical / Not Specified".',
-            severity: 'WARNING'
-          });
+          mapped['PAYMENT_SOURCE'] = 'Petty Cash';
+        } else {
+          mapped['PAYMENT_SOURCE'] = String(mapped['PAYMENT_SOURCE']).trim();
         }
 
         // Payment status default
         if (!mapped['PAYMENT_STATUS'] || !String(mapped['PAYMENT_STATUS']).trim()) {
           mapped['PAYMENT_STATUS'] = 'Approved';
+        } else {
+          mapped['PAYMENT_STATUS'] = String(mapped['PAYMENT_STATUS']).trim();
         }
 
-        // Duplicate Check for Expenses (by EXPENSES_ID, PRV_NUMBER, or Voucher)
-        const expIdVal = String(mapped['EXPENSES_ID'] || '').trim();
-        const prvVal = String(mapped['PRV_NUMBER'] || '').trim();
+        // Expense ID vs PRV Number: Keep separate and distinct
+        const rawExpId = String(mapped['EXPENSES_ID'] || '').trim();
+        const rawPrv = String(mapped['PRV_NUMBER'] || '').trim();
 
-        if (expIdVal) {
-          const dup = masterContext.existingExpenses.find(
-            e => e.EXPENSES_ID.trim().toUpperCase() === expIdVal.toUpperCase()
-          );
-          if (dup) {
+        if (rawExpId) {
+          mapped['EXPENSES_ID'] = rawExpId;
+        } else {
+          delete mapped['EXPENSES_ID'];
+        }
+
+        if (rawPrv) {
+          mapped['PRV_NUMBER'] = rawPrv;
+        } else {
+          delete mapped['PRV_NUMBER']; // DO NOT invent a PRV number!
+        }
+
+        // File-internal duplicate checking
+        if (rawExpId) {
+          const normExpId = rawExpId.toUpperCase();
+          if (fileSeenExpIds.has(normExpId)) {
             isDuplicate = true;
-            duplicateId = dup.EXPENSES_ID;
+            duplicateId = rawExpId;
             rowWarnings.push({
               row: rowIndex,
               field: 'EXPENSES_ID',
-              value: expIdVal,
-              error: `Expense ID '${expIdVal}' already exists in EMA records.`,
+              value: rawExpId,
+              error: `Duplicate Expense ID '${rawExpId}' within this file (first seen at Row ${fileSeenExpIds.get(normExpId)}).`,
               severity: 'DUPLICATE'
             });
+          } else {
+            fileSeenExpIds.set(normExpId, rowIndex);
           }
-        } else if (prvVal) {
-          const dupPrv = masterContext.existingExpenses.find(
-            e => e.PRV_NUMBER && e.PRV_NUMBER.trim().toUpperCase() === prvVal.toUpperCase()
-          );
-          if (dupPrv) {
+        }
+
+        if (rawPrv) {
+          const normPrv = rawPrv.toUpperCase();
+          if (fileSeenPrvNumbers.has(normPrv)) {
             isDuplicate = true;
-            duplicateId = dupPrv.PRV_NUMBER;
+            if (!duplicateId) duplicateId = rawPrv;
             rowWarnings.push({
               row: rowIndex,
               field: 'PRV_NUMBER',
-              value: prvVal,
-              error: `Voucher / PRV '${prvVal}' already exists in system records.`,
+              value: rawPrv,
+              error: `Duplicate PRV Number '${rawPrv}' within this file (first seen at Row ${fileSeenPrvNumbers.get(normPrv)}).`,
+              severity: 'DUPLICATE'
+            });
+          } else {
+            fileSeenPrvNumbers.set(normPrv, rowIndex);
+          }
+        }
+
+        // Duplicate transaction signature check within file (Date + Supervisor + Project + Amount + PRV)
+        if (dateResult.isValid && amtResult.isValid && supVal && prjVal) {
+          const sig = `${dateResult.isoDate}|${supVal.toUpperCase()}|${prjVal.toUpperCase()}|${amtResult.numberValue}|${rawPrv.toUpperCase()}`;
+          if (fileSeenSignatures.has(sig)) {
+            const firstSeenRow = fileSeenSignatures.get(sig);
+            isDuplicate = true;
+            if (!duplicateId) duplicateId = `Row #${firstSeenRow}`;
+            rowWarnings.push({
+              row: rowIndex,
+              field: 'AMOUNT',
+              value: String(amtResult.numberValue),
+              error: `Identical transaction (Date, Supervisor, Project, Amount) duplicate of Row #${firstSeenRow} in this file.`,
+              severity: 'DUPLICATE'
+            });
+          } else {
+            fileSeenSignatures.set(sig, rowIndex);
+          }
+        }
+
+        // Database duplicate checking (against existing records)
+        if (rawExpId && masterContext.existingExpenses) {
+          const dupExp = masterContext.existingExpenses.find(
+            e => e.EXPENSES_ID && e.EXPENSES_ID.trim().toUpperCase() === rawExpId.toUpperCase()
+          );
+          if (dupExp) {
+            isDuplicate = true;
+            duplicateId = dupExp.EXPENSES_ID;
+            rowWarnings.push({
+              row: rowIndex,
+              field: 'EXPENSES_ID',
+              value: rawExpId,
+              error: `Expense ID '${rawExpId}' already exists in EMA records.`,
+              severity: 'DUPLICATE'
+            });
+          }
+        }
+
+        if (rawPrv && masterContext.existingExpenses) {
+          const dupPrv = masterContext.existingExpenses.find(
+            e => e.PRV_NUMBER && e.PRV_NUMBER.trim().toUpperCase() === rawPrv.toUpperCase()
+          );
+          if (dupPrv) {
+            isDuplicate = true;
+            if (!duplicateId) duplicateId = dupPrv.PRV_NUMBER;
+            rowWarnings.push({
+              row: rowIndex,
+              field: 'PRV_NUMBER',
+              value: rawPrv,
+              error: `Voucher / PRV '${rawPrv}' already exists in EMA records (matched Expense ${dupPrv.EXPENSES_ID}).`,
               severity: 'DUPLICATE'
             });
           }
@@ -1559,9 +1858,45 @@ export class DataImportService {
       // 1. Process HISTORICAL_EXPENSES
       if (importType === 'HISTORICAL_EXPENSES') {
         const m = row.mapped;
-        const expenseId = m.EXPENSES_ID && !row.isDuplicate
-          ? String(m.EXPENSES_ID).trim()
-          : `HIST-EXP-${Date.now().toString().slice(-6)}-${String(row.rowIndex).padStart(4, '0')}`;
+        const targetExpId = m.EXPENSES_ID ? String(m.EXPENSES_ID).trim() : '';
+        const targetPrv = m.PRV_NUMBER ? String(m.PRV_NUMBER).trim() : '';
+
+        // Handle duplicate UPDATE
+        if (row.isDuplicate && duplicateAction === 'UPDATE') {
+          const idx = newExpenses.findIndex(e => {
+            if (targetExpId && e.EXPENSES_ID && e.EXPENSES_ID.trim().toUpperCase() === targetExpId.toUpperCase()) return true;
+            if (targetPrv && e.PRV_NUMBER && e.PRV_NUMBER.trim().toUpperCase() === targetPrv.toUpperCase()) return true;
+            return false;
+          });
+
+          if (idx !== -1) {
+            const existing = newExpenses[idx];
+            previousSnapshot.updatedExpenses.push({ ...existing });
+            newExpenses[idx] = {
+              ...existing,
+              DATE_REF: m.DATE_REF || existing.DATE_REF,
+              DATE: m.DATE || existing.DATE,
+              SUPERVISOR: String(m.SUPERVISOR || existing.SUPERVISOR).trim().toUpperCase(),
+              PROJECT: String(m.PROJECT || existing.PROJECT).trim().toUpperCase(),
+              EXPENSES_CATEGORY: String(m.EXPENSES_CATEGORY || existing.EXPENSES_CATEGORY).trim(),
+              AMOUNT: typeof m.AMOUNT === 'number' ? m.AMOUNT : (Number(m.AMOUNT) || existing.AMOUNT),
+              EXPENSES_DESCRIPTION: String(m.EXPENSES_DESCRIPTION || existing.EXPENSES_DESCRIPTION).trim(),
+              PAYMENT_STATUS: (m.PAYMENT_STATUS as any) || existing.PAYMENT_STATUS,
+              PAYMENT_SOURCE: String(m.PAYMENT_SOURCE || existing.PAYMENT_SOURCE).trim(),
+              PRV_NUMBER: targetPrv || existing.PRV_NUMBER,
+              REMARKS: m.REMARKS ? `[UPDATED HISTORICAL] ${String(m.REMARKS).trim()}` : existing.REMARKS,
+              id: existing.id,
+              EXPENSES_ID: existing.EXPENSES_ID
+            };
+            updatedRows++;
+            return;
+          }
+        }
+
+        const dateObj = new Date();
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const expenseId = targetExpId || `EXP-${yyyy}${mm}-${String(newExpenses.length + 1).padStart(4, '0')}`;
 
         const newExp: Expense = {
           id: `exp_hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -1570,13 +1905,13 @@ export class DataImportService {
           DATE: m.DATE || '01/01/2026',
           SUPERVISOR: String(m.SUPERVISOR || '').trim().toUpperCase(),
           PROJECT: String(m.PROJECT || '').trim().toUpperCase(),
-          EXPENSES_CATEGORY: String(m.EXPENSES_CATEGORY || '5000 Construction Materials').trim(),
+          EXPENSES_CATEGORY: String(m.EXPENSES_CATEGORY || '').trim(),
           TRANSACTION_TYPE: 'PETTY_CASH_EXPENSE',
-          AMOUNT: Number(m.AMOUNT) || 0,
+          AMOUNT: typeof m.AMOUNT === 'number' ? m.AMOUNT : (Number(m.AMOUNT) || 0),
           EXPENSES_DESCRIPTION: String(m.EXPENSES_DESCRIPTION || '').trim(),
           PAYMENT_STATUS: (m.PAYMENT_STATUS as any) || 'Approved',
-          PAYMENT_SOURCE: String(m.PAYMENT_SOURCE || 'Historical / Not Specified').trim(),
-          PRV_NUMBER: m.PRV_NUMBER ? String(m.PRV_NUMBER).trim() : undefined,
+          PAYMENT_SOURCE: String(m.PAYMENT_SOURCE || 'Petty Cash').trim(),
+          PRV_NUMBER: targetPrv ? targetPrv : undefined,
           CREATED_BY: options.performedBy,
           CREATED_DATE: timestamp,
           REMARKS: m.REMARKS ? `[HISTORICAL] ${String(m.REMARKS).trim()}` : `[HISTORICAL IMPORT - Batch ${batchId}]`,
@@ -1586,19 +1921,6 @@ export class DataImportService {
           IMPORTED_AT: timestamp,
           IS_HISTORICAL: true
         };
-
-        if (row.isDuplicate && duplicateAction === 'UPDATE') {
-          const idx = newExpenses.findIndex(
-            e => (m.EXPENSES_ID && e.EXPENSES_ID === m.EXPENSES_ID) ||
-                 (m.PRV_NUMBER && e.PRV_NUMBER === m.PRV_NUMBER)
-          );
-          if (idx !== -1) {
-            previousSnapshot.updatedExpenses.push({ ...newExpenses[idx] });
-            newExpenses[idx] = { ...newExpenses[idx], ...newExp, id: newExpenses[idx].id };
-            updatedRows++;
-            return;
-          }
-        }
 
         newExpenses.unshift(newExp);
         createdRecordIds.expenses.push(newExp.id);
@@ -1826,18 +2148,55 @@ export class DataImportService {
       }
 
       const m = row.mapped;
-      const amountVal = Number(m.AMOUNT) || 0;
+      const amountVal = typeof m.AMOUNT === 'number' ? m.AMOUNT : (Number(m.AMOUNT) || 0);
       totalAmount += amountVal;
+
+      const targetExpId = m.EXPENSES_ID ? String(m.EXPENSES_ID).trim() : '';
+      const targetPrv = m.PRV_NUMBER ? String(m.PRV_NUMBER).trim() : '';
+
+      const isApproved = options.approvalStatus === 'Approved';
+
+      // Handle duplicate UPDATE
+      if (row.isDuplicate && options.duplicateAction === 'UPDATE') {
+        const idx = newExpenses.findIndex(e => {
+          if (targetExpId && e.EXPENSES_ID && e.EXPENSES_ID.trim().toUpperCase() === targetExpId.toUpperCase()) return true;
+          if (targetPrv && e.PRV_NUMBER && e.PRV_NUMBER.trim().toUpperCase() === targetPrv.toUpperCase()) return true;
+          return false;
+        });
+
+        if (idx !== -1) {
+          const existing = newExpenses[idx];
+          previousSnapshot.updatedExpenses.push({ ...existing });
+          newExpenses[idx] = {
+            ...existing,
+            DATE_REF: m.DATE_REF || existing.DATE_REF,
+            DATE: m.DATE || existing.DATE,
+            SUPERVISOR: String(m.SUPERVISOR || existing.SUPERVISOR).trim().toUpperCase(),
+            PROJECT: String(m.PROJECT || existing.PROJECT).trim().toUpperCase(),
+            EXPENSES_CATEGORY: String(m.EXPENSES_CATEGORY || existing.EXPENSES_CATEGORY).trim(),
+            AMOUNT: amountVal > 0 ? amountVal : existing.AMOUNT,
+            EXPENSES_DESCRIPTION: String(m.EXPENSES_DESCRIPTION || existing.EXPENSES_DESCRIPTION).trim(),
+            PAYMENT_STATUS: isApproved ? 'Approved' : existing.PAYMENT_STATUS,
+            PAYMENT_SOURCE: String(m.PAYMENT_SOURCE || existing.PAYMENT_SOURCE).trim(),
+            PRV_NUMBER: targetPrv || existing.PRV_NUMBER,
+            APPROVED_BY: isApproved ? (options.approvedBy || options.performedBy || 'Admin Approval') : existing.APPROVED_BY,
+            APPROVED_DATE: isApproved ? new Date().toLocaleString('en-GB') : existing.APPROVED_DATE,
+            REMARKS: options.approvalRemarks
+              ? `[BULK IMPORT UPDATED - ${isApproved ? 'APPROVED' : 'PENDING'}] ${options.approvalRemarks}`
+              : existing.REMARKS,
+            id: existing.id,
+            EXPENSES_ID: existing.EXPENSES_ID
+          };
+          updatedRows++;
+          return;
+        }
+      }
 
       const dateObj = new Date();
       const yyyy = dateObj.getFullYear();
       const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
       const seq = String(newExpenses.length + 1).padStart(4, '0');
-      const generatedExpId = m.EXPENSES_ID && !row.isDuplicate
-        ? String(m.EXPENSES_ID).trim()
-        : `EXP-${yyyy}${mm}-${seq}`;
-
-      const isApproved = options.approvalStatus === 'Approved';
+      const generatedExpId = targetExpId || `EXP-${yyyy}${mm}-${seq}`;
 
       const newExp: Expense = {
         id: `exp_bulk_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -1846,13 +2205,13 @@ export class DataImportService {
         DATE: m.DATE || '01/01/2026',
         SUPERVISOR: String(m.SUPERVISOR || '').trim().toUpperCase(),
         PROJECT: String(m.PROJECT || '').trim().toUpperCase(),
-        EXPENSES_CATEGORY: String(m.EXPENSES_CATEGORY || '5000 Construction Materials').trim(),
+        EXPENSES_CATEGORY: String(m.EXPENSES_CATEGORY || '').trim(),
         TRANSACTION_TYPE: 'PETTY_CASH_EXPENSE',
         AMOUNT: amountVal,
         EXPENSES_DESCRIPTION: String(m.EXPENSES_DESCRIPTION || '').trim(),
         PAYMENT_STATUS: isApproved ? 'Approved' : 'Pending',
         PAYMENT_SOURCE: String(m.PAYMENT_SOURCE || 'Petty Cash').trim(),
-        PRV_NUMBER: m.PRV_NUMBER ? String(m.PRV_NUMBER).trim() : undefined,
+        PRV_NUMBER: targetPrv ? targetPrv : undefined,
         CREATED_BY: options.performedBy,
         CREATED_DATE: timestamp,
         APPROVED_BY: isApproved ? (options.approvedBy || options.performedBy || 'Admin Approval') : undefined,
@@ -1866,19 +2225,6 @@ export class DataImportService {
         IMPORTED_AT: timestamp,
         IS_HISTORICAL: false
       };
-
-      if (row.isDuplicate && options.duplicateAction === 'UPDATE') {
-        const idx = newExpenses.findIndex(
-          e => (m.EXPENSES_ID && e.EXPENSES_ID === m.EXPENSES_ID) ||
-               (m.PRV_NUMBER && e.PRV_NUMBER === m.PRV_NUMBER)
-        );
-        if (idx !== -1) {
-          previousSnapshot.updatedExpenses.push({ ...newExpenses[idx] });
-          newExpenses[idx] = { ...newExpenses[idx], ...newExp, id: newExpenses[idx].id };
-          updatedRows++;
-          return;
-        }
-      }
 
       newExpenses.unshift(newExp);
       createdRecordIds.expenses.push(newExp.id);

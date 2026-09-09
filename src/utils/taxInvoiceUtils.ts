@@ -485,3 +485,94 @@ export function runComplianceTests(): ComplianceTestResult[] {
 
   return results;
 }
+
+/**
+ * Strips any internal 'PREVIEW_' prefix from tax invoice serial number.
+ * Ensures the invoice number is always displayed cleanly (e.g., 26SEP_EMA_00001).
+ */
+export function cleanTaxInvoiceSerialNumber(serialNumber?: string): string {
+  if (!serialNumber) return '';
+  return serialNumber.replace(/^PREVIEW_/i, '').trim();
+}
+
+/**
+ * Resolves the full, comprehensive address of the Purchaser from the Client Registry.
+ * Extracts complete street lines (line1, line2), city, district, province, postalCode, country
+ * while preventing awkward leading commas or truncated city-only outputs.
+ */
+export function resolvePurchaserFullAddress(invoice: Partial<TaxInvoice>, clientsList?: any[]): string {
+  let clients = clientsList;
+  if (!clients || clients.length === 0) {
+    try {
+      const saved = localStorage.getItem('ema_enterprise_corporate_v1_clients');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) clients = parsed;
+      }
+    } catch {}
+  }
+
+  // Look up client from registry
+  let matchedClient: any = null;
+  if (clients && Array.isArray(clients)) {
+    if (invoice.clientId) {
+      matchedClient = clients.find((c: any) => c.id === invoice.clientId);
+    }
+    if (!matchedClient && invoice.purchaserSnapshot?.clientCode) {
+      matchedClient = clients.find((c: any) => c.clientCode === invoice.purchaserSnapshot?.clientCode);
+    }
+    if (!matchedClient && invoice.purchaserName) {
+      const targetName = invoice.purchaserName.toLowerCase().replace(/\s*\(.*?\)\s*/g, '').trim();
+      matchedClient = clients.find((c: any) => {
+        const cName = (c.name || '').toLowerCase().replace(/\s*\(.*?\)\s*/g, '').trim();
+        const cDisplay = (c.taxInvoiceMasterData?.displayName || '').toLowerCase().replace(/\s*\(.*?\)\s*/g, '').trim();
+        const cShort = (c.shortName || '').toLowerCase().trim();
+        return (
+          c.id === invoice.clientId ||
+          c.name?.toLowerCase() === invoice.purchaserName?.toLowerCase() ||
+          cName === targetName ||
+          cDisplay === targetName ||
+          (targetName.length > 3 && (cName.includes(targetName) || targetName.includes(cName))) ||
+          (cShort && targetName.includes(cShort))
+        );
+      });
+    }
+  }
+
+  if (matchedClient) {
+    const reg = matchedClient.registeredAddress;
+    const bill = matchedClient.billingAddress;
+    const activeAddr = (bill && !bill.sameAsRegistered && (bill.line1 || bill.city)) ? bill : reg;
+
+    if (activeAddr) {
+      const parts = [
+        activeAddr.line1,
+        activeAddr.line2,
+        activeAddr.city,
+        activeAddr.district,
+        activeAddr.province,
+        activeAddr.postalCode,
+        activeAddr.country
+      ].map((p: any) => (typeof p === 'string' ? p.trim() : '')).filter(Boolean);
+
+      if (parts.length > 0) {
+        return parts.join(', ');
+      }
+    }
+
+    if (matchedClient.taxInvoiceMasterData?.address) {
+      const cleaned = matchedClient.taxInvoiceMasterData.address.replace(/^[,\s]+/, '').replace(/[,\s]+$/, '').trim();
+      if (cleaned && !cleaned.startsWith(',')) return cleaned;
+    }
+
+    if (matchedClient.address) {
+      const cleaned = matchedClient.address.replace(/^[,\s]+/, '').replace(/[,\s]+$/, '').trim();
+      if (cleaned && !cleaned.startsWith(',')) return cleaned;
+    }
+  }
+
+  // Fallback to invoice purchaserSnapshot / purchaserAddress, cleaning any leading commas or whitespace
+  const raw = invoice.purchaserSnapshot?.registeredAddress || invoice.purchaserAddress || '';
+  const cleaned = raw.replace(/^[,\s]+/, '').replace(/[,\s]+$/, '').trim();
+  return cleaned || 'Registered Office Address';
+}

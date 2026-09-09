@@ -243,7 +243,8 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
       {
         expenses,
         projects,
-        supervisors
+        supervisors,
+        categories
       }
     );
 
@@ -251,10 +252,20 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
     setCurrentStep(2);
   };
 
-  // Recalculate validation when user changes column mapping
+  // Recalculate validation when user changes column mapping (enforcing strict 1-to-1 mapping)
   const handleMappingChange = (fieldKey: string, sourceHeader: string) => {
     if (!parsedData) return;
-    const newMapping = { ...columnMapping, [fieldKey]: sourceHeader };
+    const newMapping = { ...columnMapping };
+
+    // If sourceHeader is selected and was already mapped to another destination field, clear it from the other field
+    if (sourceHeader) {
+      Object.keys(newMapping).forEach(key => {
+        if (key !== fieldKey && newMapping[key] === sourceHeader) {
+          newMapping[key] = '';
+        }
+      });
+    }
+    newMapping[fieldKey] = sourceHeader;
     setColumnMapping(newMapping);
 
     const summary = DataImportService.validateData(
@@ -264,7 +275,8 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
       {
         expenses,
         projects,
-        supervisors
+        supervisors,
+        categories
       }
     );
     setValidationSummary(summary);
@@ -618,41 +630,81 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
               </div>
 
               {/* Column Mapping Accordion */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Layers className="w-4 h-4 text-emerald-400" />
                     <span className="text-xs font-bold text-slate-200">Field Mapping Matrix</span>
+                    <span className="text-[10px] text-slate-400 font-normal">(1-to-1 deterministic mapping)</span>
                   </div>
                   <span className="text-[11px] text-slate-400">
                     File: <strong className="text-slate-200">{parsedData.fileName}</strong> ({parsedData.fileSize})
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
-                  {EXPENSE_FIELDS.filter(f => ['DATE', 'SUPERVISOR', 'PROJECT', 'EXPENSES_CATEGORY', 'AMOUNT', 'EXPENSES_DESCRIPTION'].includes(f.key)).map(field => (
-                    <div key={field.key} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                      <div className="flex items-center justify-between text-[11px] mb-1">
-                        <span className="font-bold text-slate-200 flex items-center gap-1">
-                          {field.label}
-                          {field.required && <span className="text-rose-400">*</span>}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono">{field.key}</span>
+                {/* Mandatory Fields */}
+                <div>
+                  <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <span>Mandatory Financial Fields</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {EXPENSE_FIELDS.filter(f => f.required).map(field => (
+                      <div key={field.key} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                        <div className="flex items-center justify-between text-[11px] mb-1">
+                          <span className="font-bold text-slate-200 flex items-center gap-1">
+                            {field.label}
+                            <span className="text-rose-400">*</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">{field.key}</span>
+                        </div>
+                        <select
+                          value={columnMapping[field.key] || ''}
+                          onChange={(e) => handleMappingChange(field.key, e.target.value)}
+                          className={`w-full px-2.5 py-1.5 rounded bg-slate-950 border text-xs font-medium text-slate-200 focus:outline-none focus:border-emerald-500 ${
+                            columnMapping[field.key] ? 'border-emerald-600/60' : 'border-rose-800/80'
+                          }`}
+                        >
+                          <option value="">-- Select Excel Column --</option>
+                          {parsedData.headers.map(header => (
+                            <option key={header} value={header}>
+                              {header}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      <select
-                        value={columnMapping[field.key] || ''}
-                        onChange={(e) => handleMappingChange(field.key, e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs font-medium text-slate-200 focus:outline-none focus:border-emerald-500"
-                      >
-                        <option value="">-- Unmapped --</option>
-                        {parsedData.headers.map(header => (
-                          <option key={header} value={header}>
-                            {header}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                </div>
+
+                {/* Optional Financial Tracking Fields */}
+                <div className="pt-2 border-t border-slate-800/70">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <span>Optional Financial Tracking & Voucher Fields</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {EXPENSE_FIELDS.filter(f => !f.required && ['EXPENSES_ID', 'PRV_NUMBER', 'PAYMENT_SOURCE', 'REMARKS'].includes(f.key)).map(field => (
+                      <div key={field.key} className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                        <div className="flex items-center justify-between text-[11px] mb-1">
+                          <span className="font-semibold text-slate-300">
+                            {field.label}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">{field.key}</span>
+                        </div>
+                        <select
+                          value={columnMapping[field.key] || ''}
+                          onChange={(e) => handleMappingChange(field.key, e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs font-medium text-slate-200 focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="">-- Unmapped (Auto/Default) --</option>
+                          {parsedData.headers.map(header => (
+                            <option key={header} value={header}>
+                              {header}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -700,13 +752,14 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
                   </div>
                 </div>
 
-                <div className="border border-slate-800 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
+                <div className="border border-slate-800 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="sticky top-0 bg-slate-950 border-b border-slate-800 text-slate-400 text-[11px] font-bold">
                       <tr>
                         <th className="py-2.5 px-3">#</th>
                         <th className="py-2.5 px-3">Status</th>
                         <th className="py-2.5 px-3">Date</th>
+                        <th className="py-2.5 px-3">PRV / Voucher</th>
                         <th className="py-2.5 px-3">Supervisor</th>
                         <th className="py-2.5 px-3">Project</th>
                         <th className="py-2.5 px-3">Category</th>
@@ -717,7 +770,7 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
                     <tbody className="divide-y divide-slate-800 bg-slate-900/60">
                       {filteredPreviewRows.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="py-6 text-center text-slate-400">
+                          <td colSpan={9} className="py-6 text-center text-slate-400">
                             No rows match the selected filter.
                           </td>
                         </tr>
@@ -726,25 +779,33 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
                           <tr key={row.rowIndex} className="hover:bg-slate-800/40">
                             <td className="py-2 px-3 font-mono text-slate-400">{row.rowIndex}</td>
                             <td className="py-2 px-3">
-                              {row.isValid ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
-                                  <Check className="w-3 h-3" /> Valid
-                                </span>
-                              ) : (
-                                <span
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800"
-                                  title={row.errors.map(e => e.message).join('\n')}
-                                >
-                                  <AlertCircle className="w-3 h-3" /> Error
-                                </span>
-                              )}
-                              {row.isDuplicate && (
-                                <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950 text-amber-400 border border-amber-800">
-                                  Duplicate
-                                </span>
-                              )}
+                              <div className="flex flex-col gap-1 items-start">
+                                {row.isValid ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                                    <Check className="w-3 h-3" /> Valid
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800 cursor-help"
+                                    title={row.errors.map(e => e.error || (e as any).message).join('\n')}
+                                  >
+                                    <AlertCircle className="w-3 h-3" /> Error
+                                  </span>
+                                )}
+                                {row.isDuplicate && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950 text-amber-400 border border-amber-800">
+                                    Duplicate
+                                  </span>
+                                )}
+                                {!row.isValid && (
+                                  <span className="text-[10px] text-rose-400 font-mono leading-tight max-w-[140px] truncate" title={row.errors.map(e => e.error || (e as any).message).join('\n')}>
+                                    {row.errors[0]?.error}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2 px-3 font-mono text-slate-300">{row.mapped.DATE || '-'}</td>
+                            <td className="py-2 px-3 font-mono text-slate-300">{row.mapped.PRV_NUMBER || '-'}</td>
                             <td className="py-2 px-3 font-semibold text-slate-200">{row.mapped.SUPERVISOR || '-'}</td>
                             <td className="py-2 px-3 text-emerald-400 font-bold">{row.mapped.PROJECT || '-'}</td>
                             <td className="py-2 px-3 text-slate-300 truncate max-w-[150px]">{row.mapped.EXPENSES_CATEGORY || '-'}</td>
@@ -900,6 +961,117 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
                     placeholder="e.g. Colombo & Havelock Site Week 34 bulk voucher batch"
                     className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:border-emerald-500 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              {/* Duplicate Handling Strategy */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <span>Duplicate Resolution Policy</span>
+                    {validationSummary.duplicatesCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800 text-[10px] font-bold">
+                        {validationSummary.duplicatesCount} duplicate{validationSummary.duplicatesCount > 1 ? 's' : ''} detected
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Matches evaluated by Expense ID, PRV No, or exact Date+Project+Amount+Supervisor signature
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+                  <label
+                    onClick={() => setDuplicateAction('SKIP')}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      duplicateAction === 'SKIP'
+                        ? 'border-emerald-500 bg-emerald-950/30'
+                        : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <input
+                        type="radio"
+                        name="dupAction"
+                        checked={duplicateAction === 'SKIP'}
+                        onChange={() => setDuplicateAction('SKIP')}
+                        className="text-emerald-500"
+                      />
+                      <span className="text-xs font-bold text-slate-200">Skip Duplicates</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      Leave existing records untouched and skip importing duplicate rows.
+                    </p>
+                  </label>
+
+                  <label
+                    onClick={() => setDuplicateAction('UPDATE')}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      duplicateAction === 'UPDATE'
+                        ? 'border-emerald-500 bg-emerald-950/30'
+                        : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <input
+                        type="radio"
+                        name="dupAction"
+                        checked={duplicateAction === 'UPDATE'}
+                        onChange={() => setDuplicateAction('UPDATE')}
+                        className="text-emerald-500"
+                      />
+                      <span className="text-xs font-bold text-slate-200">Update Existing</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      Update matching records with file data, preserving original unique ID and audit trail.
+                    </p>
+                  </label>
+
+                  <label
+                    onClick={() => setDuplicateAction('CREATE_NEW')}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      duplicateAction === 'CREATE_NEW'
+                        ? 'border-emerald-500 bg-emerald-950/30'
+                        : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <input
+                        type="radio"
+                        name="dupAction"
+                        checked={duplicateAction === 'CREATE_NEW'}
+                        onChange={() => setDuplicateAction('CREATE_NEW')}
+                        className="text-emerald-500"
+                      />
+                      <span className="text-xs font-bold text-slate-200">Create As New</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      Import rows as distinct new entries with fresh unique sequence IDs.
+                    </p>
+                  </label>
+
+                  <label
+                    onClick={() => setDuplicateAction('CANCEL')}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      duplicateAction === 'CANCEL'
+                        ? 'border-rose-500 bg-rose-950/30'
+                        : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <input
+                        type="radio"
+                        name="dupAction"
+                        checked={duplicateAction === 'CANCEL'}
+                        onChange={() => setDuplicateAction('CANCEL')}
+                        className="text-rose-500"
+                      />
+                      <span className="text-xs font-bold text-slate-200">Cancel on Duplicate</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      Strict audit halt: abort the entire import batch if any duplicate is found.
+                    </p>
+                  </label>
                 </div>
               </div>
 

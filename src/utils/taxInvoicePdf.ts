@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { TaxInvoice } from '../types/taxInvoiceTypes';
-import { formatDateToGazette } from './taxInvoiceUtils';
+import { formatDateToGazette, cleanTaxInvoiceSerialNumber, resolvePurchaserFullAddress } from './taxInvoiceUtils';
 
 /**
  * Generates an official, Gazette No. 2481/22 compliant A4 PDF Tax Invoice.
@@ -17,7 +17,7 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 14;
 
-  const isDraft = invoice.isDraft || invoice.status === 'DRAFT' || invoice.status === 'SUBMITTED' || invoice.status === 'APPROVED';
+  const isDraft = (invoice.isDraft || invoice.status === 'DRAFT') && invoice.status !== 'APPROVED' && invoice.status !== 'ISSUED' && invoice.status !== 'PAID';
   const isCancelled = invoice.status === 'CANCELLED' || invoice.isCancelled;
 
   // Watermarks
@@ -57,7 +57,7 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   doc.setTextColor(15, 23, 42); // Slate-900
   doc.text(invoice.isCreditNote ? 'TAX CREDIT NOTE' : 'TAX INVOICE', margin, y + 6);
 
-  // Directly underneath: Tax Invoice Number :- [serialNumber]
+  // Directly underneath: Tax Invoice Number :- [serialNumber] (cleaned of PREVIEW_ prefix)
   doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105); // Slate-600
@@ -66,7 +66,8 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   const prefixWidth = doc.getTextWidth('Tax Invoice Number :- ');
   doc.setFont('courier', 'bold');
   doc.setTextColor(2, 132, 199); // Cyan / Blue accent
-  doc.text(invoice.serialNumber, margin + prefixWidth, y + 13);
+  const cleanSerial = cleanTaxInvoiceSerialNumber(invoice.serialNumber);
+  doc.text(cleanSerial, margin + prefixWidth, y + 13);
 
   // Status & Date on right side
   doc.setFont('helvetica', 'bold');
@@ -89,7 +90,13 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   const colWidth = (pageWidth - margin * 2 - 6) / 2;
   const leftColX = margin;
   const rightColX = margin + colWidth + 6;
-  const cardHeight = 46;
+
+  // Resolve full purchaser address from client registry
+  const fullPurchaserAddress = resolvePurchaserFullAddress(invoice);
+  const suppAddrLines = doc.splitTextToSize(invoice.supplierAddress, colWidth - 6);
+  const purchAddrLines = doc.splitTextToSize(fullPurchaserAddress, colWidth - 6);
+  const maxAddrLines = Math.max(suppAddrLines.length, purchAddrLines.length);
+  const cardHeight = Math.max(46, 36 + maxAddrLines * 3.8);
 
   // Service Provider Card (Left)
   doc.setFillColor(255, 255, 255);
@@ -113,7 +120,6 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  const suppAddrLines = doc.splitTextToSize(invoice.supplierAddress, colWidth - 6);
   doc.text(suppAddrLines, leftColX + 3, suppY);
   suppY += Math.max(1, suppAddrLines.length) * 3.5 + 1;
 
@@ -136,12 +142,6 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   doc.setTextColor(71, 85, 105);
   doc.text(`Contact: ${invoice.supplierContact}`, leftColX + 3, suppY);
 
-  suppY += 4.5;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.8);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Remittance: Commercial Bank • A/C 1000849201 • CCEYLKFX', leftColX + 3, suppY);
-
   // Purchaser Card (Right)
   doc.setFillColor(255, 255, 255);
   doc.roundedRect(rightColX, y, colWidth, cardHeight, 1.5, 1.5, 'FD');
@@ -163,7 +163,6 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  const purchAddrLines = doc.splitTextToSize(invoice.purchaserAddress || 'Registered Office Address', colWidth - 6);
   doc.text(purchAddrLines, rightColX + 3, purchY);
   purchY += Math.max(1, purchAddrLines.length) * 3.5 + 1;
 
@@ -367,14 +366,23 @@ export function generateTaxInvoicePdf(invoice: TaxInvoice): jsPDF {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('DIRECT REMITTANCE DETAILS:', margin + 3, totalsY + 20);
+  doc.text('DIRECT REMITTANCE DETAILS (SETTLEMENT BANK):', margin + 3, totalsY + 20);
+
+  const bank = invoice.settlementBankDetails || {
+    bankName: 'Commercial Bank of Ceylon PLC',
+    branchName: 'World Trade Centre Branch',
+    accountName: invoice.supplierName || 'Apex Global Logistics Corporation (Pvt) Ltd - Operations',
+    accountNumber: '1000849201',
+    swiftCode: 'CCEYLKFX',
+    currency: invoice.currency || 'LKR'
+  };
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(51, 65, 85);
-  doc.text('Bank: Commercial Bank PLC • Branch: Echelon Square Corporate', margin + 3, totalsY + 25);
-  doc.text('Account Name: Apex Global Logistics Corp • Account No: 1000-8491-0028', margin + 3, totalsY + 29);
-  doc.text('SWIFT: CCEYLKLX • Currency: LKR (Sri Lankan Rupees)', margin + 3, totalsY + 33);
+  doc.text(`Bank: ${bank.bankName} • Branch: ${bank.branchName || 'Corporate'}`, margin + 3, totalsY + 25);
+  doc.text(`Account Name: ${bank.accountName} • Account No: ${bank.accountNumber}`, margin + 3, totalsY + 29);
+  doc.text(`SWIFT: ${bank.swiftCode || 'N/A'} • Currency: ${bank.currency || invoice.currency || 'LKR'}`, margin + 3, totalsY + 33);
 
   // Signatory Authorization Block
   const sigY = pageHeight - 34;

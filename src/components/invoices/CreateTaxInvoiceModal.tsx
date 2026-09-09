@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Plus,
@@ -13,13 +13,15 @@ import {
   Building2,
   Sparkles,
   Lock,
-  CheckCircle2
+  CheckCircle2,
+  Landmark
 } from 'lucide-react';
-import { InvoiceSupplyItem, TaxInvoice } from '../../types/taxInvoiceTypes';
+import { InvoiceSupplyItem, TaxInvoice, InvoiceBankDetails } from '../../types/taxInvoiceTypes';
 import { useTaxInvoice } from '../../context/TaxInvoiceContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
 import { usePettyCash } from '../../context/PettyCashContext';
+import { useEnterpriseBanking } from '../../context/EnterpriseBankingContext';
 import {
   calculateTaxInvoiceTotals,
   amountToWordsLKR,
@@ -30,13 +32,15 @@ import { PurchaserSnapshot } from '../../types/taxInvoiceTypes';
 interface CreateTaxInvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
+  editInvoice?: TaxInvoice | null;
 }
 
-export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ isOpen, onClose }) => {
+export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ isOpen, onClose, editInvoice }) => {
   const { settings, createInvoice } = useTaxInvoice();
   const { currentUser } = useEnterprise();
   const { clients, profile } = useEnterpriseCompany();
   const { projects } = usePettyCash();
+  const { accounts } = useEnterpriseBanking();
 
   const today = new Date().toISOString().split('T')[0];
   const inThirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
@@ -44,6 +48,39 @@ export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ is
   const [invoiceDate, setInvoiceDate] = useState(today);
   const [supplyDate, setSupplyDate] = useState(today);
   const [dueDate, setDueDate] = useState(inThirtyDays);
+
+  // Settlement Bank Account selection from registered bank accounts
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>(() => {
+    return editInvoice?.bankAccountId || editInvoice?.settlementBankDetails?.bankAccountId || accounts.find(a => a.isPrimary)?.id || accounts[0]?.id || '';
+  });
+
+  useEffect(() => {
+    if (editInvoice) {
+      const accId = editInvoice.bankAccountId || editInvoice.settlementBankDetails?.bankAccountId || accounts.find(a => a.isPrimary)?.id || accounts[0]?.id || '';
+      setSelectedBankAccountId(accId);
+    } else if (!selectedBankAccountId && accounts.length > 0) {
+      setSelectedBankAccountId(accounts.find(a => a.isPrimary)?.id || accounts[0]?.id || '');
+    }
+  }, [editInvoice, accounts]);
+
+  const selectedAccount = useMemo(() => {
+    return accounts.find(a => a.id === selectedBankAccountId) || accounts.find(a => a.isPrimary) || accounts[0];
+  }, [accounts, selectedBankAccountId]);
+
+  const resolvedBankDetails: InvoiceBankDetails | undefined = useMemo(() => {
+    if (!selectedAccount) return undefined;
+    return {
+      bankAccountId: selectedAccount.id,
+      accountName: selectedAccount.accountName,
+      bankName: selectedAccount.bank,
+      branchName: selectedAccount.branch,
+      accountNumber: selectedAccount.accountNumber,
+      swiftCode: selectedAccount.swift,
+      currency: selectedAccount.currency,
+      purpose: selectedAccount.purpose,
+      isPrimary: selectedAccount.isPrimary
+    };
+  }, [selectedAccount]);
 
   // Selected Client from Master Data
   const [selectedClientId, setSelectedClientId] = useState<string>('');
@@ -81,15 +118,27 @@ export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ is
     const resolvedTin = invData?.tin || taxData?.tin || '';
     const resolvedVat = invData?.vatNumber || taxData?.vatNumber || '';
 
-    let resolvedAddress = invData?.address;
-    if (!resolvedAddress) {
-      if (billAddr && !billAddr.sameAsRegistered && billAddr.line1) {
-        resolvedAddress = `${billAddr.line1}${billAddr.line2 ? ', ' + billAddr.line2 : ''}, ${billAddr.city}`;
-      } else if (regAddr && regAddr.line1) {
-        resolvedAddress = `${regAddr.line1}${regAddr.line2 ? ', ' + regAddr.line2 : ''}, ${regAddr.city}`;
-      } else {
-        resolvedAddress = client.address || '';
+    let resolvedAddress = '';
+    const activeAddr = (billAddr && !billAddr.sameAsRegistered && (billAddr.line1 || billAddr.city)) ? billAddr : regAddr;
+    if (activeAddr) {
+      const parts = [
+        activeAddr.line1,
+        activeAddr.line2,
+        activeAddr.city,
+        activeAddr.district,
+        activeAddr.province,
+        activeAddr.postalCode,
+        activeAddr.country
+      ].map(p => p?.trim()).filter(Boolean);
+      if (parts.length > 0) {
+        resolvedAddress = parts.join(', ');
       }
+    }
+    if (!resolvedAddress && invData?.address) {
+      resolvedAddress = invData.address.replace(/^[,\s]+/, '').trim();
+    }
+    if (!resolvedAddress && client.address) {
+      resolvedAddress = client.address.replace(/^[,\s]+/, '').trim();
     }
 
     const resolvedContact = invData?.contactPerson || primContact?.name || client.contactPerson || '';
@@ -276,6 +325,8 @@ export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ is
         ipcNumber,
         contractNumber,
         purchaseOrderRef,
+        bankAccountId: selectedAccount?.id,
+        settlementBankDetails: resolvedBankDetails,
         lineItems,
         notes
       },
@@ -610,6 +661,82 @@ export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ is
                 />
               </div>
             </div>
+          </div>
+
+          {/* Section: Settlement Bank Details (Registered Bank Accounts) */}
+          <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-cyan-950/80 border border-cyan-800 text-cyan-400 flex items-center justify-center">
+                  <Landmark className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-xs uppercase tracking-wider">
+                    Settlement Bank Account
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Direct remittances to registered enterprise company bank account
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-400 font-medium">Select Account:</span>
+                <select
+                  id="create-invoice-bank-select"
+                  value={selectedBankAccountId}
+                  onChange={e => setSelectedBankAccountId(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 hover:border-cyan-500 focus:border-cyan-500 rounded-lg px-3 py-1.5 text-xs text-cyan-200 font-semibold outline-none cursor-pointer"
+                >
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.bank} • {acc.branch} ({acc.accountNumber}) {acc.isPrimary ? '★ Primary' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {selectedAccount && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-900/80 border border-slate-800 rounded-lg p-3 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Account Name</span>
+                  <span className="text-white font-semibold truncate block mt-0.5" title={selectedAccount.accountName}>
+                    {selectedAccount.accountName}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Bank &amp; Branch</span>
+                  <span className="text-white font-semibold block mt-0.5">
+                    {selectedAccount.bank}
+                  </span>
+                  <span className="text-slate-400 text-[11px]">{selectedAccount.branch}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Account Number &amp; SWIFT</span>
+                  <span className="font-mono text-cyan-300 font-bold block mt-0.5">
+                    {selectedAccount.accountNumber}
+                  </span>
+                  <span className="text-slate-400 text-[10.5px] font-mono">SWIFT: {selectedAccount.swift}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Currency &amp; Purpose</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="bg-slate-800 text-slate-200 font-mono text-[10.5px] px-1.5 py-0.5 rounded font-bold">
+                      {selectedAccount.currency}
+                    </span>
+                    {selectedAccount.isPrimary && (
+                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold">
+                        Primary
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-slate-400 text-[10.5px] block truncate mt-1" title={selectedAccount.purpose}>
+                    {selectedAccount.purpose}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Section 4: Line Items Table */}

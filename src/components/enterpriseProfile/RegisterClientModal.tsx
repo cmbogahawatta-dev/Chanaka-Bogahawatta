@@ -38,6 +38,7 @@ interface RegisterClientModalProps {
   onClose: () => void;
   clientToEdit?: Client | null;
   onClientSaved?: (client: Client) => void;
+  initialTab?: 'basic' | 'tax' | 'contact' | 'address' | 'payment' | 'project' | 'documents' | 'audit';
 }
 
 const ORG_TYPES: ClientOrganizationType[] = [
@@ -86,14 +87,25 @@ export const RegisterClientModal: React.FC<RegisterClientModalProps> = ({
   isOpen,
   onClose,
   clientToEdit,
-  onClientSaved
+  onClientSaved,
+  initialTab
 }) => {
-  const { clients, addClient, updateClient } = useEnterpriseCompany();
+  const { clients, addClient, updateClient, clearClientAuditHistory } = useEnterpriseCompany();
   const { projects } = usePettyCash();
 
   const [activeTab, setActiveTab] = useState<
     'basic' | 'tax' | 'contact' | 'address' | 'payment' | 'project' | 'documents' | 'audit'
-  >('basic');
+  >(initialTab || 'basic');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialTab) {
+        setActiveTab(initialTab);
+      } else if (!clientToEdit) {
+        setActiveTab('basic');
+      }
+    }
+  }, [isOpen, initialTab, clientToEdit]);
 
   // Basic Information
   const [name, setName] = useState('');
@@ -692,7 +704,11 @@ export const RegisterClientModal: React.FC<RegisterClientModalProps> = ({
     };
 
     const resolvedInvoiceDisplayName = invoiceDisplayName.trim() || name.trim();
-    const resolvedInvoiceAddress = invoiceBillingAddress.trim() || (sameAsRegistered ? `${regAddressLine1}, ${regCity}` : `${billAddressLine1}, ${billCity}`);
+    const activeAddressParts = (sameAsRegistered
+      ? [regAddressLine1, regAddressLine2, regCity, regDistrict, regProvince, regPostalCode, regCountry]
+      : [billAddressLine1, billAddressLine2, billCity, billDistrict, billPostalCode, billCountry]
+    ).map(s => s?.trim()).filter(Boolean);
+    const resolvedInvoiceAddress = invoiceBillingAddress.trim() || activeAddressParts.join(', ');
 
     const taxInvoiceMasterDataObj = {
       displayName: resolvedInvoiceDisplayName,
@@ -736,7 +752,9 @@ export const RegisterClientModal: React.FC<RegisterClientModalProps> = ({
       advancePercent: isAdvanceApplicable ? Number(defaultAdvancePercent) : 0
     } : undefined;
 
-    const formattedSummaryAddress = `${regAddressLine1}, ${regCity}, ${regCountry}`;
+    const regAddressParts = [regAddressLine1, regAddressLine2, regCity, regDistrict, regProvince, regPostalCode, regCountry]
+      .map(s => s?.trim()).filter(Boolean);
+    const formattedSummaryAddress = regAddressParts.join(', ');
 
     const clientPayload: Omit<Client, 'id'> = {
       name: name.trim(),
@@ -2397,13 +2415,32 @@ export const RegisterClientModal: React.FC<RegisterClientModalProps> = ({
           {activeTab === 'audit' && (
             <div className="space-y-4">
               <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                  <History className="w-4 h-4 text-emerald-400" />
-                  Client Master Audit Trail Log
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  Automated chronological log of changes made to this Client / Employer master record.
-                </p>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                      <History className="w-4 h-4 text-emerald-400" />
+                      Client Master Audit Trail Log
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Automated chronological log of changes made to this Client / Employer master record.
+                    </p>
+                  </div>
+                  {clientToEdit?.id && clientToEdit?.auditTrail && clientToEdit.auditTrail.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to clear the audit history for ${clientToEdit.name}?`)) {
+                          clearClientAuditHistory(clientToEdit.id);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-500/30 text-xs font-semibold transition-colors"
+                      title="Clear historical audit logs for this client"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Clear Audit History</span>
+                    </button>
+                  )}
+                </div>
 
                 {clientToEdit?.auditTrail && clientToEdit.auditTrail.length > 0 ? (
                   <div className="space-y-2">

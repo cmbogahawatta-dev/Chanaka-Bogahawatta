@@ -11,11 +11,16 @@ import {
   Building,
   CheckCircle2,
   ExternalLink,
-  Layers
+  Layers,
+  Landmark,
+  CreditCard
 } from 'lucide-react';
-import { TaxInvoice } from '../../types/taxInvoiceTypes';
+import { TaxInvoice, InvoiceBankDetails } from '../../types/taxInvoiceTypes';
 import { generateTaxInvoicePdf } from '../../utils/taxInvoicePdf';
-import { formatDateToGazette } from '../../utils/taxInvoiceUtils';
+import { formatDateToGazette, cleanTaxInvoiceSerialNumber, resolvePurchaserFullAddress } from '../../utils/taxInvoiceUtils';
+import { useEnterpriseBanking } from '../../context/EnterpriseBankingContext';
+import { useTaxInvoice } from '../../context/TaxInvoiceContext';
+import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
 
 interface TaxInvoicePreviewModalProps {
   isOpen: boolean;
@@ -34,13 +39,121 @@ export const TaxInvoicePreviewModal: React.FC<TaxInvoicePreviewModalProps> = ({
   onDownload,
   onOpenDetails
 }) => {
+  const { accounts } = useEnterpriseBanking();
+  const { updateInvoice } = useTaxInvoice();
+  const { clients } = useEnterpriseCompany();
+
+  const [activeInvoice, setActiveInvoice] = useState<TaxInvoice | null>(invoice);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [viewMode, setViewMode] = useState<'sheet' | 'pdf'>('sheet');
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
 
-  // Generate PDF blob URL whenever invoice changes or view mode is set to 'pdf'
+  // Sync active invoice with incoming invoice prop
   useEffect(() => {
-    if (!invoice || !isOpen) {
+    setActiveInvoice(invoice);
+  }, [invoice]);
+
+  // Resolve full purchaser address from client registry
+  const resolvedPurchaserAddress = useMemo(() => {
+    if (!activeInvoice) return '';
+    return resolvePurchaserFullAddress(activeInvoice, clients);
+  }, [activeInvoice, clients]);
+
+  // Clean serial number without PREVIEW_
+  const cleanSerial = useMemo(() => {
+    return cleanTaxInvoiceSerialNumber(activeInvoice?.serialNumber);
+  }, [activeInvoice?.serialNumber]);
+
+  // Invoice object normalized for PDF rendering
+  const invoiceForPdf = useMemo(() => {
+    if (!activeInvoice) return null;
+    return {
+      ...activeInvoice,
+      serialNumber: cleanSerial,
+      purchaserAddress: resolvedPurchaserAddress
+    };
+  }, [activeInvoice, cleanSerial, resolvedPurchaserAddress]);
+
+  // Selected bank account ID
+  const selectedBankAccountId = useMemo(() => {
+    if (!activeInvoice) return accounts.find(a => a.isPrimary)?.id || accounts[0]?.id || '';
+    if (activeInvoice.bankAccountId) return activeInvoice.bankAccountId;
+    if (activeInvoice.settlementBankDetails?.bankAccountId) return activeInvoice.settlementBankDetails.bankAccountId;
+    // Match by account number or fallback to primary
+    const matched = accounts.find(a => a.accountNumber === activeInvoice.settlementBankDetails?.accountNumber);
+    if (matched) return matched.id;
+    return accounts.find(a => a.isPrimary)?.id || accounts[0]?.id || '';
+  }, [activeInvoice, accounts]);
+
+  // Handle switching bank accounts
+  const handleBankChange = (accountId: string) => {
+    if (!activeInvoice) return;
+    const targetAccount = accounts.find(a => a.id === accountId);
+    if (!targetAccount) return;
+
+    const newBankDetails: InvoiceBankDetails = {
+      bankAccountId: targetAccount.id,
+      accountName: targetAccount.accountName,
+      bankName: targetAccount.bank,
+      branchName: targetAccount.branch,
+      accountNumber: targetAccount.accountNumber,
+      swiftCode: targetAccount.swift,
+      currency: targetAccount.currency,
+      purpose: targetAccount.purpose,
+      isPrimary: targetAccount.isPrimary
+    };
+
+    const updatedInvoice: TaxInvoice = {
+      ...activeInvoice,
+      bankAccountId: targetAccount.id,
+      settlementBankDetails: newBankDetails
+    };
+
+    setActiveInvoice(updatedInvoice);
+
+    // Save to persistent invoice record
+    try {
+      updateInvoice(activeInvoice.id, {
+        bankAccountId: targetAccount.id,
+        settlementBankDetails: newBankDetails
+      });
+    } catch (e) {
+      console.warn('Could not auto-save bank details update:', e);
+    }
+  };
+
+  // Resolved current bank details to display
+  const currentBankDetails: InvoiceBankDetails = useMemo(() => {
+    if (activeInvoice?.settlementBankDetails) {
+      return activeInvoice.settlementBankDetails;
+    }
+    const currentAcc = accounts.find(a => a.id === selectedBankAccountId) || accounts.find(a => a.isPrimary) || accounts[0];
+    if (currentAcc) {
+      return {
+        bankAccountId: currentAcc.id,
+        accountName: currentAcc.accountName,
+        bankName: currentAcc.bank,
+        branchName: currentAcc.branch,
+        accountNumber: currentAcc.accountNumber,
+        swiftCode: currentAcc.swift,
+        currency: currentAcc.currency,
+        purpose: currentAcc.purpose,
+        isPrimary: currentAcc.isPrimary
+      };
+    }
+    return {
+      accountName: activeInvoice?.supplierName || 'Apex Global Technologies (Pvt) Ltd',
+      bankName: 'Commercial Bank of Ceylon PLC',
+      branchName: 'Echelon Square Corporate Branch',
+      accountNumber: '1000-8491-0028',
+      swiftCode: 'CCEYLKX',
+      currency: 'LKR'
+    };
+  }, [activeInvoice, accounts, selectedBankAccountId]);
+
+  // Generate PDF blob URL whenever activeInvoice changes or view mode is set to 'pdf'
+  useEffect(() => {
+    if (!invoiceForPdf || !isOpen) {
       if (pdfBlobUrl) {
         URL.revokeObjectURL(pdfBlobUrl);
         setPdfBlobUrl(null);
@@ -49,7 +162,7 @@ export const TaxInvoicePreviewModal: React.FC<TaxInvoicePreviewModalProps> = ({
     }
 
     try {
-      const doc = generateTaxInvoicePdf(invoice);
+      const doc = generateTaxInvoicePdf(invoiceForPdf);
       const blob = doc.output('blob');
       const url = URL.createObjectURL(blob);
       setPdfBlobUrl(url);
@@ -60,18 +173,19 @@ export const TaxInvoicePreviewModal: React.FC<TaxInvoicePreviewModalProps> = ({
     } catch (err) {
       console.error('Failed to generate PDF blob preview:', err);
     }
-  }, [invoice, isOpen]);
+  }, [invoiceForPdf, isOpen]);
 
-  if (!isOpen || !invoice) return null;
+  if (!isOpen || !activeInvoice) return null;
 
-  const isDraft = invoice.isDraft || invoice.status === 'DRAFT' || invoice.status === 'SUBMITTED' || invoice.status === 'APPROVED';
-  const isCancelled = invoice.status === 'CANCELLED' || invoice.isCancelled;
+  const currentInvoice = invoiceForPdf || activeInvoice;
+  const isDraft = currentInvoice.isDraft || currentInvoice.status === 'DRAFT' || currentInvoice.status === 'SUBMITTED';
+  const isCancelled = currentInvoice.status === 'CANCELLED' || currentInvoice.isCancelled;
 
   const handlePrint = () => {
     if (onPrint) {
-      onPrint(invoice);
+      onPrint(currentInvoice);
     } else {
-      const doc = generateTaxInvoicePdf(invoice);
+      const doc = generateTaxInvoicePdf(currentInvoice);
       doc.autoPrint();
       const blobUrl = doc.output('bloburl');
       const iframe = document.createElement('iframe');
@@ -84,10 +198,10 @@ export const TaxInvoicePreviewModal: React.FC<TaxInvoicePreviewModalProps> = ({
 
   const handleDownload = () => {
     if (onDownload) {
-      onDownload(invoice);
+      onDownload(currentInvoice);
     } else {
-      const doc = generateTaxInvoicePdf(invoice);
-      const filename = `TaxInvoice_${invoice.serialNumber}_${invoice.invoiceDate}.pdf`;
+      const doc = generateTaxInvoicePdf(currentInvoice);
+      const filename = `TaxInvoice_${cleanSerial}_${currentInvoice.invoiceDate}.pdf`;
       doc.save(filename);
     }
   };
@@ -118,7 +232,7 @@ export const TaxInvoicePreviewModal: React.FC<TaxInvoicePreviewModalProps> = ({
                   Tax Invoice Document Preview
                 </span>
                 <span className="font-mono text-xs font-bold text-cyan-400 bg-cyan-950/90 px-2 py-0.5 rounded border border-cyan-800/60">
-                  {invoice.serialNumber}
+                  {cleanSerial}
                 </span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                   invoice.status === 'ISSUED' || invoice.status === 'PAID'
@@ -138,6 +252,27 @@ export const TaxInvoicePreviewModal: React.FC<TaxInvoicePreviewModalProps> = ({
 
           {/* Controls: Mode Switch, Zoom, Print, Download, Close */}
           <div className="flex items-center gap-2">
+            {/* Settlement Bank Quick Selector */}
+            <div className="flex items-center bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-xs gap-1.5">
+              <Landmark className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <label htmlFor="top-bank-selector" className="text-slate-400 font-medium hidden md:inline whitespace-nowrap">
+                Remittance Bank:
+              </label>
+              <select
+                id="top-bank-selector"
+                value={selectedBankAccountId}
+                onChange={e => handleBankChange(e.target.value)}
+                className="bg-slate-950 text-cyan-200 border border-slate-700 hover:border-cyan-500 rounded px-2 py-0.5 text-xs font-semibold outline-none cursor-pointer max-w-[220px] truncate"
+                title="Select from registered company bank accounts"
+              >
+                {accounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.bank} • {acc.branch} ({acc.accountNumber}) {acc.isPrimary ? '★ Primary' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* View Mode Toggle */}
             <div className="flex items-center bg-slate-900 p-1 rounded-lg border border-slate-800 text-xs">
               <button
@@ -246,7 +381,7 @@ export const TaxInvoicePreviewModal: React.FC<TaxInvoicePreviewModalProps> = ({
             <div className="w-full h-full rounded-xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
               <iframe
                 src={pdfBlobUrl}
-                title={`PDF Preview ${invoice.serialNumber}`}
+                title={`PDF Preview ${cleanSerial}`}
                 className="w-full h-full border-0"
               />
             </div>
@@ -286,7 +421,7 @@ export const TaxInvoicePreviewModal: React.FC<TaxInvoicePreviewModalProps> = ({
                   </h1>
                   <div className="mt-1 text-sm font-semibold text-slate-700 flex items-center gap-2">
                     <span className="font-medium text-slate-500">Tax Invoice Number :-</span>
-                    <span className="font-mono font-bold text-slate-900 text-base">{invoice.serialNumber}</span>
+                    <span className="font-mono font-bold text-slate-900 text-base">{cleanSerial}</span>
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1">
                     Value Added Tax Act No. 14 of 2002 • Gazette Extraordinary No. 2481/22 &amp; No. 2500/106
@@ -357,7 +492,7 @@ export const TaxInvoicePreviewModal: React.FC<TaxInvoicePreviewModalProps> = ({
                     )}
                   </div>
                   <div className="text-slate-600 text-[11px] leading-relaxed">
-                    {invoice.purchaserAddress || 'Registered Address on file'}
+                    {resolvedPurchaserAddress || invoice.purchaserAddress || 'Registered Address on file'}
                   </div>
                   <div className="pt-1 text-[11px] font-mono grid grid-cols-2 gap-1 border-t border-slate-200/80">
                     <div>
@@ -432,11 +567,55 @@ export const TaxInvoicePreviewModal: React.FC<TaxInvoicePreviewModalProps> = ({
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Consideration in Words:</span>
                     <p className="font-semibold text-slate-900 italic mt-0.5">{invoice.amountInWords}</p>
                   </div>
-                  <div className="p-3 border border-slate-200 rounded bg-slate-50 text-[11px] text-slate-600 space-y-1">
-                    <div className="font-bold text-slate-800">Settlement Bank Details:</div>
-                    <div>Account Name: <strong>Apex Global Technologies (Pvt) Ltd</strong></div>
-                    <div>Bank &amp; Branch: Commercial Bank of Ceylon PLC • Echelon Square Corporate Branch</div>
-                    <div>Account Number: <strong className="font-mono text-slate-900">1000-8491-0028</strong> • Swift: <strong className="font-mono">CCEYLKX</strong></div>
+                  <div className="p-3.5 border border-slate-300 rounded bg-slate-50 text-[11px] text-slate-700 space-y-1.5 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-200 pb-1.5">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                        <Landmark className="w-3.5 h-3.5 text-cyan-700" />
+                        <span>Settlement Bank Details:</span>
+                        {currentBankDetails.isPrimary && (
+                          <span className="text-[9.5px] bg-cyan-100 text-cyan-800 font-semibold px-1.5 py-0.2 rounded border border-cyan-300">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <label htmlFor="sheet-bank-picker" className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                          Select Registered Bank:
+                        </label>
+                        <select
+                          id="sheet-bank-picker"
+                          value={selectedBankAccountId}
+                          onChange={e => handleBankChange(e.target.value)}
+                          className="bg-white border border-slate-300 hover:border-cyan-600 focus:border-cyan-600 text-slate-800 text-[11px] rounded px-2 py-0.5 outline-none font-medium cursor-pointer shadow-xs max-w-[240px] truncate"
+                          title="Select from registered company bank accounts"
+                        >
+                          {accounts.map(acc => (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.bank} • {acc.branch} ({acc.accountNumber}) {acc.isPrimary ? '★ Primary' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-0.5 text-slate-700 pt-0.5">
+                      <div>Account Name: <strong className="text-slate-900">{currentBankDetails.accountName}</strong></div>
+                      <div>Bank &amp; Branch: <strong className="text-slate-800">{currentBankDetails.bankName}</strong> • {currentBankDetails.branchName}</div>
+                      <div>
+                        Account Number: <strong className="font-mono text-slate-900 font-bold">{currentBankDetails.accountNumber}</strong>
+                        {currentBankDetails.swiftCode && (
+                          <> • Swift: <strong className="font-mono text-slate-900">{currentBankDetails.swiftCode}</strong></>
+                        )}
+                        {currentBankDetails.currency && (
+                          <> • Currency: <strong className="font-mono text-slate-800">{currentBankDetails.currency}</strong></>
+                        )}
+                      </div>
+                      {currentBankDetails.purpose && (
+                        <div className="text-[10px] text-slate-500 italic pt-0.5">
+                          Remittance Purpose: {currentBankDetails.purpose}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

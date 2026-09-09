@@ -289,37 +289,42 @@ export const LetterheadPreviewModal: React.FC<LetterheadPreviewModalProps> = ({
               }}
             >
               {/* Top Meta: Date, Ref, Recipient */}
-              <div className="space-y-3 text-[11px] text-slate-800">
-                <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                  <div>
-                    <div className="text-[10px] text-slate-500 font-bold">TO:</div>
-                    <div className="font-bold text-slate-900">Resident Engineer</div>
-                    <div className="text-slate-600 italic">Attention: Project Manager</div>
-                    <div className="text-slate-500 text-[10px]">Site Office, PIDM-26 Project</div>
+              <div className="space-y-2.5 text-[11px] text-slate-800">
+                {/* Structured Dual Boxes */}
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Recipient Box */}
+                  <div className="border border-slate-300 rounded bg-white overflow-hidden shadow-2xs">
+                    <div className="bg-slate-100 border-b border-slate-200 px-2 py-0.5 text-[9px] font-bold text-slate-700 uppercase">
+                      TO: RECIPIENT & ADDRESSEE
+                    </div>
+                    <div className="p-1.5 space-y-0.5 text-[10px]">
+                      <div className="font-bold text-slate-900 leading-tight">Resident Engineer</div>
+                      <div className="text-slate-600 italic text-[9px]">Attention: Project Manager</div>
+                      <div className="text-slate-500 text-[9px] leading-tight">Site Office, PIDM-26 Project</div>
+                    </div>
                   </div>
-                  <div className="text-right space-y-0.5 text-[10px]">
-                    <div>
-                      <span className="font-bold text-slate-900">Date:</span> 06 September 2026
+
+                  {/* Particulars Box */}
+                  <div className="border border-slate-300 rounded bg-white overflow-hidden shadow-2xs">
+                    <div className="bg-slate-100 border-b border-slate-200 px-2 py-0.5 text-[9px] font-bold text-slate-700 uppercase flex justify-between">
+                      <span>CORRESPONDENCE PARTICULARS</span>
                     </div>
-                    <div>
-                      <span className="font-bold text-slate-900">Our Ref:</span>{' '}
-                      <span className="font-mono font-bold text-purple-700">
-                        EMA/RDA/PIDM26/2026/001
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-900">Your Ref:</span> RDA/PIDM/CORR/99
+                    <div className="p-1.5 space-y-0.5 text-[9px]">
+                      <div className="flex justify-between"><span className="text-slate-500 font-semibold">Date:</span> <span>06 September 2026</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500 font-semibold">Our Ref:</span> <span className="font-mono font-bold text-purple-700">EMA/RDA/PIDM26/2026/001</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500 font-semibold">Your Ref:</span> <span>RDA/PIDM/CORR/99</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500 font-semibold">Project:</span> <span className="text-emerald-700 font-semibold">[PIDM-26] Highway Project</span></div>
                     </div>
                   </div>
                 </div>
 
-                {/* Subject Line */}
-                <div className="bg-slate-100/90 border border-slate-200 px-3 py-1.5 rounded font-bold text-slate-900 text-xs uppercase tracking-wide">
+                {/* Subject Line Box */}
+                <div className="bg-slate-50 border border-slate-300 border-l-4 border-l-slate-900 px-3 py-1.5 rounded font-bold text-slate-900 text-[11px] uppercase tracking-wide">
                   SUBJECT: Sample Official Correspondence
                 </div>
 
-                {/* Body Text */}
-                <div className="space-y-2 text-slate-800 leading-relaxed font-serif text-[11px]">
+                {/* Body Text in Justified Box */}
+                <div className="border border-slate-200 rounded p-2.5 bg-white space-y-1.5 text-slate-800 leading-relaxed font-serif text-[10.5px] text-justify" style={{ textAlign: 'justify', textJustify: 'inter-word' }}>
                   <p>Dear Sir,</p>
                   <p>
                     This is a sample official correspondence generated using the selected EMA company
@@ -328,7 +333,7 @@ export const LetterheadPreviewModal: React.FC<LetterheadPreviewModalProps> = ({
                   <p>
                     All company header coordinates, corporate seals, and footer metadata remain
                     untouched and fixed, while all project transmittal particulars are dynamically
-                    flowed into this calibrated safe content area.
+                    flowed into this calibrated safe content area in standard justified format.
                   </p>
                 </div>
               </div>

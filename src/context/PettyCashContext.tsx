@@ -125,6 +125,7 @@ interface PettyCashContextType {
   };
 
   projectFinancialSummaries: ProjectFinancialSummary[];
+  pivotMatrix?: any;
 
   // Helper Statement Generator
   getSupervisorStatement: (supervisorName: string) => PettyCashStatementRow[];
@@ -145,6 +146,8 @@ interface PettyCashContextType {
   updateExpense: (id: string, updates: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
   updateExpenseStatus: (id: string, status: PaymentStatus, remarks?: string, approverName?: string) => void;
+  approveExpense: (id: string, remarks?: string, approverName?: string) => void;
+  rejectExpense: (id: string, reason?: string) => void;
 
   addIncome: (income: Omit<Income, 'id' | 'INCOME_ID' | 'CREATED_DATE'>) => Income;
   updateIncome: (id: string, updates: Partial<Income>) => void;
@@ -613,13 +616,21 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
 
   const [userRole, setUserRoleState] = useState<PettyCashUserRole>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.USER_ROLE);
-    return (saved as PettyCashUserRole) || 'ADMIN';
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.USER_ROLE);
+      return (saved as PettyCashUserRole) || 'ADMIN';
+    } catch {
+      return 'ADMIN';
+    }
   });
 
   const [currentSupervisorName, setCurrentSupervisorNameState] = useState<string>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_SUPERVISOR);
-    return saved || 'BUDDIKA';
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_SUPERVISOR);
+      return saved || 'BUDDIKA';
+    } catch {
+      return 'BUDDIKA';
+    }
   });
 
   const [sheetsConfig, setSheetsConfig] = useState<GoogleSheetsConfig>(() => {
@@ -1040,37 +1051,59 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [filteredExpenses, filteredIncome, supervisorBalances, projects, supervisors]);
 
-  // Project-wise Financial Summaries (Requirement 15)
+  // Project-wise Financial Summaries (Accounting Standard: Advances Treated as Liability, Excluded from P&L Revenue)
   const projectFinancialSummaries = useMemo<ProjectFinancialSummary[]>(() => {
     return projects.map(p => {
       const prjCode = p.PROJECT_CODE;
 
       // Filter income and expenses for this project
-      const prjIncome = income.filter(i => i.PROJECT === prjCode);
+      const prjAllIncome = income.filter(i => i.PROJECT === prjCode);
       const prjExpenses = expenses.filter(e => e.PROJECT === prjCode && e.PAYMENT_STATUS !== 'Rejected');
 
-      // Revenue
-      const revenueExcludingVat = round2(prjIncome.reduce((sum, i) => sum + (Number(i.netAmount ?? i.AMOUNT) || 0), 0));
-      const outputVat = round2(prjIncome.reduce((sum, i) => sum + (Number(i.vatAmount) || 0), 0));
-      const grossRevenue = round2(prjIncome.reduce((sum, i) => sum + (Number(i.grossAmount ?? i.AMOUNT) || 0), 0));
+      // Separate Advances vs Earned Revenue vs Internal Top-ups
+      const isAdvanceItem = (i: typeof prjAllIncome[0]) => {
+        const src = (i.INCOME_SOURCE || '').toLowerCase();
+        const rem = (i.REMARKS || '').toLowerCase();
+        const bDesc = (i.billingDescription || '').toLowerCase();
+        const iDesc = (i.invoiceDescription || '').toLowerCase();
+        return src.includes('advance') || rem.includes('advance') || bDesc.includes('advance') || iDesc.includes('advance');
+      };
+
+      const isInternalTopup = (i: typeof prjAllIncome[0]) => {
+        return i.TRANSACTION_TYPE === 'PETTY_CASH_TOPUP' || (i.INCOME_SOURCE || '').toLowerCase().includes('top-up') || (i.INCOME_SOURCE || '').toLowerCase().includes('topup');
+      };
+
+      // 1. Advance Receipts (Balance Sheet Liability - NOT P&L Revenue)
+      const advanceItems = prjAllIncome.filter(i => isAdvanceItem(i));
+      const advanceReceived = round2(advanceItems.reduce((sum, i) => sum + (Number(i.grossAmount ?? i.AMOUNT) || 0), 0));
+      // In progress billings, any advance recovery offsets the liability
+      const advanceRecovered = 0; // Default or liquidated against IPC bills
+      const advanceLiability = round2(Math.max(0, advanceReceived - advanceRecovered));
+
+      // 2. Recognized Earned Revenue (Strictly excludes advances and internal top-ups)
+      const earnedRevenueItems = prjAllIncome.filter(i => !isAdvanceItem(i) && !isInternalTopup(i));
+      const revenueExcludingVat = round2(earnedRevenueItems.reduce((sum, i) => sum + (Number(i.netAmount ?? i.AMOUNT) || 0), 0));
+      const outputVat = round2(earnedRevenueItems.reduce((sum, i) => sum + (Number(i.vatAmount) || 0), 0));
+      const grossRevenue = round2(earnedRevenueItems.reduce((sum, i) => sum + (Number(i.grossAmount ?? i.AMOUNT) || 0), 0));
       
-      // Amount received vs balance due
-      const amountReceived = round2(prjIncome.reduce((sum, i) => {
+      // Amount received against earned billings vs balance due
+      const amountReceived = round2(earnedRevenueItems.reduce((sum, i) => {
         if (typeof i.amountReceived === 'number') return sum + i.amountReceived;
         if (i.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME') return sum + (i.paymentStatus === 'Paid' ? (i.grossAmount ?? i.AMOUNT) : 0);
         return sum + (Number(i.grossAmount ?? i.AMOUNT) || 0);
       }, 0));
       const outstandingIncome = round2(Math.max(0, grossRevenue - amountReceived));
+      const totalCashReceived = round2(amountReceived + advanceReceived);
 
-      // Expenses (Costs)
+      // 3. Expenses (Costs)
       const expensesExcludingVat = round2(prjExpenses.reduce((sum, e) => sum + (Number(e.netAmount ?? e.AMOUNT) || 0), 0));
       const inputVat = round2(prjExpenses.reduce((sum, e) => sum + (Number(e.vatAmount) || 0), 0));
       const grossExpenses = round2(prjExpenses.reduce((sum, e) => sum + (Number(e.grossAmount ?? e.AMOUNT) || 0), 0));
 
-      // Profitability & Cash Flow
+      // 4. Profitability & Cash Flow (Advances excluded from net revenue and profit!)
       const netProjectRevenue = revenueExcludingVat;
       const netProjectCost = expensesExcludingVat;
-      const grossCashFlow = round2(grossRevenue - grossExpenses);
+      const grossCashFlow = round2(totalCashReceived - grossExpenses);
       const netProjectProfit = round2(netProjectRevenue - netProjectCost);
       const profitMarginPercent = netProjectRevenue > 0 ? round2((netProjectProfit / netProjectRevenue) * 100) : 0;
 
@@ -1080,11 +1113,16 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         projectName: p.PROJECT_NAME,
         client: p.CLIENT || p.CLIENT_NAME || 'Road Development Authority',
         status: p.STATUS,
+        contractValue: p.CONTRACT_VALUE,
         revenueExcludingVat,
         outputVat,
         grossRevenue,
         amountReceived,
         outstandingIncome,
+        advanceReceived,
+        advanceRecovered,
+        advanceLiability,
+        totalCashReceived,
         expensesExcludingVat,
         inputVat,
         grossExpenses,
@@ -1686,6 +1724,14 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return exp;
       })
     );
+  };
+
+  const approveExpense = (id: string, remarks?: string, approverName?: string) => {
+    updateExpenseStatus(id, 'Approved', remarks, approverName);
+  };
+
+  const rejectExpense = (id: string, reason?: string) => {
+    updateExpenseStatus(id, 'Rejected', reason);
   };
 
   const addIncome = (newIncData: Omit<Income, 'id' | 'INCOME_ID' | 'CREATED_DATE'>): Income => {
@@ -2808,6 +2854,8 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateExpense,
         deleteExpense,
         updateExpenseStatus,
+        approveExpense,
+        rejectExpense,
         addIncome,
         updateIncome,
         deleteIncome,

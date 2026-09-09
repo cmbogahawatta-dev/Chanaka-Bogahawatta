@@ -7,6 +7,7 @@ export type InvoicePaymentStatus =
   | 'Approved'
   | 'Partially Paid'
   | 'Paid'
+  | 'Unpaid'
   | 'Overdue'
   | 'Cancelled';
 
@@ -105,12 +106,20 @@ export interface Expense {
   IMPORTED_BY?: string;
   IMPORTED_AT?: string;
   IS_HISTORICAL?: boolean;
+
+  // Compatibility aliases
+  PROJECT_CODE?: string;
+  VOUCHER_NO?: string;
+  SUPERVISOR_NAME?: string;
+  DESCRIPTION?: string;
+  CATEGORY_NAME?: string;
+  PAID_TO?: string;
 }
 
 export interface Income {
   id: string;
   INCOME_ID: string; // e.g. "INC-202608-0042"
-  DATE_REF: string;
+  DATE_REF?: string;
   DATE: string;
   SUPERVISOR: string; // FK to SUPERVISORS.SUPERVISOR_NAME or Employee name
   SUPERVISOR_ID?: string; // FK to Employee ID (Staff Directory) or legacy supervisor ID
@@ -120,8 +129,9 @@ export interface Income {
   AMOUNT: number; // LKR Value (user-entered amount)
   PROOF_DOCUMENT?: string;
   PROOF_DOCUMENT_NAME?: string;
-  CREATED_BY: string;
+  CREATED_BY?: string;
   CREATED_DATE: string;
+  UPDATED_DATE?: string;
   REMARKS?: string;
 
   // VAT Breakdown Attributes
@@ -133,6 +143,7 @@ export interface Income {
   vatApplicable?: boolean;
 
   // Dedicated Project Income / Invoice Fields
+  isInvoice?: boolean;
   invoiceNumber?: string;
   invoiceDate?: string;
   invoiceDueDate?: string;
@@ -146,6 +157,11 @@ export interface Income {
   balanceDue?: number;
   paymentDate?: string;
   paymentReference?: string;
+
+  // Compatibility aliases
+  PROJECT_CODE?: string;
+  RECEIPT_NO?: string;
+  SUPERVISOR_NAME?: string;
 }
 
 export interface PettyCashAllocation {
@@ -157,17 +173,20 @@ export interface PettyCashAllocation {
 
 export interface Supervisor {
   id: string;
-  SUPERVISOR_ID: string; // e.g. "SUP-001" or employee code
+  SUPERVISOR_ID?: string; // e.g. "SUP-001" or employee code
   legacySupervisorId?: string; // Preserved legacy supervisor ID
   SUPERVISOR_NAME: string; // e.g. "BUDDIKA"
   FULL_NAME?: string;
   PHONE: string;
+  TELEPHONE?: string;
   EMAIL: string;
   ACTIVE: boolean;
   OPENING_PETTY_CASH: number; // LKR
   CURRENT_BALANCE: number; // Calculated dynamic balance
   REMARKS?: string;
   DEFAULT_PROJECT?: string;
+  PROJECT_NAME?: string;
+  PROJECT_CODE?: string;
   ASSIGNED_PROJECTS?: string[];
   AVATAR_COLOR?: string;
 
@@ -191,6 +210,8 @@ export interface Project {
   PROJECT_ID: string; // e.g. "PRJ-001"
   PROJECT_CODE: string; // e.g. "PIDM 26"
   PROJECT_NAME: string;
+  NAME?: string;
+  DESCRIPTION?: string;
   CLIENT?: string;
   CLIENT_NAME?: string;
   LOCATION: string;
@@ -203,6 +224,7 @@ export interface Project {
   BUDGET_PETTY_CASH?: number;
   BUDGET?: number; // Alias for budget
   budget?: number; // Lowercase alias
+  TOTAL_BUDGET?: number;
 
 
   // Historical Import Metadata
@@ -260,24 +282,37 @@ export interface ProjectFinancialSummary {
   projectName: string;
   client: string;
   status: string;
+  contractValue?: number;
   
-  // Revenue / Income
-  revenueExcludingVat: number; // Net Revenue
+  // Revenue / Income (Earned Revenue, strictly excluding Advances)
+  revenueExcludingVat: number; // Net Earned Revenue
   outputVat: number;
-  grossRevenue: number;
-  amountReceived: number;
-  outstandingIncome: number; // Balance Due
+  grossRevenue: number; // Gross Billed Revenue (Earned)
+  amountReceived: number; // Cash received against earned billings
+  outstandingIncome: number; // Balance Due / Receivables
+
+  // Advance & Liability Accounting (Advances are treated as Liabilities, not Income)
+  advanceReceived: number; // Total client / mobilization advances received
+  advanceRecovered: number; // Total advances liquidated / amortized against certified billings
+  advanceLiability: number; // Outstanding Advance / Unearned Contract Liability (Current Liability)
+  totalCashReceived: number; // Total collections (Earned receipts + Advances)
   
-  // Expenses / Cost
+  // Expenses / Cost Breakdown
+  pettyCashCost?: number;
+  fuelCost?: number;
+  maintenanceCost?: number;
+  procurementCost?: number;
+  paymentVouchersCost?: number;
   expensesExcludingVat: number; // Net Cost
   inputVat: number;
-  grossExpenses: number;
+  grossExpenses: number; // Total Gross Incurred Expenses
+  paidExpenses?: number; // Cash out for expenses
   
   // Profitability & Cash Flow
-  netProjectRevenue: number; // = Revenue Excl VAT
+  netProjectRevenue: number; // = Earned Revenue Excl VAT (Excludes advances)
   netProjectCost: number; // = Expenses Excl VAT
-  grossCashFlow: number; // = Gross Revenue - Gross Expenses
-  netProjectProfit: number; // = Net Revenue - Net Cost
+  grossCashFlow: number; // = Total Cash Received - Gross Expenses
+  netProjectProfit: number; // = Net Earned Revenue - Net Cost (Excludes advances)
   profitMarginPercent: number; // (netProjectProfit / netProjectRevenue) * 100
 }
 
@@ -286,7 +321,8 @@ export interface ExpenseCategory {
   CATEGORY_ID: string;
   CATEGORY_CODE: string; // e.g. "5000"
   CATEGORY_NAME: string; // e.g. "5000 Construction Materials"
-  CATEGORY_GROUP: 'Direct Project Cost' | 'Site Overheads' | 'Admin & Head Office' | 'Special / Non-Project';
+  CATEGORY_GROUP: 'Direct Project Cost' | 'Site Overheads' | 'Admin & Head Office' | 'Special / Non-Project' | (string & {});
+  DESCRIPTION?: string;
   ACTIVE: boolean;
   REMARKS?: string;
 }
@@ -301,7 +337,7 @@ export interface InternalTransfer {
   AMOUNT: number; // LKR
   STATUS: 'Completed' | 'Pending' | 'Cancelled';
   REMARKS: string;
-  CREATED_BY: string;
+  CREATED_BY?: string;
   CREATED_DATE: string;
 }
 
@@ -318,6 +354,7 @@ export interface PettyCashFilterState {
 }
 
 export interface GoogleSheetsConfig {
+  apiKey?: string;
   spreadsheetId: string;
   spreadsheetName: string;
   isConnected: boolean;
@@ -358,7 +395,7 @@ export type ImportType =
   | 'HISTORICAL_INCOME'
   | 'PROJECT_INVOICES';
 
-export type DuplicateAction = 'SKIP' | 'UPDATE' | 'IMPORT_AS_NEW' | 'CANCEL';
+export type DuplicateAction = 'SKIP' | 'UPDATE' | 'IMPORT_AS_NEW' | 'CREATE_NEW' | 'CANCEL';
 
 export interface ImportErrorDetail {
   row: number;

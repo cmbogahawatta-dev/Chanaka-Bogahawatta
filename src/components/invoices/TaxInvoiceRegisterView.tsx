@@ -21,13 +21,18 @@ import {
   Building,
   TrendingUp,
   Trash2,
-  Edit3
+  Edit3,
+  Landmark,
+  RotateCcw
 } from 'lucide-react';
 import { TaxInvoice, TaxInvoiceStatus } from '../../types/taxInvoiceTypes';
 import { useTaxInvoice } from '../../context/TaxInvoiceContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
+import { useEnterpriseBanking } from '../../context/EnterpriseBankingContext';
+import { usePettyCash } from '../../context/PettyCashContext';
 import { formatDateToGazette, runComplianceTests } from '../../utils/taxInvoiceUtils';
 import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 
 import { TaxInvoiceDetailModal } from './TaxInvoiceDetailModal';
 import { CreateTaxInvoiceModal } from './CreateTaxInvoiceModal';
@@ -47,10 +52,54 @@ export const TaxInvoiceRegisterView: React.FC = () => {
     downloadInvoicePdf,
     printInvoicePdf,
     deleteInvoice,
-    updateSettings
+    clearTaxInvoicesHistory,
+    resetTaxInvoicesToDefault,
+    updateSettings,
+    autoSyncPettyCashInvoices,
+    setAutoSyncPettyCashInvoices,
+    syncFromPettyCash,
+    deletedIdentifiersCount,
+    resetDeletedIdentifiers
   } = useTaxInvoice();
 
   const { currentUser } = useEnterprise();
+  const { accounts } = useEnterpriseBanking();
+  const { income } = usePettyCash();
+
+  // Sync notifications & feedback
+  const [syncFeedback, setSyncFeedback] = useState<{ message: string; type: 'success' | 'info' | 'warning' } | null>(null);
+
+  const availablePettyCashCount = useMemo(() => {
+    if (!income) return 0;
+    return income.filter(inc =>
+      inc.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME' ||
+      Boolean(inc.invoiceNumber) ||
+      inc.INCOME_SOURCE === 'Project Income / Invoice'
+    ).length;
+  }, [income]);
+
+  const unsyncedPettyCashCount = useMemo(() => {
+    if (!income) return 0;
+    const existingSerials = new Set(invoices.map(i => (i.serialNumber || '').trim().toUpperCase()));
+    const existingIds = new Set(invoices.map(i => i.id));
+    const existingLegacyIds = new Set(invoices.map(i => i.legacyIncomeId).filter(Boolean));
+
+    return income.filter(inc => {
+      const isProj = inc.TRANSACTION_TYPE === 'PROJECT_INVOICE_INCOME' || Boolean(inc.invoiceNumber) || inc.INCOME_SOURCE === 'Project Income / Invoice';
+      if (!isProj) return false;
+      const serial = (inc.invoiceNumber || inc.INCOME_ID || `INV-LEGACY-${inc.id}`).toUpperCase();
+      return !existingSerials.has(serial) && !existingIds.has(inc.id) && !existingLegacyIds.has(inc.id);
+    }).length;
+  }, [income, invoices]);
+
+  const handleManualSync = (forceIncludeDeleted = false) => {
+    const res = syncFromPettyCash(forceIncludeDeleted);
+    setSyncFeedback({
+      message: res.message,
+      type: res.addedCount > 0 ? 'success' : 'info'
+    });
+    setTimeout(() => setSyncFeedback(null), 6000);
+  };
 
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -188,24 +237,121 @@ export const TaxInvoiceRegisterView: React.FC = () => {
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Petty Cash Re-Sync Option Toggle Button */}
+            <div className="flex items-center gap-1.5">
+              <button
+                id="btn-tax-invoice-sync-toggle"
+                onClick={() => {
+                  const nextState = !autoSyncPettyCashInvoices;
+                  setAutoSyncPettyCashInvoices(nextState);
+                  setSyncFeedback({
+                    message: nextState
+                      ? 'Petty Cash auto-sync enabled. Newly added milestone invoices in Petty Cash will sync into the Tax Invoice register.'
+                      : 'Petty Cash auto-sync stopped. Invoices will not re-sync automatically after clearing history or deleting.',
+                    type: nextState ? 'success' : 'warning'
+                  });
+                  setTimeout(() => setSyncFeedback(null), 5000);
+                }}
+                className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer shadow ${
+                  autoSyncPettyCashInvoices
+                    ? 'bg-emerald-950/70 border-emerald-700/80 text-emerald-300 hover:bg-emerald-900/70'
+                    : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:bg-slate-700'
+                }`}
+                title={
+                  autoSyncPettyCashInvoices
+                    ? 'Auto-Sync is ON. Click to stop re-syncing.'
+                    : 'Auto-Sync is STOPPED. Deleted invoices will not reappear. Click to enable.'
+                }
+              >
+                {autoSyncPettyCashInvoices ? (
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" style={{ animationDuration: '8s' }} />
+                ) : (
+                  <Ban className="w-3.5 h-3.5 text-amber-400" />
+                )}
+                <span>Auto-Sync: {autoSyncPettyCashInvoices ? 'ON' : 'STOPPED'}</span>
+              </button>
+
+              <button
+                id="btn-tax-invoice-sync-now"
+                onClick={() => handleManualSync(false)}
+                className="px-2.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-colors shadow cursor-pointer"
+                title={`Manual Sync from Petty Cash (${unsyncedPettyCashCount} un-synced)`}
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden sm:inline">Sync</span>
+                {unsyncedPettyCashCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-cyan-950 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-800">
+                    {unsyncedPettyCashCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
             <button
+              id="btn-tax-invoice-gazette-tests"
               onClick={() => setActiveInvoiceTab('compliance')}
-              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-2 border border-slate-700 transition-colors shadow"
+              className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-2 border border-slate-700 transition-colors shadow"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
               <span>Gazette Tests</span>
             </button>
 
+            <AdminClearHistoryButton
+              id="btn-admin-clear-tax-invoices-register"
+              moduleName="Statutory Tax Invoices & Billing Register"
+              itemCount={invoices.length}
+              itemDescription="statutory tax invoices, provisional drafts, credit notes, and payment records"
+              preservedItemsDescription="Supplier TIN, VAT registration, continuous sequence settings, and bank details remain intact. Petty Cash re-sync is automatically stopped."
+              buttonText="Clear History"
+              variant="outline"
+              alwaysShow={true}
+              onClear={() => {
+                clearTaxInvoicesHistory();
+                setSyncFeedback({
+                  message: 'Tax invoice register cleared. Auto-sync is stopped to prevent deleted invoices from re-syncing.',
+                  type: 'warning'
+                });
+                setTimeout(() => setSyncFeedback(null), 6000);
+              }}
+            />
+
             <button
+              id="btn-create-tax-invoice"
               onClick={() => setIsCreateOpen(true)}
-              className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black flex items-center gap-2 transition-colors shadow-lg shadow-cyan-900/30"
+              className="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black flex items-center gap-2 transition-colors shadow-lg shadow-cyan-900/30"
             >
               <Plus className="w-4 h-4" />
               <span>Create Tax Invoice</span>
             </button>
           </div>
         </div>
+
+        {/* Sync Notification Banner */}
+        {syncFeedback && (
+          <div className={`mt-4 p-3 rounded-xl border flex items-center justify-between text-xs transition-all ${
+            syncFeedback.type === 'success'
+              ? 'bg-emerald-950/80 border-emerald-800 text-emerald-200'
+              : syncFeedback.type === 'warning'
+              ? 'bg-amber-950/80 border-amber-800 text-amber-200'
+              : 'bg-cyan-950/80 border-cyan-800 text-cyan-200'
+          }`}>
+            <div className="flex items-center gap-2">
+              {syncFeedback.type === 'warning' ? (
+                <Ban className="w-4 h-4 text-amber-400 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              <span>{syncFeedback.message}</span>
+            </div>
+            <button
+              onClick={() => setSyncFeedback(null)}
+              className="text-slate-400 hover:text-white font-bold px-2 py-0.5"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Next Serial Callout */}
         <div className="mt-5 pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -442,7 +588,48 @@ export const TaxInvoiceRegisterView: React.FC = () => {
                     <tr>
                       <td colSpan={10} className="py-12 text-center text-slate-500">
                         <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                        No tax invoices found matching your criteria.
+                        <p className="text-sm font-semibold text-slate-400">No tax invoices found</p>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                          {invoices.length === 0
+                            ? 'The tax invoice register history is currently empty or has been cleared.'
+                            : 'No records match your active search and filter criteria.'}
+                        </p>
+                        {invoices.length === 0 && (
+                          <div className="mt-3 space-y-3">
+                            <p className="text-[11px] text-amber-400/90 font-medium max-w-md mx-auto">
+                              Petty Cash auto-sync is currently <strong className={autoSyncPettyCashInvoices ? 'text-emerald-400' : 'text-amber-300'}>{autoSyncPettyCashInvoices ? 'ACTIVE' : 'STOPPED'}</strong>. {autoSyncPettyCashInvoices ? 'New project invoices will sync automatically.' : 'Deleted or cleared invoices will not reappear.'}
+                            </p>
+                            <div className="flex flex-wrap items-center justify-center gap-3">
+                              <button
+                                id="btn-empty-create-invoice"
+                                onClick={() => setIsCreateOpen(true)}
+                                className="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Create Tax Invoice</span>
+                              </button>
+                              {availablePettyCashCount > 0 && (
+                                <button
+                                  id="btn-empty-manual-sync"
+                                  onClick={() => handleManualSync(false)}
+                                  className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-colors cursor-pointer"
+                                  title="Manually sync available milestone invoices from Petty Cash"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                  <span>Sync from Petty Cash ({unsyncedPettyCashCount} un-synced)</span>
+                                </button>
+                              )}
+                              <button
+                                id="btn-empty-restore-demo"
+                                onClick={() => resetTaxInvoicesToDefault()}
+                                className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-colors"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                                <span>Restore Demo Data</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ) : (
@@ -785,6 +972,201 @@ export const TaxInvoiceRegisterView: React.FC = () => {
                 className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-white text-xs outline-none"
               />
             </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-slate-400 font-semibold flex items-center gap-1.5">
+                  <Landmark className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Default Settlement Bank Account (Enterprise Banking)</span>
+                </label>
+                <span className="text-[10px] text-cyan-400">Linked to Company Bank Registry</span>
+              </div>
+              <select
+                value={settings.defaultBankDetails}
+                onChange={e => updateSettings({ defaultBankDetails: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-white text-xs outline-none focus:border-cyan-500"
+              >
+                {accounts.map(acc => {
+                  const label = `${acc.bank} • ${acc.branch} • A/C ${acc.accountNumber}`;
+                  return (
+                    <option key={acc.id} value={label}>
+                      {label} {acc.isPrimary ? '★ (Primary)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              <p className="text-[10.5px] text-slate-500 mt-1">
+                This account will be pre-selected when generating new tax invoices and statutory PDF documents.
+              </p>
+            </div>
+
+            {/* Petty Cash & Project Invoices Synchronization Controls */}
+            <div className="pt-5 mt-5 border-t border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-cyan-400" />
+                    <span>Petty Cash & Project Invoices Synchronization</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-1 max-w-xl">
+                    Controls whether milestone invoices recorded in the Petty Cash income ledger automatically re-sync into the official statutory Tax Invoice register.
+                  </p>
+                </div>
+
+                <button
+                  id="btn-setting-toggle-sync"
+                  onClick={() => {
+                    const next = !autoSyncPettyCashInvoices;
+                    setAutoSyncPettyCashInvoices(next);
+                    setSyncFeedback({
+                      message: next
+                        ? 'Petty Cash auto-sync turned ON. Project invoices will sync into the Tax Invoice register.'
+                        : 'Petty Cash auto-sync STOPPED. Invoices will not re-sync automatically after clearing history or deleting.',
+                      type: next ? 'success' : 'warning'
+                    });
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition-colors cursor-pointer shrink-0 ${
+                    autoSyncPettyCashInvoices
+                      ? 'bg-emerald-950/70 border-emerald-600 text-emerald-300 hover:bg-emerald-900/70'
+                      : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {autoSyncPettyCashInvoices ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>Auto-Sync: Active</span>
+                    </>
+                  ) : (
+                    <>
+                      <Ban className="w-4 h-4 text-amber-400" />
+                      <span>Auto-Sync: Stopped</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Status & Options Info Box */}
+              <div className="p-4 bg-slate-950/80 border border-slate-800/90 rounded-xl space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-lg">
+                    <span className="text-slate-400 text-[10.5px] block">Auto-Sync Status</span>
+                    <span className={`font-bold font-mono mt-0.5 inline-block ${autoSyncPettyCashInvoices ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {autoSyncPettyCashInvoices ? 'ACTIVE' : 'STOPPED'}
+                    </span>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {autoSyncPettyCashInvoices
+                        ? 'Project invoices sync automatically'
+                        : 'Re-sync is stopped to prevent deleted items from reappearing'}
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-lg">
+                    <span className="text-slate-400 text-[10.5px] block">Deleted Invoice Tombstones</span>
+                    <span className="font-bold font-mono text-cyan-400 mt-0.5 inline-block">
+                      {deletedIdentifiersCount} Blocked
+                    </span>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Deleted or cleared invoices permanently blocked from resurrecting
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-lg">
+                    <span className="text-slate-400 text-[10.5px] block">Petty Cash Invoices</span>
+                    <span className="font-bold font-mono text-slate-200 mt-0.5 inline-block">
+                      {availablePettyCashCount} Total ({unsyncedPettyCashCount} Unsynced)
+                    </span>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Project milestone invoices in Petty Cash ledger
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    id="btn-settings-manual-sync"
+                    onClick={() => handleManualSync(false)}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-900/40 hover:bg-cyan-900/70 text-cyan-300 text-xs font-semibold border border-cyan-800/60 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Sync From Petty Cash Now</span>
+                  </button>
+
+                  <button
+                    id="btn-settings-force-sync"
+                    onClick={() => {
+                      if (window.confirm('Force re-sync all Petty Cash invoices including previously deleted or cleared ones?')) {
+                        handleManualSync(true);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Force Re-sync All (Include Deleted)</span>
+                  </button>
+
+                  {deletedIdentifiersCount > 0 && (
+                    <button
+                      id="btn-settings-reset-blocklist"
+                      onClick={() => {
+                        if (window.confirm(`Clear the blacklist of ${deletedIdentifiersCount} deleted invoice IDs? This will allow them to be re-synced if auto-sync is turned on.`)) {
+                          resetDeletedIdentifiers();
+                          setSyncFeedback({
+                            message: 'Cleared deleted invoices blacklist.',
+                            type: 'info'
+                          });
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-rose-950/30 hover:bg-rose-950/60 text-rose-300 text-xs font-semibold border border-rose-900/50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reset Sync Blocklist ({deletedIdentifiersCount})</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Administrative History Clearance & Reset */}
+            <div className="pt-5 mt-5 border-t border-slate-800">
+              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-rose-400" />
+                <span>Invoice Register Clearance &amp; Factory Reset</span>
+              </h3>
+              <p className="text-[11px] text-slate-400 mb-4 leading-relaxed">
+                Purge all operational tax invoices, provisional drafts, credit notes, and associated client payments. Company settings, supplier TIN/VAT, and sequence policies are preserved. Automatic re-sync from Petty Cash is automatically stopped to prevent records from reappearing.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-tax-invoices-settings"
+                  moduleName="Statutory Tax Invoices & Billing Register"
+                  itemCount={invoices.length}
+                  itemDescription="tax invoices, provisional drafts, credit notes, and payment records"
+                  preservedItemsDescription="Supplier TIN, VAT registration, sequence settings, and bank details remain intact. Petty Cash re-sync is automatically stopped."
+                  buttonText="Clear Invoices History"
+                  variant="danger"
+                  alwaysShow={true}
+                  onClear={() => {
+                    clearTaxInvoicesHistory();
+                    setSyncFeedback({
+                      message: 'Tax invoice register cleared. Auto-sync is stopped to prevent deleted invoices from re-syncing.',
+                      type: 'warning'
+                    });
+                  }}
+                />
+
+                <button
+                  id="btn-reset-demo-tax-invoices-settings"
+                  onClick={() => {
+                    if (window.confirm('Reset tax invoice register to standard demo records? This will restore sample gazette-compliant invoices.')) {
+                      resetTaxInvoicesToDefault();
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Restore Demo Invoices</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -863,8 +1245,14 @@ export const TaxInvoiceRegisterView: React.FC = () => {
           additionalDetails={`Total Consideration: LKR ${invoiceToDelete.totalConsideration.toLocaleString(undefined, { minimumFractionDigits: 2 })} • VAT 18%: LKR ${invoiceToDelete.vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} • Status: ${invoiceToDelete.status}`}
           module="TAX_INVOICES"
           onDelete={async () => {
+            const serial = invoiceToDelete.serialNumber;
             deleteInvoice(invoiceToDelete.id);
             setInvoiceToDelete(null);
+            setSyncFeedback({
+              message: `Invoice ${serial} deleted and permanently blocked from re-syncing.`,
+              type: 'info'
+            });
+            setTimeout(() => setSyncFeedback(null), 5000);
           }}
         />
       )}

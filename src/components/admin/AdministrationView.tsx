@@ -31,8 +31,10 @@ import {
   Tag,
   Mail,
   History,
-  UserCog
+  UserCog,
+  Briefcase
 } from 'lucide-react';
+import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useFleet } from '../../context/FleetContext';
@@ -44,6 +46,7 @@ import { useAttendance } from '../../context/AttendanceContext';
 import { useLeave } from '../../context/LeaveContext';
 import { usePayroll } from '../../context/PayrollContext';
 import { useEnterpriseCorrespondence } from '../../context/EnterpriseCorrespondenceContext';
+import { useTaxInvoice } from '../../context/TaxInvoiceContext';
 import { EnterpriseRole } from '../../types/enterpriseTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { SecurityStatusIndicator } from './SecurityStatusIndicator';
@@ -58,6 +61,7 @@ import { DataManagementModule } from '../../types/dataManagementTypes';
 
 export const AdministrationView: React.FC = () => {
   const { deleteRequests, importRequests } = useDataManagement();
+  const { clients, clearClientsHistory } = useEnterpriseCompany();
   const pendingApprovalsCount = deleteRequests.filter(r => r.status === 'SUBMITTED').length + importRequests.filter(r => r.status === 'SUBMITTED').length;
 
   const [deleteModalConfig, setDeleteModalConfig] = useState<{
@@ -188,6 +192,12 @@ export const AdministrationView: React.FC = () => {
     resetCorrespondenceToDefaults: resetCorrespondenceData
   } = useEnterpriseCorrespondence();
 
+  const {
+    invoices: taxInvoices,
+    clearTaxInvoicesHistory,
+    resetTaxInvoicesToDefault
+  } = useTaxInvoice();
+
   const [activeAdminTab, setActiveAdminTab] = useState<'USERS' | 'ROLES' | 'AUDIT' | 'SECURITY' | 'APPROVAL' | 'SHEETS' | 'MASTER' | 'CACHE'>('USERS');
   const [sheetIdInput, setSheetIdInput] = useState(sheetsConfig.spreadsheetId || '1XyZ_SAMPLE_EMA_CONSTRUCTION_PETTY_CASH_FLEET_2026');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -251,7 +261,7 @@ export const AdministrationView: React.FC = () => {
   };
 
   const handleFullDatabaseReset = () => {
-    if (confirm('Are you sure you want to reset demo data for all modules (Petty Cash, FleetTrack, Staff Directory, Daily Site Records, Projects, Procurement, Payments, Allocations, Attendance, Leave, Payroll)?')) {
+    if (confirm('Are you sure you want to reset demo data for all modules (Petty Cash, FleetTrack, Staff Directory, Daily Site Records, Projects, Procurement, Payments, Allocations, Attendance, Leave, Payroll, Tax Invoices)?')) {
       resetToDefaultMasterData();
       resetFleetSampleData();
       resetStaffDirectory();
@@ -264,6 +274,7 @@ export const AdministrationView: React.FC = () => {
       resetAttendanceData();
       resetLeaveData();
       resetPayrollData();
+      resetTaxInvoicesToDefault();
       alert('Enterprise master database reset to defaults successfully.');
     }
   };
@@ -282,6 +293,7 @@ export const AdministrationView: React.FC = () => {
     clearOvertimeHistory();
     clearLeaveHistory();
     clearPayrollHistory();
+    clearTaxInvoicesHistory();
   };
 
   const totalOperationalRecords =
@@ -304,7 +316,8 @@ export const AdministrationView: React.FC = () => {
     overtimeRecords.length +
     leaveRequests.length +
     coverUpRequests.length +
-    payrollBatches.length;
+    payrollBatches.length +
+    taxInvoices.length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -942,11 +955,45 @@ export const AdministrationView: React.FC = () => {
                 <span className="text-[10px] text-slate-400 font-bold block">POs & Docs</span>
                 <span className="text-sm font-mono font-bold text-orange-400">{procurementOrders.length + documents.length} files</span>
               </div>
+              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/60">
+                <span className="text-[10px] text-slate-400 font-bold block">Clients & Employers</span>
+                <span className="text-sm font-mono font-bold text-purple-400">{clients.length} clients</span>
+              </div>
             </div>
           </div>
 
           {/* Module-by-Module Granular Clear Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Card 0A: Clients & Employers Master Registry */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold">
+                    <Briefcase className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Clients & Employers Master Registry</h4>
+                    <span className="text-[11px] font-mono text-purple-400 font-bold">{clients.length} registered clients</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Clears registered enterprise clients, employer accounts, statutory tax data, and client audit histories.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-clients-cache-tab"
+                  moduleName="Clients & Employers Master Registry"
+                  itemCount={clients.length}
+                  itemDescription="registered enterprise clients, tax profiles, and master audit trails"
+                  preservedItemsDescription="Linked construction projects, issued tax invoices, and accounting vouchers remain safely preserved."
+                  buttonText="Clear Clients Registry"
+                  alwaysShow={true}
+                  onClear={() => clearClientsHistory()}
+                />
+              </div>
+            </div>
+
             {/* Card 0: Vehicle Fleet Registry */}
             <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
               <div className="flex items-start justify-between gap-2">
@@ -1581,6 +1628,35 @@ export const AdministrationView: React.FC = () => {
                   preservedItemsDescription="Staff profiles, base salaries, and statutory EPF/ETF rate settings remain intact."
                   buttonText="Clear Payroll Batches"
                   onClear={() => clearPayrollHistory()}
+                />
+              </div>
+            </div>
+
+            {/* Card 19: Statutory Tax Invoices & Billing Register */}
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100">Statutory Tax Invoices & Billing</h4>
+                    <span className="text-[11px] font-mono text-cyan-400 font-bold">{taxInvoices.length} invoices</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Wipes tax invoice records, provisional drafts, credit notes, and client settlement history. Automatically stops Petty Cash re-syncing so deleted invoices do not reappear.
+              </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <AdminClearHistoryButton
+                  id="btn-admin-clear-tax-invoices-cache-tab"
+                  moduleName="Statutory Tax Invoices & Billing Register"
+                  itemCount={taxInvoices.length}
+                  itemDescription="tax invoices, provisional drafts, credit notes, and client receipt payments"
+                  preservedItemsDescription="Tax configuration, IRD registered entity codes, VAT rates, and bank setups remain intact. Petty Cash auto-sync is automatically stopped."
+                  buttonText="Clear Tax Invoices"
+                  onClear={() => clearTaxInvoicesHistory()}
                 />
               </div>
             </div>

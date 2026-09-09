@@ -26,7 +26,7 @@ import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 import { FuelRecord } from '../../types';
 
 interface FuelRecordViewProps {
-  onOpenNewFuel: () => void;
+  onOpenNewFuel?: () => void;
 }
 
 export const FuelRecordView: React.FC<FuelRecordViewProps> = ({ onOpenNewFuel }) => {

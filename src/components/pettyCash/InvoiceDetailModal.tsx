@@ -24,6 +24,7 @@ interface InvoiceDetailModalProps {
   onClose: () => void;
   invoice: Income | null;
   onOpenRecordPayment?: (invoice: Income) => void;
+  onRecordPayment?: (invoice?: any) => void;
   onOpenEdit?: (invoice: Income) => void;
 }
 
@@ -32,6 +33,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   onClose,
   invoice,
   onOpenRecordPayment,
+  onRecordPayment,
   onOpenEdit
 }) => {
   const printRef = useRef<HTMLDivElement>(null);
@@ -80,9 +82,12 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {onOpenRecordPayment && balanceDue > 0 && (
+            {(onOpenRecordPayment || onRecordPayment) && balanceDue > 0 && (
               <button
-                onClick={() => onOpenRecordPayment(invoice)}
+                onClick={() => {
+                  if (onOpenRecordPayment) onOpenRecordPayment(invoice);
+                  else if (onRecordPayment) onRecordPayment(invoice);
+                }}
                 className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md"
               >
                 <CreditCard className="w-3.5 h-3.5" />
