@@ -81,8 +81,8 @@ export const PettyCashFilterBar: React.FC<PettyCashFilterBarProps> = ({
               className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
             >
               <option value="ALL">All Projects</option>
-              {projects.map(p => (
-                <option key={p.id} value={p.PROJECT_CODE}>
+              {projects.map((p, idx) => (
+                <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>
                   {p.PROJECT_CODE} - {p.PROJECT_NAME.slice(0, 20)}...
                 </option>
               ))}

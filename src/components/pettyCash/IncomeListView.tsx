@@ -23,6 +23,7 @@ import { Income } from '../../types/pettyCashTypes';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { AddIncomeModal } from './AddIncomeModal';
 import { BulkImportIncomeModal } from './BulkImportIncomeModal';
+import { ProofImage } from '../common/ProofImage';
 import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 interface IncomeListViewProps {
@@ -343,7 +344,7 @@ export const IncomeListView: React.FC<IncomeListViewProps> = ({
               {selectedIncome.PROOF_DOCUMENT && (
                 <div className="pt-2">
                   <span className="text-slate-400 block mb-1">Attached Bank Slip:</span>
-                  <img src={selectedIncome.PROOF_DOCUMENT} alt="slip" className="max-h-48 w-full object-contain rounded-lg border border-slate-800 bg-black/40" />
+                  <ProofImage src={selectedIncome.PROOF_DOCUMENT} alt="slip" className="max-h-48 w-full object-contain rounded-lg border border-slate-800 bg-black/40" />
                 </div>
               )}
             </div>

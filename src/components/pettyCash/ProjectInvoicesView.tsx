@@ -493,10 +493,10 @@ export const ProjectInvoicesView: React.FC<ProjectInvoicesViewProps> = ({
                   className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
                   <option value="ALL">All Projects ({projectInvoices.length})</option>
-                  {projects.map(p => {
+                  {projects.map((p, idx) => {
                     const count = projectInvoices.filter(i => (i.PROJECT || '').toUpperCase() === p.PROJECT_CODE.toUpperCase()).length;
                     return (
-                      <option key={p.id} value={p.PROJECT_CODE}>
+                      <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>
                         {p.PROJECT_CODE} — {p.PROJECT_NAME} ({count})
                       </option>
                     );

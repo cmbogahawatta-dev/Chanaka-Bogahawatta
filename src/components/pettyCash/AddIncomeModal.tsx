@@ -298,8 +298,8 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
                   required
                 >
                   <option value="HEAD_OFFICE">HEAD_OFFICE - General Cash Float</option>
-                  {projects.map((p) => (
-                    <option key={p.PROJECT_CODE} value={p.PROJECT_CODE}>
+                  {projects.map((p, idx) => (
+                    <option key={`${p.PROJECT_CODE}-${p.id || idx}`} value={p.PROJECT_CODE}>
                       {p.PROJECT_CODE} - {p.PROJECT_NAME}
                     </option>
                   ))}

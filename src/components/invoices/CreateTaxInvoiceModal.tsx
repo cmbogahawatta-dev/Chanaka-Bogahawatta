@@ -609,8 +609,8 @@ export const CreateTaxInvoiceModal: React.FC<CreateTaxInvoiceModalProps> = ({ is
                     className="px-2.5 py-1 bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg outline-none focus:border-cyan-500"
                   >
                     <option value="" disabled>-- Select Project --</option>
-                    {projects.map(p => (
-                      <option key={p.id} value={p.PROJECT_CODE}>
+                    {projects.map((p, idx) => (
+                      <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>
                         {p.PROJECT_CODE} - {p.PROJECT_NAME}
                       </option>
                     ))}

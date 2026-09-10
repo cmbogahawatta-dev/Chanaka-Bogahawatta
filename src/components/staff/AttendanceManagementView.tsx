@@ -285,11 +285,11 @@ export const AttendanceManagementView: React.FC = () => {
           className="bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-3 py-1.5 focus:outline-none"
         >
           <option value="ALL">All Projects</option>
-          {projects.map(p => {
+          {projects.map((p, idx) => {
             const code = p.PROJECT_CODE || (p as any).code || (p as any).project_code || p.id;
             const name = p.PROJECT_NAME || (p as any).name || code;
             return (
-              <option key={p.id || code} value={code}>{code} - {name}</option>
+              <option key={`${p.id || code}-${idx}`} value={code}>{code} - {name}</option>
             );
           })}
           <option value="HEAD_OFFICE">HEAD_OFFICE</option>
@@ -545,11 +545,11 @@ export const AttendanceManagementView: React.FC = () => {
                     onChange={(e) => setManualForm({ ...manualForm, projectId: e.target.value })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-200"
                   >
-                    {projects.map(p => {
+                    {projects.map((p, idx) => {
                       const code = p.PROJECT_CODE || (p as any).code || (p as any).project_code || p.id;
                       const name = p.PROJECT_NAME || (p as any).name || code;
                       return (
-                        <option key={p.id || code} value={code}>{code} - {name}</option>
+                        <option key={`${p.id || code}-${idx}`} value={code}>{code} - {name}</option>
                       );
                     })}
                     <option value="HEAD_OFFICE">HEAD_OFFICE</option>

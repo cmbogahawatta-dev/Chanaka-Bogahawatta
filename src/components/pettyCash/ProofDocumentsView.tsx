@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Image as ImageIcon, Search, ExternalLink, Filter, Calendar, Tag, Building, User } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { Expense } from '../../types/pettyCashTypes';
+import { ProofImage } from '../common/ProofImage';
 
 interface ProofDocumentsViewProps {
   onSelectExpenseForDetail: (expense: Expense) => void;
@@ -57,7 +58,7 @@ export const ProofDocumentsView: React.FC<ProofDocumentsViewProps> = ({ onSelect
             className="bg-slate-900 border border-slate-800 hover:border-emerald-600/60 rounded-xl overflow-hidden shadow-sm cursor-pointer transition-all flex flex-col justify-between"
           >
             <div className="h-44 bg-slate-950 flex items-center justify-center p-2 relative group overflow-hidden">
-              <img
+              <ProofImage
                 src={exp.PROOF_DOCUMENT}
                 alt="Receipt"
                 className="max-h-full max-w-full object-contain rounded transition-transform group-hover:scale-105"

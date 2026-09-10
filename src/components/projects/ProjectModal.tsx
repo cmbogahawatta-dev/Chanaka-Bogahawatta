@@ -23,8 +23,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [client, setClient] = useState('');
   const [isCustomClient, setIsCustomClient] = useState(false);
   const [location, setLocation] = useState('');
-  const [contractValue, setContractValue] = useState<number>(10000000);
-  const [budgetPettyCash, setBudgetPettyCash] = useState<number>(2000000);
+  const [contractValue, setContractValue] = useState<string | number>('15000000.00');
+  const [budgetPettyCash, setBudgetPettyCash] = useState<string | number>('2500000.00');
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState(
     new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -84,6 +84,33 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     return clients.find(c => c.name?.trim().toLowerCase() === client.trim().toLowerCase()) || null;
   }, [client, clients]);
 
+  const parseDecimalValue = (val: string | number): number => {
+    if (typeof val === 'number') {
+      return isNaN(val) ? 0 : Math.round(val * 100) / 100;
+    }
+    const clean = String(val).replace(/,/g, '').trim();
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : Math.round(parsed * 100) / 100;
+  };
+
+  const handleBlurContract = () => {
+    if (contractValue !== '' && !isNaN(Number(contractValue))) {
+      const parsed = parseFloat(String(contractValue));
+      if (!isNaN(parsed)) {
+        setContractValue(parsed.toFixed(2));
+      }
+    }
+  };
+
+  const handleBlurBudget = () => {
+    if (budgetPettyCash !== '' && !isNaN(Number(budgetPettyCash))) {
+      const parsed = parseFloat(String(budgetPettyCash));
+      if (!isNaN(parsed)) {
+        setBudgetPettyCash(parsed.toFixed(2));
+      }
+    }
+  };
+
   useEffect(() => {
     if (projectToEdit) {
       const existingClient = projectToEdit.CLIENT || '';
@@ -91,8 +118,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setProjectName(projectToEdit.PROJECT_NAME || '');
       setClient(existingClient);
       setLocation(projectToEdit.LOCATION || '');
-      setContractValue(projectToEdit.CONTRACT_VALUE || 0);
-      setBudgetPettyCash(projectToEdit.BUDGET_PETTY_CASH || 0);
+      const rawContract = projectToEdit.CONTRACT_VALUE ?? 0;
+      setContractValue(rawContract !== undefined && rawContract !== null ? String(rawContract) : '0');
+      const rawBudget = projectToEdit.BUDGET_PETTY_CASH ?? projectToEdit.BUDGET ?? 0;
+      setBudgetPettyCash(rawBudget !== undefined && rawBudget !== null ? String(rawBudget) : '0');
       setStartDate(projectToEdit.START_DATE || new Date().toISOString().slice(0, 10));
       setEndDate(projectToEdit.END_DATE || new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
       setStatus(projectToEdit.STATUS || 'Active');
@@ -111,8 +140,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setClient(defaultClient);
       setIsCustomClient(false);
       setLocation('');
-      setContractValue(15000000);
-      setBudgetPettyCash(2500000);
+      setContractValue('15000000.00');
+      setBudgetPettyCash('2500000.00');
       setStartDate(new Date().toISOString().slice(0, 10));
       setEndDate(new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
       setStatus('Active');
@@ -139,14 +168,19 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       return;
     }
 
+    const parsedContract = parseDecimalValue(contractValue);
+    const parsedBudget = parseDecimalValue(budgetPettyCash);
+
     if (projectToEdit) {
       updateProject(projectToEdit.id, {
         PROJECT_CODE: projectCode.trim().toUpperCase(),
         PROJECT_NAME: projectName.trim(),
         CLIENT: client.trim(),
         LOCATION: location.trim(),
-        CONTRACT_VALUE: Number(contractValue) || 0,
-        BUDGET_PETTY_CASH: Number(budgetPettyCash) || 0,
+        CONTRACT_VALUE: parsedContract,
+        BUDGET_PETTY_CASH: parsedBudget,
+        BUDGET: parsedBudget,
+        budget: parsedBudget,
         START_DATE: startDate,
         END_DATE: endDate,
         STATUS: status,
@@ -168,8 +202,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         PROJECT_NAME: projectName.trim(),
         CLIENT: client.trim(),
         LOCATION: location.trim(),
-        CONTRACT_VALUE: Number(contractValue) || 0,
-        BUDGET_PETTY_CASH: Number(budgetPettyCash) || 0,
+        CONTRACT_VALUE: parsedContract,
+        BUDGET_PETTY_CASH: parsedBudget,
+        BUDGET: parsedBudget,
+        budget: parsedBudget,
         START_DATE: startDate,
         END_DATE: endDate,
         STATUS: status,
@@ -382,28 +418,40 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Contract Value */}
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Contract Total Value (LKR)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-slate-300 font-semibold text-xs sm:text-sm">Contract Total Value (LKR)</label>
+                <span className="text-[10px] text-purple-400 font-medium">2 Decimals Allowed</span>
+              </div>
               <input
                 type="number"
                 min="0"
-                step="10000"
+                step="0.01"
+                placeholder="0.00"
                 value={contractValue}
-                onChange={e => setContractValue(Number(e.target.value))}
+                onChange={e => setContractValue(e.target.value)}
+                onBlur={handleBlurContract}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono focus:outline-none focus:border-purple-500"
               />
+              <span className="text-[10px] text-slate-400 mt-1 block">Supports decimal values (e.g. 15000000.50)</span>
             </div>
 
             {/* Petty Cash Budget */}
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Petty Cash Allocation (LKR)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-slate-300 font-semibold text-xs sm:text-sm">Petty Cash Allocation (LKR)</label>
+                <span className="text-[10px] text-emerald-400 font-medium">2 Decimals Allowed</span>
+              </div>
               <input
                 type="number"
                 min="0"
-                step="5000"
+                step="0.01"
+                placeholder="0.00"
                 value={budgetPettyCash}
-                onChange={e => setBudgetPettyCash(Number(e.target.value))}
+                onChange={e => setBudgetPettyCash(e.target.value)}
+                onBlur={handleBlurBudget}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono focus:outline-none focus:border-purple-500"
               />
+              <span className="text-[10px] text-slate-400 mt-1 block">Site petty cash allowance limit (e.g. 500000.00)</span>
             </div>
           </div>
 

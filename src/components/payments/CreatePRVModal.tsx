@@ -279,8 +279,8 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
                   }}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 focus:border-purple-500 focus:outline-none"
                 >
-                  {projects.map(p => (
-                    <option key={p.id} value={p.PROJECT_CODE}>
+                  {projects.map((p, idx) => (
+                    <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>
                       {p.PROJECT_CODE} - {p.PROJECT_NAME}
                     </option>
                   ))}

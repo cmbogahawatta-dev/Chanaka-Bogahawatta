@@ -18,7 +18,7 @@ import {
 import { adminSecurityService } from '../../services/adminSecurityService';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { useDataManagement } from '../../context/DataManagementContext';
-import { DataManagementModule } from '../../types/dataManagementTypes';
+import { DataManagementModule, DeleteDependencyAnalysis } from '../../types/dataManagementTypes';
 
 export interface UniversalDeleteModalProps {
   isOpen: boolean;
@@ -66,15 +66,11 @@ export const UniversalDeleteModal: React.FC<UniversalDeleteModalProps> = ({
   const [confirmNewKey, setConfirmNewKey] = useState('');
 
   // Dependency analysis
-  const [dependencyInfo, setDependencyInfo] = useState<{
-    canHardDelete: boolean;
-    totalDependencies: number;
-    breakdown: { category: string; count: number; description: string; sampleIds: string[] }[];
-    warningMessage?: string;
-  }>({
+  const [dependencyInfo, setDependencyInfo] = useState<DeleteDependencyAnalysis>({
     canHardDelete: true,
     totalDependencies: 0,
-    breakdown: []
+    breakdown: [],
+    suggestedAction: 'HARD_DELETE'
   });
 
   useEffect(() => {
@@ -107,7 +103,7 @@ export const UniversalDeleteModal: React.FC<UniversalDeleteModalProps> = ({
             setSelectedAction('HARD_DELETE');
           }
         } catch {
-          setDependencyInfo({ canHardDelete: true, totalDependencies: 0, breakdown: [] });
+          setDependencyInfo({ canHardDelete: true, totalDependencies: 0, breakdown: [], suggestedAction: 'HARD_DELETE' });
         }
       }
     }

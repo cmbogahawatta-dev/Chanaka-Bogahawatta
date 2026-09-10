@@ -138,7 +138,7 @@ export const PROJECT_FIELDS: FieldDefinition[] = [
     required: true,
     type: 'string',
     description: 'Unique project code identifier (e.g. PIDM 26)',
-    aliases: ['project code', 'project id', 'code', 'job code', 'prj code', 'site code', 'project_code'],
+    aliases: ['project code', 'project id', 'code', 'job code', 'prj code', 'site code', 'project_code', 'proj_id'],
     example: 'PIDM 26'
   },
   {
@@ -147,7 +147,7 @@ export const PROJECT_FIELDS: FieldDefinition[] = [
     required: true,
     type: 'string',
     description: 'Full project title',
-    aliases: ['project name', 'project', 'title', 'project title', 'name', 'contract name'],
+    aliases: ['project name', 'project', 'title', 'project title', 'name', 'contract name', 'project_name', 'contract_name'],
     example: 'PIDM Residencies High Rise Phase 2'
   },
   {
@@ -156,7 +156,7 @@ export const PROJECT_FIELDS: FieldDefinition[] = [
     required: false,
     type: 'string',
     description: 'Employer / Client organization',
-    aliases: ['client', 'client name', 'employer', 'customer', 'owner'],
+    aliases: ['client', 'client name', 'employer', 'customer', 'owner', 'authority', 'client_name', 'client / authority'],
     example: 'Prime Lands Residencies'
   },
   {
@@ -165,7 +165,7 @@ export const PROJECT_FIELDS: FieldDefinition[] = [
     required: false,
     type: 'string',
     description: 'Geographic location or city',
-    aliases: ['location', 'site', 'address', 'city', 'region'],
+    aliases: ['location', 'site', 'address', 'city', 'region', 'site location', 'site_location', 'location / site'],
     example: 'Colombo 07'
   },
   {
@@ -173,9 +173,9 @@ export const PROJECT_FIELDS: FieldDefinition[] = [
     label: 'Contract Value (LKR)',
     required: false,
     type: 'number',
-    description: 'Total contract budget or award value',
-    aliases: ['contract value', 'value', 'budget', 'contract amount', 'total contract value'],
-    example: '250000000'
+    description: 'Total contract budget or award value (supports 2 decimals)',
+    aliases: ['contract value', 'contract value (lkr)', 'value', 'budget', 'contract amount', 'total contract value', 'contract budget', 'total budget', 'total_budget', 'allocated budget'],
+    example: '250000000.00'
   },
   {
     key: 'START_DATE',
@@ -183,7 +183,7 @@ export const PROJECT_FIELDS: FieldDefinition[] = [
     required: false,
     type: 'date',
     description: 'Commencement date (YYYY-MM-DD)',
-    aliases: ['start date', 'commencement date', 'started', 'commenced'],
+    aliases: ['start date', 'commencement date', 'started', 'commenced', 'start_date'],
     example: '2024-01-15'
   },
   {
@@ -192,7 +192,7 @@ export const PROJECT_FIELDS: FieldDefinition[] = [
     required: false,
     type: 'date',
     description: 'Target or revised completion date',
-    aliases: ['end date', 'completion date', 'handover date', 'finish date', 'target date'],
+    aliases: ['end date', 'completion date', 'handover date', 'finish date', 'target date', 'end_date', 'due date'],
     example: '2025-12-31'
   },
   {
@@ -210,25 +210,37 @@ export const PROJECT_FIELDS: FieldDefinition[] = [
     required: false,
     type: 'string',
     description: 'Designated Project Manager or Engineer',
-    aliases: ['project manager', 'pm', 'consultant', 'engineer', 'in charge', 'lead'],
+    aliases: ['project manager', 'pm', 'consultant', 'engineer', 'in charge', 'lead', 'supervisor', 'primary supervisor', 'project_manager', 'lead_supervisor', 'site engineer'],
     example: 'Eng. K. Perera'
   },
   {
     key: 'BUDGET_PETTY_CASH',
-    label: 'Petty Cash Monthly Budget',
+    label: 'Petty Cash Budget (LKR)',
     required: false,
     type: 'number',
-    description: 'Allocated monthly site petty cash ceiling',
-    aliases: ['budget petty cash', 'petty cash limit', 'cash limit', 'monthly budget'],
-    example: '1500000'
+    description: 'Allocated site petty cash ceiling (supports 2 decimals)',
+    aliases: [
+      'petty cash budget',
+      'petty cash budget (lkr)',
+      'budget petty cash',
+      'budget_petty_cash',
+      'petty cash limit',
+      'cash limit',
+      'monthly budget',
+      'petty cash',
+      'petty cash allowance',
+      'site petty cash',
+      'allocated petty cash budget'
+    ],
+    example: '1500000.00'
   },
   {
     key: 'REMARKS',
     label: 'Remarks',
     required: false,
     type: 'string',
-    description: 'Project notes',
-    aliases: ['remarks', 'notes', 'comments'],
+    description: 'Project notes or scope description',
+    aliases: ['remarks', 'notes', 'comments', 'description', 'scope', 'remarks / scope'],
     example: 'Imported from Master ERP Registry'
   }
 ];
@@ -530,6 +542,54 @@ export const INVOICE_FIELDS: FieldDefinition[] = [
   }
 ];
 
+export const CATEGORY_FIELDS: FieldDefinition[] = [
+  {
+    key: 'CATEGORY_CODE',
+    label: 'GL / Cost Code',
+    required: true,
+    type: 'string',
+    description: 'Unique GL account code or numeric cost code (e.g. 5000, 5010, 6020)',
+    aliases: ['gl code', 'code', 'category code', 'account code', 'cost code', 'gl_code', 'category_code', 'gl no', 'gl number', 'gl'],
+    example: '5000'
+  },
+  {
+    key: 'CATEGORY_NAME',
+    label: 'Category Name',
+    required: true,
+    type: 'string',
+    description: 'Category name or title (e.g. Construction Materials)',
+    aliases: ['category name', 'name', 'title', 'category title', 'account name', 'category_name', 'description'],
+    example: 'Construction Materials'
+  },
+  {
+    key: 'CATEGORY_GROUP',
+    label: 'Cost Group',
+    required: false,
+    type: 'string',
+    description: 'Direct Project Cost, Site Overheads, Admin & Head Office, or Special / Non-Project',
+    aliases: ['group', 'cost group', 'category group', 'classification', 'cost classification', 'type', 'category_group'],
+    example: 'Direct Project Cost'
+  },
+  {
+    key: 'DESCRIPTION',
+    label: 'Description / Remarks',
+    required: false,
+    type: 'string',
+    description: 'Detailed scope notes or items covered under this category',
+    aliases: ['description', 'remarks', 'notes', 'details', 'scope', 'comment', 'memo'],
+    example: 'Aggregates, cement, sand, reinforcing steel, bricks'
+  },
+  {
+    key: 'ACTIVE',
+    label: 'Active Status',
+    required: false,
+    type: 'boolean',
+    description: 'Whether category is active for expense booking (TRUE / FALSE)',
+    aliases: ['active', 'status', 'is active', 'is_active', 'enabled'],
+    example: 'TRUE'
+  }
+];
+
 export interface ParsedRawData {
   headers: string[];
   rows: Record<string, any>[];
@@ -572,6 +632,8 @@ export class DataImportService {
         return INCOME_FIELDS;
       case 'PROJECT_INVOICES':
         return INVOICE_FIELDS;
+      case 'CATEGORY_DIRECTORY':
+        return CATEGORY_FIELDS;
     }
   }
 
@@ -1360,9 +1422,15 @@ export class DataImportService {
           });
         }
 
-        // Contract Value
+        // Contract Value (supports 2 decimals)
         const valResult = this.normalizeNumber(mapped['CONTRACT_VALUE']);
         mapped['CONTRACT_VALUE'] = valResult.numberValue;
+
+        // Petty Cash Budget (supports 2 decimals)
+        if (mapped['BUDGET_PETTY_CASH'] !== undefined && mapped['BUDGET_PETTY_CASH'] !== '') {
+          const pcBudgetResult = this.normalizeNumber(mapped['BUDGET_PETTY_CASH']);
+          mapped['BUDGET_PETTY_CASH'] = pcBudgetResult.numberValue;
+        }
 
         // Duplicate Check
         if (prjCode) {
@@ -1744,6 +1812,59 @@ export class DataImportService {
         }
       }
 
+      // 6. Specific Validation for CATEGORY_DIRECTORY
+      if (importType === 'CATEGORY_DIRECTORY') {
+        const catCode = String(mapped['CATEGORY_CODE'] || '').trim();
+        const catName = String(mapped['CATEGORY_NAME'] || '').trim();
+
+        if (!catCode) {
+          rowErrors.push({
+            row: rowIndex,
+            field: 'CATEGORY_CODE',
+            value: '',
+            error: 'GL / Cost Code is mandatory (e.g. 5000, 5010).',
+            severity: 'ERROR'
+          });
+        }
+
+        if (!catName) {
+          rowErrors.push({
+            row: rowIndex,
+            field: 'CATEGORY_NAME',
+            value: '',
+            error: 'Category Name is mandatory (e.g. Construction Materials).',
+            severity: 'ERROR'
+          });
+        }
+
+        // Cost Group default
+        if (!mapped['CATEGORY_GROUP'] || !String(mapped['CATEGORY_GROUP']).trim()) {
+          mapped['CATEGORY_GROUP'] = 'Direct Project Cost';
+        }
+
+        // Active flag normalization
+        const activeRaw = String(mapped['ACTIVE'] ?? 'true').toLowerCase().trim();
+        mapped['ACTIVE'] = !['false', '0', 'no', 'inactive', 'disabled'].includes(activeRaw);
+
+        // Duplicate Check against existing categories
+        if (catCode && masterContext.existingCategories) {
+          const dupCat = masterContext.existingCategories.find(
+            c => c.CATEGORY_CODE.trim().toLowerCase() === catCode.toLowerCase()
+          );
+          if (dupCat) {
+            isDuplicate = true;
+            duplicateId = dupCat.CATEGORY_CODE;
+            rowWarnings.push({
+              row: rowIndex,
+              field: 'CATEGORY_CODE',
+              value: catCode,
+              error: `GL Code '${catCode}' already exists in directory (${dupCat.CATEGORY_NAME}).`,
+              severity: 'DUPLICATE'
+            });
+          }
+        }
+      }
+
       const hasErrors = rowErrors.length > 0;
       if (hasErrors) errorsCount++;
       else validCount++;
@@ -1954,22 +2075,41 @@ export class DataImportService {
       // 2. Process PROJECT_DIRECTORY
       if (importType === 'PROJECT_DIRECTORY') {
         const m = row.mapped;
-        const projectCode = String(m.PROJECT_CODE).trim().toUpperCase();
+        const projectCode = String(m.PROJECT_CODE || '').trim().toUpperCase();
+        const projectName = String(m.PROJECT_NAME || projectCode).trim();
+        const clientName = m.CLIENT ? String(m.CLIENT).trim() : '';
+        const location = m.LOCATION ? String(m.LOCATION).trim() : '';
+        const contractVal = Number(m.CONTRACT_VALUE) || 0;
+        const pettyCashBudget = (m.BUDGET_PETTY_CASH !== undefined && m.BUDGET_PETTY_CASH !== '')
+          ? (Number(m.BUDGET_PETTY_CASH) || 0)
+          : 0;
+        const startDate = m.START_DATE ? String(m.START_DATE).trim() : new Date().toISOString().slice(0, 10);
+        const endDate = m.END_DATE ? String(m.END_DATE).trim() : '';
+        const status = (m.STATUS as any) || 'Active';
+        const pm = m.PROJECT_MANAGER ? String(m.PROJECT_MANAGER).trim() : '';
+        const remarks = m.REMARKS ? String(m.REMARKS).trim() : `Imported via Batch ${batchId}`;
 
         const newPrj: Project = {
           id: `prj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           PROJECT_ID: `PRJ-${String(newProjects.length + 1).padStart(3, '0')}`,
           PROJECT_CODE: projectCode,
-          PROJECT_NAME: String(m.PROJECT_NAME || projectCode).trim(),
-          CLIENT: String(m.CLIENT || 'EMA Client').trim(),
-          LOCATION: String(m.LOCATION || 'Site Location').trim(),
-          CONTRACT_VALUE: Number(m.CONTRACT_VALUE) || 0,
-          START_DATE: m.START_DATE ? String(m.START_DATE).trim() : '2024-01-01',
-          END_DATE: m.END_DATE ? String(m.END_DATE).trim() : '2026-12-31',
-          STATUS: (m.STATUS as any) || 'Active',
-          PROJECT_MANAGER: String(m.PROJECT_MANAGER || 'Designated PM').trim(),
-          BUDGET_PETTY_CASH: Number(m.BUDGET_PETTY_CASH) || 500000,
-          REMARKS: m.REMARKS ? String(m.REMARKS).trim() : `Imported via Batch ${batchId}`,
+          CODE: projectCode,
+          PROJECT_NAME: projectName,
+          NAME: projectName,
+          CLIENT: clientName,
+          CLIENT_NAME: clientName,
+          LOCATION: location,
+          CONTRACT_VALUE: contractVal,
+          BUDGET: contractVal,
+          budget: contractVal,
+          TOTAL_BUDGET: contractVal,
+          BUDGET_PETTY_CASH: pettyCashBudget,
+          START_DATE: startDate,
+          END_DATE: endDate,
+          STATUS: status,
+          PROJECT_MANAGER: pm,
+          REMARKS: remarks,
+          DESCRIPTION: remarks,
           DATA_SOURCE: 'HISTORICAL_IMPORT',
           IMPORT_BATCH_ID: batchId,
           IMPORTED_BY: options.performedBy,
@@ -2508,26 +2648,51 @@ export class DataImportService {
       }
 
       const m = row.mapped;
-      const projectCode = String(m.PROJECT_CODE).trim().toUpperCase();
+      let projectCode = String(m.PROJECT_CODE || '').trim().toUpperCase();
+      const projectName = String(m.PROJECT_NAME || projectCode).trim();
+      const clientName = m.CLIENT ? String(m.CLIENT).trim() : '';
+      const location = m.LOCATION ? String(m.LOCATION).trim() : '';
       const contractVal = Number(m.CONTRACT_VALUE) || 0;
       totalContractValue += contractVal;
+
+      const pettyCashBudget = (m.BUDGET_PETTY_CASH !== undefined && m.BUDGET_PETTY_CASH !== '')
+        ? (Number(m.BUDGET_PETTY_CASH) || 0)
+        : (options.defaultPettyCashBudget !== undefined ? Number(options.defaultPettyCashBudget) || 0 : 0);
+
+      const rowStatus = m.STATUS ? String(m.STATUS).trim() : '';
+      const finalStatus = (rowStatus || options.defaultStatus || 'Active') as any;
+
+      const startDate = m.START_DATE ? String(m.START_DATE).trim() : new Date().toISOString().slice(0, 10);
+      const endDate = m.END_DATE ? String(m.END_DATE).trim() : '';
+      const pm = m.PROJECT_MANAGER ? String(m.PROJECT_MANAGER).trim() : '';
+      const rowRemarks = m.REMARKS ? String(m.REMARKS).trim() : '';
+      const finalRemarks = rowRemarks || (options.approvalRemarks ? `[ADMIN IMPORT] ${options.approvalRemarks}` : `Imported via Batch ${batchId}`);
+
+      if (row.isDuplicate && options.duplicateAction === 'IMPORT_AS_NEW') {
+        projectCode = `${projectCode}-${Math.floor(100 + Math.random() * 900)}`;
+      }
 
       const newPrj: Project = {
         id: `prj_bulk_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         PROJECT_ID: `PRJ-${String(newProjects.length + 1).padStart(3, '0')}`,
         PROJECT_CODE: projectCode,
-        PROJECT_NAME: String(m.PROJECT_NAME || projectCode).trim(),
-        CLIENT: String(m.CLIENT || 'Road Development Authority (RDA)').trim(),
-        LOCATION: String(m.LOCATION || 'Sri Lanka').trim(),
+        CODE: projectCode,
+        PROJECT_NAME: projectName,
+        NAME: projectName,
+        CLIENT: clientName,
+        CLIENT_NAME: clientName,
+        LOCATION: location,
         CONTRACT_VALUE: contractVal,
-        START_DATE: m.START_DATE ? String(m.START_DATE).trim() : new Date().toISOString().slice(0, 10),
-        END_DATE: m.END_DATE ? String(m.END_DATE).trim() : '2026-12-31',
-        STATUS: options.defaultStatus || (m.STATUS as any) || 'Active',
-        PROJECT_MANAGER: String(m.PROJECT_MANAGER || 'Designated Project Engineer').trim(),
-        BUDGET_PETTY_CASH: Number(m.BUDGET_PETTY_CASH) || options.defaultPettyCashBudget || 1500000,
-        REMARKS: options.approvalRemarks
-          ? `[ADMIN IMPORT] ${options.approvalRemarks}`
-          : (m.REMARKS ? String(m.REMARKS).trim() : `Imported via Batch ${batchId}`),
+        BUDGET: contractVal,
+        budget: contractVal,
+        TOTAL_BUDGET: contractVal,
+        BUDGET_PETTY_CASH: pettyCashBudget,
+        START_DATE: startDate,
+        END_DATE: endDate,
+        STATUS: finalStatus,
+        PROJECT_MANAGER: pm,
+        REMARKS: finalRemarks,
+        DESCRIPTION: finalRemarks,
         DATA_SOURCE: 'HISTORICAL_IMPORT',
         IMPORT_BATCH_ID: batchId,
         IMPORTED_BY: options.performedBy,
@@ -3860,6 +4025,117 @@ export class DataImportService {
           'Data Type': 'Text',
           'Validation Rules & Format': 'Internal notes or billing comments.',
           'Example / Valid Options': '50% advance certification release received via RTGS'
+        }
+      ];
+    } else if (importType === 'CATEGORY_DIRECTORY') {
+      fileName = `EMA_Expense_GL_Categories_Template.${format}`;
+      headers = [
+        'GL Code',
+        'Category Name',
+        'Cost Group',
+        'Description',
+        'Active Status'
+      ];
+      colWidths = [
+        { wch: 14 },
+        { wch: 38 },
+        { wch: 24 },
+        { wch: 50 },
+        { wch: 14 }
+      ];
+      sampleData = [
+        {
+          'GL Code': '5000',
+          'Category Name': 'Construction Materials',
+          'Cost Group': 'Direct Project Cost',
+          'Description': 'Aggregates, cement, sand, reinforcing steel, bricks',
+          'Active Status': 'TRUE'
+        },
+        {
+          'GL Code': '5010',
+          'Category Name': 'Main Materials (VAT Purchase)',
+          'Cost Group': 'Direct Project Cost',
+          'Description': 'Direct VAT registered commercial bulk materials',
+          'Active Status': 'TRUE'
+        },
+        {
+          'GL Code': '5020',
+          'Category Name': 'Equipment & Machinery Fuel',
+          'Cost Group': 'Direct Project Cost',
+          'Description': 'Diesel, engine oil, hydraulic fluid for excavators and dump trucks',
+          'Active Status': 'TRUE'
+        },
+        {
+          'GL Code': '5100',
+          'Category Name': 'Sub-Contractors Labor Cost',
+          'Cost Group': 'Direct Project Cost',
+          'Description': 'Specialist masonry, bar bending, drainage sub-contracts',
+          'Active Status': 'TRUE'
+        },
+        {
+          'GL Code': '5200',
+          'Category Name': 'Site Equipment Hire',
+          'Cost Group': 'Direct Project Cost',
+          'Description': 'Roller compactor, generator, water pump daily/weekly rentals',
+          'Active Status': 'TRUE'
+        },
+        {
+          'GL Code': '6010',
+          'Category Name': 'Site Office Rent & Utilities',
+          'Cost Group': 'Site Overheads',
+          'Description': 'Temporary site office rental, electricity and water utility bills',
+          'Active Status': 'TRUE'
+        },
+        {
+          'GL Code': '6050',
+          'Category Name': 'Safety Gear & PPE',
+          'Cost Group': 'Site Overheads',
+          'Description': 'Hard hats, safety boots, high-visibility jackets, ear protection',
+          'Active Status': 'TRUE'
+        },
+        {
+          'GL Code': '7020',
+          'Category Name': 'Printing & Stationery',
+          'Cost Group': 'Admin & Head Office',
+          'Description': 'Paper, document binding, blueprint prints, ink cartridges',
+          'Active Status': 'TRUE'
+        }
+      ];
+      validationRules = [
+        {
+          'Field Name': 'GL Code',
+          'Required?': 'Mandatory',
+          'Data Type': 'Text / Number',
+          'Validation Rules & Format': 'Unique GL or cost account code (e.g. 5000, 5010, 6020).',
+          'Example / Valid Options': '5000'
+        },
+        {
+          'Field Name': 'Category Name',
+          'Required?': 'Mandatory',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'Descriptive title of expense classification.',
+          'Example / Valid Options': 'Construction Materials'
+        },
+        {
+          'Field Name': 'Cost Group',
+          'Required?': 'Optional',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'Direct Project Cost, Site Overheads, Admin & Head Office, Special / Non-Project.',
+          'Example / Valid Options': 'Direct Project Cost'
+        },
+        {
+          'Field Name': 'Description',
+          'Required?': 'Optional',
+          'Data Type': 'Text',
+          'Validation Rules & Format': 'Detailed remarks or items covered under this category.',
+          'Example / Valid Options': 'Aggregates, cement, sand, reinforcing steel, bricks'
+        },
+        {
+          'Field Name': 'Active Status',
+          'Required?': 'Optional',
+          'Data Type': 'Boolean / Text',
+          'Validation Rules & Format': 'TRUE or FALSE (defaults to TRUE).',
+          'Example / Valid Options': 'TRUE'
         }
       ];
     }

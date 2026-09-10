@@ -92,8 +92,8 @@ export const DSRRegistryTab: React.FC<DSRRegistryTabProps> = ({
             className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-purple-500"
           >
             <option value="ALL">All Projects</option>
-            {projects.map(p => (
-              <option key={p.id} value={p.PROJECT_CODE}>
+            {projects.map((p, idx) => (
+              <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>
                 {p.PROJECT_CODE}
               </option>
             ))}

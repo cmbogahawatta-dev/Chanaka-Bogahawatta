@@ -188,11 +188,11 @@ export const ProjectAllocationsView: React.FC = () => {
           className="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
         >
           <option value="ALL">All Construction Projects</option>
-          {projects.map(p => {
+          {projects.map((p, idx) => {
             const code = p.PROJECT_CODE || (p as any).code || (p as any).project_code || p.id;
             const name = p.PROJECT_NAME || (p as any).name || code;
             return (
-              <option key={p.id || code} value={code}>{code} - {name}</option>
+              <option key={`${p.id || code}-${idx}`} value={code}>{code} - {name}</option>
             );
           })}
           <option value="HEAD_OFFICE">Head Office</option>
@@ -376,11 +376,11 @@ export const ProjectAllocationsView: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, projectId: e.target.value, site: `${e.target.value} Main Site Yard` })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
-                    {projects.map(p => {
+                    {projects.map((p, idx) => {
                       const code = p.PROJECT_CODE || (p as any).code || (p as any).project_code || p.id;
                       const name = p.PROJECT_NAME || (p as any).name || code;
                       return (
-                        <option key={p.id || code} value={code}>{code} - {name}</option>
+                        <option key={`${p.id || code}-${idx}`} value={code}>{code} - {name}</option>
                       );
                     })}
                     <option value="HEAD_OFFICE">HEAD_OFFICE - Corporate Office</option>

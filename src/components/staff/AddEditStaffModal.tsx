@@ -526,8 +526,8 @@ export const AddEditStaffModal: React.FC<AddEditStaffModalProps> = ({
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-cyan-500 font-medium"
                 >
                   <option value="HEAD_OFFICE">HEAD_OFFICE - Corporate Head Office - Colombo</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.PROJECT_CODE}>
+                  {projects.map((p, idx) => (
+                    <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>
                       {p.PROJECT_CODE} - {p.PROJECT_NAME}
                     </option>
                   ))}

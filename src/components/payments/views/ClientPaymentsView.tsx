@@ -406,8 +406,8 @@ export const ClientPaymentsView: React.FC<ClientPaymentsViewProps> = ({
             className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
           >
             <option value="ALL">All Projects</option>
-            {projects.map(p => (
-              <option key={p.PROJECT_CODE} value={p.PROJECT_CODE}>
+            {projects.map((p, idx) => (
+              <option key={`${p.PROJECT_CODE}-${p.id || idx}`} value={p.PROJECT_CODE}>
                 {p.PROJECT_CODE} - {p.PROJECT_NAME}
               </option>
             ))}

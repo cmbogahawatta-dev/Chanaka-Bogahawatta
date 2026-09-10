@@ -277,8 +277,8 @@ export const PettyCashDashboardView: React.FC<PettyCashDashboardViewProps> = ({
                 <th className="py-3 px-3.5 font-bold uppercase tracking-wider sticky left-0 bg-slate-800 z-10 min-w-[240px]">
                   Expense Category
                 </th>
-                {pivotMatrix.projects.map((p) => (
-                  <th key={p.id} className="py-3 px-3 font-bold uppercase tracking-wider text-right min-w-[130px]">
+                {pivotMatrix.projects.map((p, idx) => (
+                  <th key={`${p.id || p.PROJECT_CODE}-${idx}`} className="py-3 px-3 font-bold uppercase tracking-wider text-right min-w-[130px]">
                     <div className="truncate" title={p.PROJECT_NAME}>
                       {p.PROJECT_CODE}
                     </div>
@@ -298,11 +298,11 @@ export const PettyCashDashboardView: React.FC<PettyCashDashboardViewProps> = ({
                     </div>
                     <span className="text-[10px] text-slate-400 font-sans block">{row.categoryGroup}</span>
                   </td>
-                  {pivotMatrix.projects.map((p) => {
+                  {pivotMatrix.projects.map((p, idx) => {
                     const val = row.projectTotals[p.PROJECT_CODE] || 0;
                     return (
                       <td
-                        key={p.id}
+                        key={`${p.id || p.PROJECT_CODE}-${idx}`}
                         className={`py-2.5 px-3 text-right ${
                           val > 0 ? 'text-slate-100 font-medium' : 'text-slate-600'
                         }`}
@@ -323,10 +323,10 @@ export const PettyCashDashboardView: React.FC<PettyCashDashboardViewProps> = ({
                 <td className="py-3 px-3.5 sticky left-0 bg-slate-800 font-sans uppercase tracking-wider text-xs">
                   TOTAL PROJECT EXPENDITURE
                 </td>
-                {pivotMatrix.projects.map((p) => {
+                {pivotMatrix.projects.map((p, idx) => {
                   const colTotal = pivotMatrix.columnTotals[p.PROJECT_CODE] || 0;
                   return (
-                    <td key={p.id} className="py-3 px-3 text-right font-black text-xs text-slate-100">
+                    <td key={`${p.id || p.PROJECT_CODE}-${idx}`} className="py-3 px-3 text-right font-black text-xs text-slate-100">
                       {colTotal.toLocaleString('en-LK', { minimumFractionDigits: 2 })}
                     </td>
                   );

@@ -43,6 +43,22 @@ import {
 } from '../data/pettyCashData';
 import { DataImportService, dataImportService, ValidationSummary } from '../services/dataImportService';
 import { useStaff } from './StaffContext';
+import {
+  getExpensesFromIndexedDB,
+  getIncomeFromIndexedDB,
+  saveExpensesToIndexedDB,
+  saveIncomeToIndexedDB,
+  saveSingleExpenseToIndexedDB,
+  deleteSingleExpenseFromIndexedDB,
+  saveSingleIncomeToIndexedDB,
+  deleteSingleIncomeFromIndexedDB,
+  clearExpensesFromIndexedDB,
+  clearIncomeFromIndexedDB,
+  clearAllPettyCashIndexedDB,
+  performSafePettyCashMigration,
+  safeSetLocalStorage,
+  subscribeStorageWarning
+} from '../services/pettyCashStorage';
 
 interface PivotMatrixRow {
   categoryId: string;
@@ -156,7 +172,7 @@ interface PettyCashContextType {
   addTransfer: (transfer: Omit<InternalTransfer, 'id' | 'TRANSFER_ID' | 'CREATED_DATE'>) => InternalTransfer;
   updateTransferStatus: (id: string, status: 'Completed' | 'Pending' | 'Cancelled') => void;
 
-  addSupervisor: (supervisor: Omit<Supervisor, 'id' | 'SUPERVISOR_ID' | 'CURRENT_BALANCE'>) => Supervisor;
+  addSupervisor: (supervisor: Omit<Supervisor, 'id' | 'SUPERVISOR_ID' | 'CURRENT_BALANCE'> & { SUPERVISOR_ID?: string }) => Supervisor;
   updateSupervisor: (id: string, updates: Partial<Supervisor>) => void;
   deleteSupervisor: (id: string) => void;
 
@@ -302,6 +318,7 @@ interface PettyCashContextType {
 
   // Reset and Clear actions
   resetPettyCashData: () => void;
+  resetToDefaultMasterData: () => void;
   clearExpensesHistory: (supervisorName?: string, projectCode?: string) => void;
   clearIncomeHistory: (supervisorName?: string) => void;
   clearTransfersHistory: () => void;
@@ -317,7 +334,13 @@ interface PettyCashContextType {
   bulkImportSupervisorsDirect: (imported: Partial<Supervisor>[]) => { count: number; batchId: string };
   bulkImportExpensesDirect: (imported: Partial<Expense>[]) => { count: number; batchId: string };
   bulkImportIncomeDirect: (imported: Partial<Income>[]) => { count: number; batchId: string };
+  bulkImportCategoriesDirect: (imported: Partial<ExpenseCategory>[], duplicateAction?: 'skip' | 'update' | 'append') => { count: number; batchId: string };
+  bulkImportCategories: (imported: Partial<ExpenseCategory>[], duplicateAction?: 'skip' | 'update' | 'append') => { count: number; batchId: string };
   formatLKR: (amount: number) => string;
+
+  // Storage and Fail-Safe Status
+  storageWarning: string | null;
+  dismissStorageWarning: () => void;
 }
 
 const STORAGE_KEYS = {
@@ -391,27 +414,129 @@ const migrateHistoricalIncome = (inc: any): Income => {
   };
 };
 
+export const sanitizeProjectsList = (rawList: any[]): Project[] => {
+  if (!Array.isArray(rawList)) return [];
+
+  const seenIds = new Set<string>();
+  const seenCodes = new Set<string>();
+  const sanitized: Project[] = [];
+
+  for (let i = 0; i < rawList.length; i++) {
+    const item = rawList[i];
+    if (!item || typeof item !== 'object') continue;
+
+    let code = String(item.PROJECT_CODE || item.CODE || '').trim().toUpperCase();
+    if (!code) {
+      code = `PRJ-${String(sanitized.length + 1).padStart(3, '0')}`;
+    }
+
+    let id = String(item.id || '').trim();
+
+    // Check if this project code has already been added to sanitized
+    const existingSameCodeIdx = sanitized.findIndex(p => p.PROJECT_CODE === code);
+    if (existingSameCodeIdx !== -1) {
+      const existingSameCode = sanitized[existingSameCodeIdx];
+      const sameId = id && existingSameCode.id === id;
+      const sameName = String(item.PROJECT_NAME || item.NAME || '').trim().toLowerCase() === existingSameCode.PROJECT_NAME.trim().toLowerCase();
+
+      if (sameId || sameName) {
+        // Merge non-empty fields into the existing record and skip the duplicate
+        if (!existingSameCode.CLIENT && (item.CLIENT || item.CLIENT_NAME)) {
+          existingSameCode.CLIENT = item.CLIENT || item.CLIENT_NAME;
+          existingSameCode.CLIENT_NAME = existingSameCode.CLIENT;
+        }
+        if (!existingSameCode.CONTRACT_VALUE && item.CONTRACT_VALUE) {
+          existingSameCode.CONTRACT_VALUE = Number(item.CONTRACT_VALUE) || 0;
+          existingSameCode.TOTAL_BUDGET = existingSameCode.CONTRACT_VALUE;
+          existingSameCode.BUDGET = existingSameCode.CONTRACT_VALUE;
+          existingSameCode.budget = existingSameCode.CONTRACT_VALUE;
+        }
+        if (!existingSameCode.BUDGET_PETTY_CASH && item.BUDGET_PETTY_CASH) {
+          existingSameCode.BUDGET_PETTY_CASH = Number(item.BUDGET_PETTY_CASH) || 0;
+        }
+        continue;
+      } else {
+        // Collision with different project name: give unique code
+        let suffix = 2;
+        let newCode = `${code}-${suffix}`;
+        while (seenCodes.has(newCode) || sanitized.some(p => p.PROJECT_CODE === newCode)) {
+          suffix++;
+          newCode = `${code}-${suffix}`;
+        }
+        code = newCode;
+      }
+    }
+
+    // Ensure ID is present and unique
+    if (!id || seenIds.has(id)) {
+      let suffix = 1;
+      let candidateId = id || `prj-${code.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+      while (seenIds.has(candidateId) || sanitized.some(p => p.id === candidateId)) {
+        candidateId = `${id || 'prj'}-${suffix}-${Math.random().toString(36).substring(2, 7)}`;
+        suffix++;
+      }
+      id = candidateId;
+    }
+
+    seenIds.add(id);
+    seenCodes.add(code);
+
+    const name = String(item.PROJECT_NAME || item.NAME || code).trim();
+    const client = String(item.CLIENT || item.CLIENT_NAME || 'Road Development Authority (RDA)').trim();
+    const location = String(item.LOCATION || 'Sri Lanka').trim();
+    const contractVal = Number(item.CONTRACT_VALUE ?? item.TOTAL_BUDGET ?? item.BUDGET ?? item.budget ?? 0) || 0;
+    const pettyCashBudget = Number(item.BUDGET_PETTY_CASH ?? item.PETTY_CASH_BUDGET ?? 0) || 0;
+    const pm = String(item.PROJECT_MANAGER || item.SUPERVISOR || '').trim();
+    const status = (item.STATUS as any) || 'Active';
+    const startDate = item.START_DATE ? String(item.START_DATE).trim() : new Date().toISOString().slice(0, 10);
+    const endDate = item.END_DATE ? String(item.END_DATE).trim() : '';
+    const remarks = String(item.REMARKS || item.DESCRIPTION || '').trim();
+
+    sanitized.push({
+      ...item,
+      id,
+      PROJECT_ID: item.PROJECT_ID || `PRJ-${String(sanitized.length + 1).padStart(3, '0')}`,
+      PROJECT_CODE: code,
+      CODE: code,
+      PROJECT_NAME: name,
+      NAME: name,
+      CLIENT: client,
+      CLIENT_NAME: client,
+      LOCATION: location,
+      CONTRACT_VALUE: contractVal,
+      TOTAL_BUDGET: contractVal,
+      BUDGET: contractVal,
+      budget: contractVal,
+      BUDGET_PETTY_CASH: pettyCashBudget,
+      STATUS: status,
+      START_DATE: startDate,
+      END_DATE: endDate,
+      PROJECT_MANAGER: pm,
+      REMARKS: remarks,
+      DESCRIPTION: remarks
+    });
+  }
+
+  return sanitized;
+};
+
 const PettyCashContext = createContext<PettyCashContextType | undefined>(undefined);
 
 export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { staffMembers, deleteStaffMember } = useStaff();
 
-  // State Initialization from LocalStorage or Defaults with Safe Migration
+  // State Initialization from LocalStorage (initial paint) and asynchronous IndexedDB hydration
   const [expenses, setExpenses] = useState<Expense[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.EXPENSES);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed.map(migrateHistoricalExpense);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(migrateHistoricalExpense);
       }
     } catch (e) {
       console.error('Error loading expenses from storage', e);
     }
-    const migrated = initialExpenses.map(migrateHistoricalExpense);
-    try {
-      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(migrated));
-    } catch {}
-    return migrated;
+    return initialExpenses.map(migrateHistoricalExpense);
   });
 
   const [income, setIncome] = useState<Income[]>(() => {
@@ -419,17 +544,67 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const saved = localStorage.getItem(STORAGE_KEYS.INCOME);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed.map(migrateHistoricalIncome);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(migrateHistoricalIncome);
       }
     } catch (e) {
       console.error('Error loading income from storage', e);
     }
-    const migrated = initialIncome.map(migrateHistoricalIncome);
-    try {
-      localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(migrated));
-    } catch {}
-    return migrated;
+    return initialIncome.map(migrateHistoricalIncome);
   });
+
+  // Storage Fail-Safe Warning State
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
+  const dismissStorageWarning = () => setStorageWarning(null);
+
+  // Subscribe to storage quota warnings
+  useEffect(() => {
+    return subscribeStorageWarning((msg) => {
+      setStorageWarning(msg);
+    });
+  }, []);
+
+  // Hydrate from IndexedDB and run safe migration from v1 localStorage
+  useEffect(() => {
+    let isMounted = true;
+    const hydrateAndMigrate = async () => {
+      try {
+        // Step 1: Perform safe migration (detects v1, extracts heavy base64, verifies data)
+        const migrationResult = await performSafePettyCashMigration();
+        if (migrationResult.errors.length > 0) {
+          console.warn('[PettyCash] Migration encountered warnings:', migrationResult.errors);
+        }
+
+        // Step 2: Load verified records from IndexedDB
+        const [dbExpenses, dbIncome] = await Promise.all([
+          getExpensesFromIndexedDB(),
+          getIncomeFromIndexedDB()
+        ]);
+
+        if (isMounted) {
+          if (dbExpenses && dbExpenses.length > 0) {
+            setExpenses(dbExpenses.map(migrateHistoricalExpense));
+          } else if (expenses.length > 0) {
+            // Seed IndexedDB with initial expenses
+            await saveExpensesToIndexedDB(expenses);
+          }
+
+          if (dbIncome && dbIncome.length > 0) {
+            setIncome(dbIncome.map(migrateHistoricalIncome));
+          } else if (income.length > 0) {
+            // Seed IndexedDB with initial income
+            await saveIncomeToIndexedDB(income);
+          }
+        }
+      } catch (err) {
+        console.error('[PettyCashContext] Failed to hydrate from IndexedDB:', err);
+      }
+    };
+
+    hydrateAndMigrate();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Step C: Petty Cash opening float allocations keyed by employeeId (with legacy aliases)
   const [allocations, setAllocations] = useState<Record<string, number>>(() => {
@@ -540,15 +715,20 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const saved = localStorage.getItem(STORAGE_KEYS.PROJECTS);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const sanitized = sanitizeProjectsList(parsed);
+          safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(sanitized));
+          return sanitized;
+        }
       }
     } catch (e) {
       console.error('Error loading projects from storage', e);
     }
+    const sanitizedInit = sanitizeProjectsList(initialProjects);
     try {
-      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(initialProjects));
+      safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(sanitizedInit));
     } catch {}
-    return initialProjects;
+    return sanitizedInit;
   });
 
   const [categories, setCategories] = useState<ExpenseCategory[]>(() => {
@@ -562,7 +742,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.error('Error loading categories from storage', e);
     }
     try {
-      localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(initialCategories));
+      safeSetLocalStorage(STORAGE_KEYS.CATEGORIES, JSON.stringify(initialCategories));
     } catch {}
     return initialCategories;
   });
@@ -578,7 +758,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.error('Error loading transfers from storage', e);
     }
     try {
-      localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(initialTransfers));
+      safeSetLocalStorage(STORAGE_KEYS.TRANSFERS, JSON.stringify(initialTransfers));
     } catch {}
     return initialTransfers;
   });
@@ -594,7 +774,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.error('Error loading import batches from storage', e);
     }
     try {
-      localStorage.setItem(STORAGE_KEYS.IMPORT_BATCHES, JSON.stringify(initialImportBatches));
+      safeSetLocalStorage(STORAGE_KEYS.IMPORT_BATCHES, JSON.stringify(initialImportBatches));
     } catch {}
     return initialImportBatches;
   });
@@ -610,7 +790,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.error('Error loading mapping templates from storage', e);
     }
     try {
-      localStorage.setItem(STORAGE_KEYS.MAPPING_TEMPLATES, JSON.stringify(initialMappingTemplates));
+      safeSetLocalStorage(STORAGE_KEYS.MAPPING_TEMPLATES, JSON.stringify(initialMappingTemplates));
     } catch {}
     return initialMappingTemplates;
   });
@@ -642,7 +822,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     } catch {}
     try {
-      localStorage.setItem(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(initialGoogleSheetsConfig));
+      safeSetLocalStorage(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(initialGoogleSheetsConfig));
     } catch {}
     return initialGoogleSheetsConfig;
   });
@@ -659,59 +839,66 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [filters, setFilters] = useState<PettyCashFilterState>(defaultFilters);
   const [isSyncingWithSheets, setIsSyncingWithSheets] = useState<boolean>(false);
 
-  // Persistence to LocalStorage
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses));
-  }, [expenses]);
+  // Step 8: Debounced Asynchronous Persistence to IndexedDB + Safe LocalStorage Fallback
+  // Persistence of small configuration & master data via safeSetLocalStorage
+  // (Expenses and Income are persisted exclusively via IndexedDB to avoid storage quota issues)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(income));
-  }, [income]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ALLOCATIONS, JSON.stringify(allocations));
+    safeSetLocalStorage(STORAGE_KEYS.ALLOCATIONS, JSON.stringify(allocations));
   }, [allocations]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SUPERVISORS, JSON.stringify(supervisors));
+    safeSetLocalStorage(STORAGE_KEYS.SUPERVISORS, JSON.stringify(supervisors));
   }, [supervisors]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
+    safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
   }, [projects]);
 
+  // Proactive self-healing mount effect to eliminate any existing duplicate projects in localStorage
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
+    setProjects(prev => {
+      const sanitized = sanitizeProjectsList(prev);
+      if (sanitized.length !== prev.length || sanitized.some((p, i) => p.id !== prev[i]?.id)) {
+        safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(sanitized));
+        return sanitized;
+      }
+      return prev;
+    });
+  }, []);
+
+  useEffect(() => {
+    safeSetLocalStorage(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
   }, [categories]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(transfers));
+    safeSetLocalStorage(STORAGE_KEYS.TRANSFERS, JSON.stringify(transfers));
   }, [transfers]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.IMPORT_BATCHES, JSON.stringify(importBatches));
+    safeSetLocalStorage(STORAGE_KEYS.IMPORT_BATCHES, JSON.stringify(importBatches));
   }, [importBatches]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.MAPPING_TEMPLATES, JSON.stringify(mappingTemplates));
+    safeSetLocalStorage(STORAGE_KEYS.MAPPING_TEMPLATES, JSON.stringify(mappingTemplates));
   }, [mappingTemplates]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(sheetsConfig));
+    safeSetLocalStorage(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(sheetsConfig));
   }, [sheetsConfig]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ACKNOWLEDGED_ALERTS, JSON.stringify(acknowledgedAlertIds));
+    safeSetLocalStorage(STORAGE_KEYS.ACKNOWLEDGED_ALERTS, JSON.stringify(acknowledgedAlertIds));
   }, [acknowledgedAlertIds]);
 
   const setUserRole = (role: PettyCashUserRole) => {
     setUserRoleState(role);
-    localStorage.setItem(STORAGE_KEYS.USER_ROLE, role);
+    safeSetLocalStorage(STORAGE_KEYS.USER_ROLE, role);
   };
 
   const setCurrentSupervisorName = (name: string) => {
     setCurrentSupervisorNameState(name);
-    localStorage.setItem(STORAGE_KEYS.CURRENT_SUPERVISOR, name);
+    safeSetLocalStorage(STORAGE_KEYS.CURRENT_SUPERVISOR, name);
   };
 
   const resetFilters = () => {
@@ -1681,10 +1868,12 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     setExpenses(prev => [newExpense, ...prev]);
+    saveSingleExpenseToIndexedDB(newExpense);
     return newExpense;
   };
 
   const updateExpense = (id: string, updates: Partial<Expense>) => {
+    let updatedRecord: Expense | null = null;
     setExpenses(prev =>
       prev.map(exp => {
         if (exp.id !== id) return exp;
@@ -1698,20 +1887,26 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           if (updates.grossAmount === undefined) updated.grossAmount = calc.grossAmount;
           updated.vatApplicable = calc.vatApplicable;
         }
+        updatedRecord = updated;
         return updated;
       })
     );
+    if (updatedRecord) {
+      saveSingleExpenseToIndexedDB(updatedRecord);
+    }
   };
 
   const deleteExpense = (id: string) => {
     setExpenses(prev => prev.filter(exp => exp.id !== id));
+    deleteSingleExpenseFromIndexedDB(id);
   };
 
   const updateExpenseStatus = (id: string, status: PaymentStatus, remarks?: string, approverName?: string) => {
+    let updatedRecord: Expense | null = null;
     setExpenses(prev =>
       prev.map(exp => {
         if (exp.id === id) {
-          return {
+          const updated: Expense = {
             ...exp,
             PAYMENT_STATUS: status,
             APPROVED_BY: status === 'Approved' || status === 'Paid' ? (approverName || 'finance@company.com') : exp.APPROVED_BY,
@@ -1720,10 +1915,15 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             REJECTION_REASON: status === 'Rejected' ? remarks : exp.REJECTION_REASON,
             UPDATED_DATE: new Date().toLocaleString('en-GB')
           };
+          updatedRecord = updated;
+          return updated;
         }
         return exp;
       })
     );
+    if (updatedRecord) {
+      saveSingleExpenseToIndexedDB(updatedRecord);
+    }
   };
 
   const approveExpense = (id: string, remarks?: string, approverName?: string) => {
@@ -1785,10 +1985,12 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     setIncome(prev => [newInc, ...prev]);
+    saveSingleIncomeToIndexedDB(newInc);
     return newInc;
   };
 
   const updateIncome = (id: string, updates: Partial<Income>) => {
+    let updatedRecord: Income | null = null;
     setIncome(prev => prev.map(inc => {
       if (inc.id !== id) return inc;
       const updated: Income = { ...inc, ...updates, UPDATED_DATE: new Date().toLocaleString('en-GB') };
@@ -1804,12 +2006,17 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (updated.grossAmount !== undefined && updated.amountReceived !== undefined) {
         updated.balanceDue = round2(Math.max(0, updated.grossAmount - updated.amountReceived));
       }
+      updatedRecord = updated;
       return updated;
     }));
+    if (updatedRecord) {
+      saveSingleIncomeToIndexedDB(updatedRecord);
+    }
   };
 
   const deleteIncome = (id: string) => {
     setIncome(prev => prev.filter(inc => inc.id !== id));
+    deleteSingleIncomeFromIndexedDB(id);
   };
 
   const addTransfer = (newTrfData: Omit<InternalTransfer, 'id' | 'TRANSFER_ID' | 'CREATED_DATE'>): InternalTransfer => {
@@ -1834,14 +2041,14 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setTransfers(prev => prev.map(trf => (trf.id === id ? { ...trf, STATUS: status } : trf)));
   };
 
-  const addSupervisor = (sup: Omit<Supervisor, 'id' | 'SUPERVISOR_ID' | 'CURRENT_BALANCE'>): Supervisor => {
+  const addSupervisor = (sup: Omit<Supervisor, 'id' | 'SUPERVISOR_ID' | 'CURRENT_BALANCE'> & { SUPERVISOR_ID?: string }): Supervisor => {
     const newId = `sup-${Date.now().toString(36)}`;
     const seq = String(supervisors.length + 1).padStart(3, '0');
     const opening = Number(sup.OPENING_PETTY_CASH) || 0;
     const newSupervisor: Supervisor = {
       ...sup,
       id: newId,
-      SUPERVISOR_ID: `SUP-${seq}`,
+      SUPERVISOR_ID: sup.SUPERVISOR_ID || `SUP-${seq}`,
       CURRENT_BALANCE: opening
     };
     if (opening > 0) {
@@ -1891,14 +2098,79 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const addProject = (prj: Omit<Project, 'id' | 'PROJECT_ID'>): Project => {
-    const newId = `prj-${Date.now().toString(36)}`;
+    const code = String(prj.PROJECT_CODE || (prj as any).CODE || '').trim().toUpperCase();
+    const contractVal = (prj.CONTRACT_VALUE !== undefined && prj.CONTRACT_VALUE !== null)
+      ? Number(prj.CONTRACT_VALUE)
+      : Number((prj as any).TOTAL_BUDGET ?? prj.BUDGET ?? prj.budget ?? 0);
+    const pettyCashBudget = (prj.BUDGET_PETTY_CASH !== undefined && prj.BUDGET_PETTY_CASH !== null)
+      ? Number(prj.BUDGET_PETTY_CASH)
+      : Number((prj as any).PETTY_CASH_BUDGET ?? 0);
+
+    const existingIdx = projects.findIndex(p => p.PROJECT_CODE.trim().toUpperCase() === code);
+    if (existingIdx !== -1 && code) {
+      const existing = projects[existingIdx];
+      const updated: Project = {
+        ...existing,
+        ...prj,
+        PROJECT_CODE: code,
+        CODE: code,
+        PROJECT_NAME: prj.PROJECT_NAME || (prj as any).NAME || existing.PROJECT_NAME,
+        NAME: prj.PROJECT_NAME || (prj as any).NAME || existing.PROJECT_NAME,
+        CLIENT: prj.CLIENT || (prj as any).CLIENT_NAME || existing.CLIENT,
+        CLIENT_NAME: prj.CLIENT || (prj as any).CLIENT_NAME || existing.CLIENT,
+        LOCATION: prj.LOCATION || existing.LOCATION,
+        CONTRACT_VALUE: contractVal || existing.CONTRACT_VALUE,
+        TOTAL_BUDGET: contractVal || existing.TOTAL_BUDGET,
+        BUDGET: contractVal || existing.BUDGET,
+        budget: contractVal || existing.budget,
+        BUDGET_PETTY_CASH: pettyCashBudget || existing.BUDGET_PETTY_CASH,
+        START_DATE: prj.START_DATE || existing.START_DATE,
+        END_DATE: prj.END_DATE || existing.END_DATE,
+        STATUS: prj.STATUS || existing.STATUS,
+        PROJECT_MANAGER: prj.PROJECT_MANAGER || (prj as any).SUPERVISOR || existing.PROJECT_MANAGER,
+        REMARKS: prj.REMARKS || (prj as any).DESCRIPTION || existing.REMARKS,
+        DESCRIPTION: prj.REMARKS || (prj as any).DESCRIPTION || existing.DESCRIPTION
+      };
+      setProjects(prev => {
+        const next = [...prev];
+        const idx = next.findIndex(p => p.id === existing.id);
+        if (idx !== -1) next[idx] = updated;
+        safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(next));
+        return next;
+      });
+      return updated;
+    }
+
+    const newId = `prj-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
     const seq = String(projects.length + 1).padStart(3, '0');
     const newPrj: Project = {
       ...prj,
       id: newId,
-      PROJECT_ID: `PRJ-${seq}`
+      PROJECT_ID: `PRJ-${seq}`,
+      PROJECT_CODE: code,
+      CODE: code,
+      PROJECT_NAME: prj.PROJECT_NAME || (prj as any).NAME || code,
+      NAME: prj.PROJECT_NAME || (prj as any).NAME || code,
+      CLIENT: prj.CLIENT || (prj as any).CLIENT_NAME || 'Road Development Authority (RDA)',
+      CLIENT_NAME: prj.CLIENT || (prj as any).CLIENT_NAME || 'Road Development Authority (RDA)',
+      LOCATION: prj.LOCATION || 'Sri Lanka',
+      CONTRACT_VALUE: contractVal,
+      TOTAL_BUDGET: contractVal,
+      BUDGET: contractVal,
+      budget: contractVal,
+      BUDGET_PETTY_CASH: pettyCashBudget,
+      START_DATE: prj.START_DATE || new Date().toISOString().slice(0, 10),
+      END_DATE: prj.END_DATE || '',
+      STATUS: prj.STATUS || 'Active',
+      PROJECT_MANAGER: prj.PROJECT_MANAGER || (prj as any).SUPERVISOR || 'Site Resident Engineer',
+      REMARKS: prj.REMARKS || (prj as any).DESCRIPTION || '',
+      DESCRIPTION: prj.REMARKS || (prj as any).DESCRIPTION || ''
     };
-    setProjects(prev => [...prev, newPrj]);
+    setProjects(prev => {
+      const next = [...prev, newPrj];
+      safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(next));
+      return next;
+    });
     return newPrj;
   };
 
@@ -2144,16 +2416,13 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const resetPettyCashData = () => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(initialExpenses));
-      localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(initialIncome));
-      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(initialProjects));
-      localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(initialCategories));
-      localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(initialTransfers));
-      localStorage.setItem(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(initialGoogleSheetsConfig));
-    } catch (e) {
-      console.error('Failed to reset petty cash data in storage', e);
-    }
+    saveExpensesToIndexedDB(initialExpenses).catch(console.error);
+    saveIncomeToIndexedDB(initialIncome).catch(console.error);
+    safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(initialProjects));
+    safeSetLocalStorage(STORAGE_KEYS.CATEGORIES, JSON.stringify(initialCategories));
+    safeSetLocalStorage(STORAGE_KEYS.TRANSFERS, JSON.stringify(initialTransfers));
+    safeSetLocalStorage(STORAGE_KEYS.SHEETS_CONFIG, JSON.stringify(initialGoogleSheetsConfig));
+
     setExpenses(initialExpenses);
     setIncome(initialIncome);
     const initialMap: Record<string, number> = {};
@@ -2166,9 +2435,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (s.id) initialMap[s.id] = opening;
     });
     setAllocations(initialMap);
-    try {
-      localStorage.setItem(STORAGE_KEYS.ALLOCATIONS, JSON.stringify(initialMap));
-    } catch {}
+    safeSetLocalStorage(STORAGE_KEYS.ALLOCATIONS, JSON.stringify(initialMap));
     setProjects(initialProjects);
     setCategories(initialCategories);
     setTransfers(initialTransfers);
@@ -2186,15 +2453,11 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           if (projectCode && e.PROJECT === projectCode) return false;
           return true;
         });
-        try {
-          localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(next));
-        } catch {}
+        saveExpensesToIndexedDB(next).catch(console.error);
         return next;
       });
     } else {
-      try {
-        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
-      } catch {}
+      clearExpensesFromIndexedDB().catch(console.error);
       setExpenses([]);
     }
   };
@@ -2203,30 +2466,22 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (supervisorName) {
       setIncome(prev => {
         const next = prev.filter(i => i.SUPERVISOR_NAME !== supervisorName);
-        try {
-          localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(next));
-        } catch {}
+        saveIncomeToIndexedDB(next).catch(console.error);
         return next;
       });
     } else {
-      try {
-        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify([]));
-      } catch {}
+      clearIncomeFromIndexedDB().catch(console.error);
       setIncome([]);
     }
   };
 
   const clearTransfersHistory = () => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify([]));
-    } catch {}
+    safeSetLocalStorage(STORAGE_KEYS.TRANSFERS, JSON.stringify([]));
     setTransfers([]);
   };
 
   const clearSupervisorsDirectory = () => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.ALLOCATIONS, JSON.stringify({}));
-    } catch {}
+    safeSetLocalStorage(STORAGE_KEYS.ALLOCATIONS, JSON.stringify({}));
     setAllocations({});
   };
 
@@ -2234,15 +2489,11 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (projectCode) {
       setProjects(prev => {
         const next = prev.filter(p => p.PROJECT_CODE !== projectCode && p.id !== projectCode);
-        try {
-          localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(next));
-        } catch {}
+        safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(next));
         return next;
       });
     } else {
-      try {
-        localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify([]));
-      } catch {}
+      safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify([]));
       setProjects([]);
     }
   };
@@ -2254,9 +2505,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (projectCode && (i.PROJECT !== projectCode && i.PROJECT_CODE !== projectCode)) return true;
         return false;
       });
-      try {
-        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(next));
-      } catch {}
+      saveIncomeToIndexedDB(next).catch(console.error);
       return next;
     });
   };
@@ -2278,26 +2527,19 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           PROOF_DOCUMENT_NAME: undefined
         };
       });
-      try {
-        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(next));
-      } catch {}
+      saveIncomeToIndexedDB(next).catch(console.error);
       return next;
     });
   };
 
   const clearCategoriesHistory = () => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify([]));
-    } catch {}
+    safeSetLocalStorage(STORAGE_KEYS.CATEGORIES, JSON.stringify([]));
     setCategories([]);
   };
 
   const clearAllPettyCashHistory = () => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
-      localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify([]));
-      localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify([]));
-    } catch {}
+    clearAllPettyCashIndexedDB().catch(console.error);
+    safeSetLocalStorage(STORAGE_KEYS.TRANSFERS, JSON.stringify([]));
     setExpenses([]);
     setIncome([]);
     setTransfers([]);
@@ -2475,6 +2717,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
 
     setProjects(result.updatedProjects);
+    safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(result.updatedProjects));
     setImportBatches(prev => [result.batchRecord, ...prev]);
 
     return {
@@ -2703,18 +2946,46 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Direct Bulk Import Implementations
   const bulkImportProjectsDirect = (imported: Partial<Project>[]): { count: number; batchId: string } => {
     const batchId = `BATCH-PRJ-${Date.now().toString().slice(-6)}`;
-    const newItems: Project[] = imported.map((p, i) => ({
-      id: p.id || `proj-imp-${Date.now()}-${i}`,
-      PROJECT_ID: p.PROJECT_ID || `PRJ-${String(projects.length + i + 1).padStart(3, '0')}`,
-      PROJECT_CODE: (p.PROJECT_CODE || (p as any).CODE || `PRJ-${String(projects.length + i + 1).padStart(3, '0')}`).toUpperCase().trim(),
-      PROJECT_NAME: p.PROJECT_NAME || (p as any).NAME || 'Construction Project',
-      LOCATION: p.LOCATION || 'Site Location',
-      CONTRACT_VALUE: Number(p.CONTRACT_VALUE || (p as any).TOTAL_BUDGET) || 10000000,
-      BUDGET_PETTY_CASH: Number(p.BUDGET_PETTY_CASH || (p as any).TOTAL_BUDGET) || 1000000,
-      STATUS: (p.STATUS as any) || 'Active',
-      START_DATE: p.START_DATE || new Date().toISOString().slice(0, 10),
-      END_DATE: p.END_DATE
-    }));
+    const newItems: Project[] = imported.map((p, i) => {
+      const code = (p.PROJECT_CODE || (p as any).CODE || `PRJ-${String(projects.length + i + 1).padStart(3, '0')}`).toUpperCase().trim();
+      const name = p.PROJECT_NAME || (p as any).NAME || code;
+      const client = p.CLIENT || (p as any).CLIENT_NAME || 'Road Development Authority (RDA)';
+      const location = p.LOCATION || 'Sri Lanka';
+      const contractVal = (p.CONTRACT_VALUE !== undefined && p.CONTRACT_VALUE !== null)
+        ? Number(p.CONTRACT_VALUE)
+        : Number((p as any).TOTAL_BUDGET ?? p.BUDGET ?? p.budget ?? 0);
+      const pettyCashBudget = (p.BUDGET_PETTY_CASH !== undefined && p.BUDGET_PETTY_CASH !== null)
+        ? Number(p.BUDGET_PETTY_CASH)
+        : Number((p as any).PETTY_CASH_BUDGET ?? 0);
+      const pm = p.PROJECT_MANAGER || (p as any).SUPERVISOR || 'Site Resident Engineer';
+      const startDate = p.START_DATE || new Date().toISOString().slice(0, 10);
+      const endDate = p.END_DATE || '';
+      const status = (p.STATUS as any) || 'Active';
+      const remarks = p.REMARKS || (p as any).DESCRIPTION || '';
+
+      return {
+        id: p.id || `proj-imp-${Date.now()}-${i}`,
+        PROJECT_ID: p.PROJECT_ID || `PRJ-${String(projects.length + i + 1).padStart(3, '0')}`,
+        PROJECT_CODE: code,
+        CODE: code,
+        PROJECT_NAME: name,
+        NAME: name,
+        CLIENT: client,
+        CLIENT_NAME: client,
+        LOCATION: location,
+        CONTRACT_VALUE: contractVal,
+        TOTAL_BUDGET: contractVal,
+        BUDGET: contractVal,
+        budget: contractVal,
+        BUDGET_PETTY_CASH: pettyCashBudget,
+        PROJECT_MANAGER: pm,
+        STATUS: status,
+        START_DATE: startDate,
+        END_DATE: endDate,
+        REMARKS: remarks,
+        DESCRIPTION: remarks
+      };
+    });
 
     setProjects(prev => {
       const merged = [...prev];
@@ -2726,9 +2997,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           merged.push(newItem);
         }
       });
-      try {
-        localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(merged));
-      } catch {}
+      safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(merged));
       return merged;
     });
 
@@ -2747,9 +3016,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (supId) next[supId] = opening;
         if (s.id) next[s.id] = opening;
       });
-      try {
-        localStorage.setItem(STORAGE_KEYS.ALLOCATIONS, JSON.stringify(next));
-      } catch {}
+      safeSetLocalStorage(STORAGE_KEYS.ALLOCATIONS, JSON.stringify(next));
       return next;
     });
 
@@ -2780,9 +3047,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setExpenses(prev => {
       const merged = [...newItems, ...prev];
-      try {
-        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(merged));
-      } catch {}
+      saveExpensesToIndexedDB(merged).catch(console.error);
       return merged;
     });
     return { count: newItems.length, batchId };
@@ -2810,13 +3075,70 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setIncome(prev => {
       const merged = [...newItems, ...prev];
-      try {
-        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(merged));
-      } catch {}
+      saveIncomeToIndexedDB(merged).catch(console.error);
       return merged;
     });
     return { count: newItems.length, batchId };
   };
+
+  const bulkImportCategoriesDirect = (
+    imported: Partial<ExpenseCategory>[],
+    duplicateAction: 'skip' | 'update' | 'append' = 'update'
+  ): { count: number; batchId: string } => {
+    const batchId = `BATCH-CAT-${Date.now().toString().slice(-6)}`;
+    let count = 0;
+    setCategories(prev => {
+      let next = [...prev];
+      imported.forEach((c, i) => {
+        const rawCode = String(c.CATEGORY_CODE || '').trim();
+        if (!rawCode) return;
+        const code = rawCode;
+        let name = (c.CATEGORY_NAME || '').trim();
+        if (!name) name = `${code} Category`;
+        const formattedName = name.startsWith(code) ? name : `${code} ${name}`;
+        const group = (c.CATEGORY_GROUP as any) || 'Direct Project Cost';
+        const desc = c.DESCRIPTION || c.REMARKS || '';
+        const active = c.ACTIVE !== false;
+
+        const existingIndex = next.findIndex(item => item.CATEGORY_CODE.toLowerCase() === code.toLowerCase());
+        if (existingIndex >= 0) {
+          if (duplicateAction === 'skip') {
+            return;
+          } else if (duplicateAction === 'update') {
+            next[existingIndex] = {
+              ...next[existingIndex],
+              CATEGORY_NAME: formattedName,
+              CATEGORY_GROUP: group,
+              DESCRIPTION: desc || next[existingIndex].DESCRIPTION,
+              REMARKS: desc || next[existingIndex].REMARKS,
+              ACTIVE: active
+            };
+            count++;
+            return;
+          }
+        }
+
+        const newId = `cat-${Date.now().toString(36)}-${i}-${Math.random().toString(36).substring(2, 6)}`;
+        next.push({
+          id: newId,
+          CATEGORY_ID: `CAT-${code}`,
+          CATEGORY_CODE: code,
+          CATEGORY_NAME: formattedName,
+          CATEGORY_GROUP: group,
+          DESCRIPTION: desc || undefined,
+          REMARKS: desc || undefined,
+          ACTIVE: active
+        });
+        count++;
+      });
+      safeSetLocalStorage(STORAGE_KEYS.CATEGORIES, JSON.stringify(next));
+      return next;
+    });
+
+    return { count, batchId };
+  };
+
+  const bulkImportCategories = bulkImportCategoriesDirect;
 
   return (
     <PettyCashContext.Provider
@@ -2895,6 +3217,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         checkBudgetImpact,
         getSupervisorBudgetAlerts,
         resetPettyCashData,
+        resetToDefaultMasterData: resetPettyCashData,
         clearExpensesHistory,
         clearIncomeHistory,
         clearTransfersHistory,
@@ -2908,7 +3231,11 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         bulkImportSupervisorsDirect,
         bulkImportExpensesDirect,
         bulkImportIncomeDirect,
-        formatLKR
+        bulkImportCategoriesDirect,
+        bulkImportCategories,
+        formatLKR,
+        storageWarning,
+        dismissStorageWarning
       }}
     >
       {children}

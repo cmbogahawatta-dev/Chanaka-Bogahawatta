@@ -522,8 +522,8 @@ export const CreateDSRModal: React.FC<CreateDSRModalProps> = ({
                       onChange={e => handleProjectSelect(e.target.value)}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-purple-500"
                     >
-                      {projects.map(p => (
-                        <option key={p.id} value={p.PROJECT_CODE}>
+                      {projects.map((p, idx) => (
+                        <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>
                           {p.PROJECT_CODE} - {p.PROJECT_NAME}
                         </option>
                       ))}

@@ -192,8 +192,8 @@ export const PRVListView: React.FC = () => {
               className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-300 focus:border-purple-500 focus:outline-none text-xs"
             >
               <option value="ALL">All Projects</option>
-              {projects.map(p => (
-                <option key={p.id} value={p.PROJECT_CODE}>{p.PROJECT_CODE} - {p.PROJECT_NAME}</option>
+              {projects.map((p, idx) => (
+                <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>{p.PROJECT_CODE} - {p.PROJECT_NAME}</option>
               ))}
             </select>
           </div>

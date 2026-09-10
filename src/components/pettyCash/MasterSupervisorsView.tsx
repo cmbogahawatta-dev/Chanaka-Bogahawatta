@@ -332,6 +332,7 @@ export const MasterSupervisorsView: React.FC = () => {
                 PROJECT_CODE: row.PROJECT_CODE || 'ALL',
                 PROJECT_NAME: row.PROJECT_NAME || 'Road Project Package',
                 OPENING_PETTY_CASH: Number(row.OPENING_PETTY_CASH) || 0,
+                ACTIVE: true,
                 STATUS: 'Active',
                 IS_SITE_SUPERVISOR: true
               });

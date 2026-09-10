@@ -18,34 +18,42 @@ import { Letter, LetterVersion, LetterheadTemplate } from '../../types/correspon
 
 interface CorrespondenceFinalDocumentPanelProps {
   letter: Letter;
-  versions: LetterVersion[];
+  versions?: LetterVersion[];
   letterhead?: LetterheadTemplate | null;
-  onEditGoogleDocs: () => void;
-  onDownloadWord: () => void;
-  onImportWord: (file: File) => void;
-  onPreviewPdf: () => void;
-  onCompareVersions: () => void;
-  onFinalizeLetter: () => void;
+  onEditGoogleDocs?: () => void;
+  onOpenGoogleDocs?: () => void;
+  onDownloadWord?: () => void | Promise<void>;
+  onImportWord?: (file: File) => void;
+  onPreviewPdf?: () => void;
+  onCompareVersions?: () => void;
+  onFinalizeLetter?: () => void;
+  onOpenFinalize?: () => void;
+  onCreateRevision?: () => void;
   isImportingWord?: boolean;
 }
 
 export const CorrespondenceFinalDocumentPanel: React.FC<CorrespondenceFinalDocumentPanelProps> = ({
   letter,
-  versions,
+  versions = [],
   letterhead,
   onEditGoogleDocs,
+  onOpenGoogleDocs,
   onDownloadWord,
   onImportWord,
   onPreviewPdf,
   onCompareVersions,
   onFinalizeLetter,
+  onOpenFinalize,
+  onCreateRevision,
   isImportingWord
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleEditGoogleDocs = onOpenGoogleDocs || onEditGoogleDocs;
+  const handleFinalize = onOpenFinalize || onFinalizeLetter;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (file && onImportWord) {
       onImportWord(file);
       e.target.value = '';
     }
@@ -134,7 +142,7 @@ export const CorrespondenceFinalDocumentPanel: React.FC<CorrespondenceFinalDocum
           {/* Google Docs Button */}
           <button
             type="button"
-            onClick={onEditGoogleDocs}
+            onClick={handleEditGoogleDocs}
             className="flex items-center justify-between px-3 py-2 bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition-colors group"
           >
             <span className="flex items-center gap-2">
@@ -216,7 +224,7 @@ export const CorrespondenceFinalDocumentPanel: React.FC<CorrespondenceFinalDocum
         {!isFinalized ? (
           <button
             type="button"
-            onClick={onFinalizeLetter}
+            onClick={handleFinalize}
             className="flex items-center gap-2 px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-colors shadow-lg shadow-amber-600/20"
           >
             <Lock className="w-3.5 h-3.5" />

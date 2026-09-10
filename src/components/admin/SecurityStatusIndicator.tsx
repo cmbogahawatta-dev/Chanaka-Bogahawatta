@@ -354,7 +354,7 @@ export const SecurityStatusIndicator: React.FC = () => {
             <span>Last Changed:</span>
           </span>
           <span className="font-mono text-[11px] text-slate-300">
-            {formatDate(securityStatus.lastChangedAt)}
+            {formatDate(securityStatus.lastChanged)}
           </span>
         </div>
 

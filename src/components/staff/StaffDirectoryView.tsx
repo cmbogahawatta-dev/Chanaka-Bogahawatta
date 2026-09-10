@@ -555,8 +555,8 @@ export const StaffDirectoryView: React.FC = () => {
             >
               <option value="ALL">All Project Sites & HQ</option>
               <option value="HEAD_OFFICE">Corporate Head Office</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.PROJECT_CODE}>
+              {projects.map((p, idx) => (
+                <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>
                   {p.PROJECT_CODE} ({p.PROJECT_NAME})
                 </option>
               ))}

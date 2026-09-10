@@ -20,6 +20,8 @@ import { useEnterprise } from '../../context/EnterpriseContext';
 import { Expense, PaymentStatus } from '../../types/pettyCashTypes';
 import { AddExpenseModal } from './AddExpenseModal';
 import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
+import { ProofImage } from '../common/ProofImage';
+import { resolveProofDocument } from '../../services/pettyCashStorage';
 
 interface ExpenseDetailModalProps {
   expense: Expense | null;
@@ -167,7 +169,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             <span className="text-xs font-bold text-slate-300 block mb-2">Proof Document / Receipt</span>
             {expense.PROOF_DOCUMENT ? (
               <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950 p-2">
-                <img
+                <ProofImage
                   src={expense.PROOF_DOCUMENT}
                   alt="Receipt attachment"
                   className="max-h-56 w-full object-contain rounded-lg bg-black/40"
@@ -176,15 +178,23 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                   <span className="text-xs text-slate-400 truncate max-w-xs">
                     {expense.PROOF_DOCUMENT_NAME || 'Attached Receipt Voucher'}
                   </span>
-                  <a
-                    href={expense.PROOF_DOCUMENT}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!expense.PROOF_DOCUMENT) return;
+                      const resolved = await resolveProofDocument(expense.PROOF_DOCUMENT);
+                      if (resolved) {
+                        const win = window.open();
+                        if (win) {
+                          win.document.write(`<img src="${resolved}" style="max-width:100%;height:auto;" />`);
+                        }
+                      }
+                    }}
+                    className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer"
                   >
                     <span>Open Fullscreen</span>
                     <ExternalLink className="w-3 h-3" />
-                  </a>
+                  </button>
                 </div>
               </div>
             ) : (

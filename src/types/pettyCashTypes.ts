@@ -180,7 +180,7 @@ export interface Supervisor {
   PHONE: string;
   TELEPHONE?: string;
   EMAIL: string;
-  ACTIVE: boolean;
+  ACTIVE?: boolean;
   OPENING_PETTY_CASH: number; // LKR
   CURRENT_BALANCE: number; // Calculated dynamic balance
   REMARKS?: string;
@@ -196,6 +196,9 @@ export interface Supervisor {
   role?: string;
   department?: string;
   designation?: string;
+  DESIGNATION?: string;
+  STATUS?: string;
+  IS_SITE_SUPERVISOR?: boolean;
 
   // Historical Import Metadata
   DATA_SOURCE?: 'HISTORICAL_IMPORT' | 'SYSTEM_ORIGINAL' | string;
@@ -209,6 +212,7 @@ export interface Project {
   id: string;
   PROJECT_ID: string; // e.g. "PRJ-001"
   PROJECT_CODE: string; // e.g. "PIDM 26"
+  CODE?: string; // Alias for PROJECT_CODE
   PROJECT_NAME: string;
   NAME?: string;
   DESCRIPTION?: string;
@@ -323,7 +327,7 @@ export interface ExpenseCategory {
   CATEGORY_NAME: string; // e.g. "5000 Construction Materials"
   CATEGORY_GROUP: 'Direct Project Cost' | 'Site Overheads' | 'Admin & Head Office' | 'Special / Non-Project' | (string & {});
   DESCRIPTION?: string;
-  ACTIVE: boolean;
+  ACTIVE?: boolean;
   REMARKS?: string;
 }
 
@@ -393,7 +397,8 @@ export type ImportType =
   | 'PROJECT_DIRECTORY' 
   | 'SUPERVISOR_DIRECTORY'
   | 'HISTORICAL_INCOME'
-  | 'PROJECT_INVOICES';
+  | 'PROJECT_INVOICES'
+  | 'CATEGORY_DIRECTORY';
 
 export type DuplicateAction = 'SKIP' | 'UPDATE' | 'IMPORT_AS_NEW' | 'CREATE_NEW' | 'CANCEL';
 

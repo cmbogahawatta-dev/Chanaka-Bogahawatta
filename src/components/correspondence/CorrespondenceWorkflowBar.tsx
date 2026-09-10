@@ -10,12 +10,14 @@ import {
   Send,
   ArrowRight
 } from 'lucide-react';
-import { LetterStatus } from '../../types/correspondenceTypes';
+import { LetterStatus, Letter } from '../../types/correspondenceTypes';
 
 interface CorrespondenceWorkflowBarProps {
-  status: LetterStatus;
+  status?: LetterStatus;
+  letter?: Letter;
   isLocked?: boolean;
   onSelectStep?: (stepName: string) => void;
+  onAdvanceStatus?: (letterId: string, newStatus: any) => void;
 }
 
 interface WorkflowStep {
@@ -28,9 +30,13 @@ interface WorkflowStep {
 }
 
 export const CorrespondenceWorkflowBar: React.FC<CorrespondenceWorkflowBarProps> = ({
-  status,
-  isLocked
+  status: propStatus,
+  letter,
+  isLocked,
+  onSelectStep,
+  onAdvanceStatus
 }) => {
+  const status = letter?.status || propStatus || 'Draft';
   const steps: WorkflowStep[] = [
     {
       id: 'DRAFT',

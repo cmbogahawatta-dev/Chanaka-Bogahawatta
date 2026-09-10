@@ -31,6 +31,7 @@ export type DirectoryImportType =
   | 'STAFF'
   | 'PROJECTS'
   | 'SUPERVISORS'
+  | 'CATEGORIES'
   | 'EXPENSES'
   | 'INCOME'
   | 'PRV'
@@ -141,22 +142,150 @@ export const DIRECTORY_CONFIGS: Record<DirectoryImportType, DirectoryConfig> = {
 
   PROJECTS: {
     title: 'Bulk Import Projects Registry',
-    description: 'Import master construction projects, contracts, locations, and milestones.',
+    description: 'Import master construction projects, contracts, locations, petty cash allowances, and milestones.',
     directoryName: 'Master Projects Registry',
     iconColor: 'text-amber-600',
     fields: [
-      { key: 'CODE', label: 'Project Code *', required: true, type: 'string', aliases: ['project_code', 'code', 'proj_id'], description: 'Unique project code (e.g. PIDM 26)', sampleValue: 'PIDM 26' },
-      { key: 'NAME', label: 'Project Name *', required: true, type: 'string', aliases: ['project_name', 'name', 'title'], description: 'Official project title', sampleValue: 'Kandy - Colombo Expressway Section 2' },
-      { key: 'LOCATION', label: 'Location / Site', required: false, type: 'string', aliases: ['site_location', 'address', 'city'], description: 'Project geographic site location', sampleValue: 'Mirigama to Kurunegala' },
-      { key: 'SUPERVISOR', label: 'Primary Supervisor', required: false, type: 'string', aliases: ['lead_supervisor', 'manager', 'pic'], description: 'Assigned supervisor name', sampleValue: 'BUDDIKA' },
-      { key: 'TOTAL_BUDGET', label: 'Contract Budget (LKR)', required: false, type: 'number', aliases: ['budget', 'contract_value', 'value'], description: 'Total allocated budget in LKR', sampleValue: 85000000 },
-      { key: 'STATUS', label: 'Project Status', required: false, type: 'string', aliases: ['state'], description: 'Active, Planning, Completed, On Hold', sampleValue: 'Active' },
-      { key: 'START_DATE', label: 'Start Date', required: false, type: 'date', aliases: ['commence_date'], description: 'Project commencement date (YYYY-MM-DD)', sampleValue: '2026-01-15' }
+      {
+        key: 'PROJECT_CODE',
+        label: 'Project Code *',
+        required: true,
+        type: 'string',
+        aliases: ['project_code', 'code', 'proj_id', 'job_code', 'project code', 'prj code', 'site code'],
+        description: 'Unique project code (e.g. PIDM 26)',
+        sampleValue: 'PIDM 26'
+      },
+      {
+        key: 'PROJECT_NAME',
+        label: 'Project Name *',
+        required: true,
+        type: 'string',
+        aliases: ['project_name', 'name', 'title', 'project name', 'project title', 'contract name', 'contract_name'],
+        description: 'Official project title',
+        sampleValue: 'PIDM Residencies High Rise Phase 2'
+      },
+      {
+        key: 'CLIENT',
+        label: 'Client Name',
+        required: false,
+        type: 'string',
+        aliases: ['client', 'client_name', 'client name', 'employer', 'customer', 'owner', 'authority'],
+        description: 'Client or employer organization',
+        sampleValue: 'Prime Lands Residencies PLC'
+      },
+      {
+        key: 'LOCATION',
+        label: 'Location / Site',
+        required: false,
+        type: 'string',
+        aliases: ['site_location', 'address', 'city', 'location', 'site', 'location / site'],
+        description: 'Project geographic site location',
+        sampleValue: 'Colombo 07'
+      },
+      {
+        key: 'CONTRACT_VALUE',
+        label: 'Contract Total Value (LKR)',
+        required: false,
+        type: 'number',
+        aliases: ['contract_value', 'total_budget', 'contract value', 'contract budget', 'budget', 'value', 'total contract value', 'contract amount'],
+        description: 'Total contract award budget in LKR (supports 2 decimal places)',
+        sampleValue: 450000000.00
+      },
+      {
+        key: 'BUDGET_PETTY_CASH',
+        label: 'Petty Cash Allowance (LKR)',
+        required: false,
+        type: 'number',
+        aliases: ['budget_petty_cash', 'petty_cash_budget', 'petty cash budget', 'petty cash allowance', 'petty cash limit', 'petty cash', 'monthly budget'],
+        description: 'Allocated site petty cash ceiling in LKR (supports 2 decimal places)',
+        sampleValue: 1500000.00
+      },
+      {
+        key: 'PROJECT_MANAGER',
+        label: 'Project Manager / Supervisor',
+        required: false,
+        type: 'string',
+        aliases: ['project_manager', 'supervisor', 'pm', 'lead_supervisor', 'manager', 'pic', 'engineer', 'project manager'],
+        description: 'Designated Site Manager or Engineer',
+        sampleValue: 'Eng. Kamal Perera'
+      },
+      {
+        key: 'STATUS',
+        label: 'Project Status',
+        required: false,
+        type: 'string',
+        aliases: ['status', 'project status', 'state', 'stage'],
+        description: 'Active, On Hold, Completed, or Closed',
+        sampleValue: 'Active'
+      },
+      {
+        key: 'START_DATE',
+        label: 'Start Date',
+        required: false,
+        type: 'date',
+        aliases: ['start_date', 'start date', 'commence_date', 'commencement date'],
+        description: 'Project commencement date (YYYY-MM-DD)',
+        sampleValue: '2024-01-10'
+      },
+      {
+        key: 'END_DATE',
+        label: 'Completion Date',
+        required: false,
+        type: 'date',
+        aliases: ['end_date', 'end date', 'completion date', 'handover date', 'finish date'],
+        description: 'Target completion date (YYYY-MM-DD)',
+        sampleValue: '2026-12-31'
+      },
+      {
+        key: 'REMARKS',
+        label: 'Remarks / Notes',
+        required: false,
+        type: 'string',
+        aliases: ['remarks', 'notes', 'comments', 'description', 'scope'],
+        description: 'Scope details or project notes',
+        sampleValue: '32-story residential tower contract'
+      }
     ],
     sampleRows: [
-      { CODE: 'PIDM 26', NAME: 'Kandy - Colombo Expressway Section 2', LOCATION: 'Mirigama to Kurunegala', SUPERVISOR: 'BUDDIKA', TOTAL_BUDGET: 85000000, STATUS: 'Active', START_DATE: '2026-01-15' },
-      { CODE: 'PIDM 27', NAME: 'Kelani Valley Bridge Rehabilitation', LOCATION: 'Avissawella Bridgehead', SUPERVISOR: 'LASANTHA', TOTAL_BUDGET: 42000000, STATUS: 'Active', START_DATE: '2026-02-01' },
-      { CODE: 'PIDM 28', NAME: 'Gampaha Urban Drainage Canal Project', LOCATION: 'Gampaha Municipal Area', SUPERVISOR: 'GEETH', TOTAL_BUDGET: 29500000, STATUS: 'Active', START_DATE: '2026-03-10' }
+      {
+        PROJECT_CODE: 'PIDM 26',
+        PROJECT_NAME: 'PIDM Residencies High Rise Phase 2',
+        CLIENT: 'Prime Lands Residencies PLC',
+        LOCATION: 'Colombo 07',
+        CONTRACT_VALUE: 450000000.00,
+        BUDGET_PETTY_CASH: 1500000.00,
+        PROJECT_MANAGER: 'Eng. Kamal Perera',
+        STATUS: 'Active',
+        START_DATE: '2024-01-10',
+        END_DATE: '2026-12-31',
+        REMARKS: '32-story residential tower contract'
+      },
+      {
+        PROJECT_CODE: 'HAVELOCK',
+        PROJECT_NAME: 'Havelock City Commercial Complex',
+        CLIENT: 'Havelock City Properties',
+        LOCATION: 'Colombo 05',
+        CONTRACT_VALUE: 320000000.50,
+        BUDGET_PETTY_CASH: 1200000.00,
+        PROJECT_MANAGER: 'Eng. Samantha Silva',
+        STATUS: 'Active',
+        START_DATE: '2024-03-01',
+        END_DATE: '2025-11-30',
+        REMARKS: 'Commercial & MEP works package'
+      },
+      {
+        PROJECT_CODE: 'TRILLIUM',
+        PROJECT_NAME: 'Trillium Residencies Superstructure',
+        CLIENT: 'Trillium Property Holdings',
+        LOCATION: 'Colombo 08',
+        CONTRACT_VALUE: 280000000.75,
+        BUDGET_PETTY_CASH: 950000.00,
+        PROJECT_MANAGER: 'Eng. Nalin Jayasuriya',
+        STATUS: 'Active',
+        START_DATE: '2024-02-15',
+        END_DATE: '2025-08-31',
+        REMARKS: 'Structural concrete & finishing works'
+      }
     ]
   },
 
@@ -178,6 +307,29 @@ export const DIRECTORY_CONFIGS: Record<DirectoryImportType, DirectoryConfig> = {
       { SUPERVISOR_ID: 'SUP-006', NAME: 'DILSHAN', PHONE: '+94 77 889 4455', EMAIL: 'dilshan@emagroup.lk', DEFAULT_PROJECT: 'PIDM 26', OPENING_FLOAT: 150000, ACTIVE: true },
       { SUPERVISOR_ID: 'SUP-007', NAME: 'NUWAN', PHONE: '+94 71 223 3445', EMAIL: 'nuwan@emagroup.lk', DEFAULT_PROJECT: 'PIDM 27', OPENING_FLOAT: 200000, ACTIVE: true },
       { SUPERVISOR_ID: 'SUP-008', NAME: 'CHATHURA', PHONE: '+94 76 998 8776', EMAIL: 'chathura@emagroup.lk', DEFAULT_PROJECT: 'PIDM 28', OPENING_FLOAT: 100000, ACTIVE: true }
+    ]
+  },
+
+  CATEGORIES: {
+    title: 'Bulk Import GL Expense Categories',
+    description: 'Import chart of accounts, general ledger cost codes, and accounting expense classifications.',
+    directoryName: 'Expense Categories & GL Directory',
+    iconColor: 'text-emerald-600',
+    fields: [
+      { key: 'CATEGORY_CODE', label: 'GL / Cost Code *', required: true, type: 'string', aliases: ['code', 'gl_code', 'cost_code', 'category_code', 'gl code', 'account_code', 'gl_no'], description: 'Numeric GL or cost code (e.g. 5000, 5010, 6010)', sampleValue: '5000' },
+      { key: 'CATEGORY_NAME', label: 'Category Name *', required: true, type: 'string', aliases: ['name', 'category_name', 'title', 'category_title', 'account_name', 'description'], description: 'Category title (e.g. Construction Materials)', sampleValue: 'Construction Materials' },
+      { key: 'CATEGORY_GROUP', label: 'Cost Group', required: false, type: 'string', aliases: ['group', 'cost_group', 'category_group', 'classification', 'type'], description: 'Direct Project Cost, Site Overheads, Admin & Head Office, Special / Non-Project', sampleValue: 'Direct Project Cost' },
+      { key: 'DESCRIPTION', label: 'Description / Remarks', required: false, type: 'string', aliases: ['remarks', 'notes', 'details', 'scope'], description: 'Items or scope covered under this GL account', sampleValue: 'Aggregates, cement, sand, steel, asphalt' },
+      { key: 'ACTIVE', label: 'Active (TRUE/FALSE)', required: false, type: 'boolean', aliases: ['active', 'status', 'is_active'], description: 'Whether category is active for expense entry', sampleValue: true }
+    ],
+    sampleRows: [
+      { CATEGORY_CODE: '5000', CATEGORY_NAME: 'Construction Materials', CATEGORY_GROUP: 'Direct Project Cost', DESCRIPTION: 'Aggregates, cement, sand, steel, asphalt premix', ACTIVE: true },
+      { CATEGORY_CODE: '5010', CATEGORY_NAME: 'Main Materials (VAT Purchase)', CATEGORY_GROUP: 'Direct Project Cost', DESCRIPTION: 'Direct VAT registered commercial bulk materials', ACTIVE: true },
+      { CATEGORY_CODE: '5020', CATEGORY_NAME: 'Equipment & Machinery Fuel', CATEGORY_GROUP: 'Direct Project Cost', DESCRIPTION: 'Diesel, lubricants, and oil for heavy machinery', ACTIVE: true },
+      { CATEGORY_CODE: '5100', CATEGORY_NAME: 'Sub-Contractors Labor Cost', CATEGORY_GROUP: 'Direct Project Cost', DESCRIPTION: 'Masonry, bar bending, drainage sub-contractor wages', ACTIVE: true },
+      { CATEGORY_CODE: '6010', CATEGORY_NAME: 'Site Office Rent & Utilities', CATEGORY_GROUP: 'Site Overheads', DESCRIPTION: 'Electricity, water, and site office temporary rentals', ACTIVE: true },
+      { CATEGORY_CODE: '6050', CATEGORY_NAME: 'Safety Gear & PPE', CATEGORY_GROUP: 'Site Overheads', DESCRIPTION: 'Helmets, boots, high-vis safety vests, goggles', ACTIVE: true },
+      { CATEGORY_CODE: '7020', CATEGORY_NAME: 'Printing & Stationery', CATEGORY_GROUP: 'Admin & Head Office', DESCRIPTION: 'Paper, ink cartridges, binding, courier expenses', ACTIVE: true }
     ]
   },
 

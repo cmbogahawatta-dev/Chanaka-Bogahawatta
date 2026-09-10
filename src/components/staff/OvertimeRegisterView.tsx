@@ -141,11 +141,11 @@ export const OvertimeRegisterView: React.FC = () => {
           className="bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-3 py-1.5 focus:outline-none"
         >
           <option value="ALL">All Project Sites</option>
-          {projects.map(p => {
+          {projects.map((p, idx) => {
             const code = p.PROJECT_CODE || (p as any).code || (p as any).project_code || p.id;
             const name = p.PROJECT_NAME || (p as any).name || code;
             return (
-              <option key={p.id || code} value={code}>{name} ({code})</option>
+              <option key={`${p.id || code}-${idx}`} value={code}>{name} ({code})</option>
             );
           })}
         </select>

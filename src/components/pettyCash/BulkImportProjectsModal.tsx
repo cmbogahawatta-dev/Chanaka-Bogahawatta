@@ -582,6 +582,7 @@ export const BulkImportProjectsModal: React.FC<BulkImportProjectsModalProps> = (
                         <th className="py-2 px-3 font-semibold">Project Code</th>
                         <th className="py-2 px-3 font-semibold">Project Name</th>
                         <th className="py-2 px-3 font-semibold">Client</th>
+                        <th className="py-2 px-3 font-semibold">Location</th>
                         <th className="py-2 px-3 font-semibold">Contract Value (LKR)</th>
                         <th className="py-2 px-3 font-semibold">Petty Cash Budget</th>
                         <th className="py-2 px-3 font-semibold">Issues / Warnings</th>
@@ -611,11 +612,14 @@ export const BulkImportProjectsModal: React.FC<BulkImportProjectsModalProps> = (
                           <td className="py-2 px-3 text-slate-400">
                             {row.mapped['CLIENT'] || '—'}
                           </td>
+                          <td className="py-2 px-3 text-slate-400">
+                            {row.mapped['LOCATION'] || '—'}
+                          </td>
                           <td className="py-2 px-3 text-emerald-400">
                             {formatLKR(Number(row.mapped['CONTRACT_VALUE']) || 0)}
                           </td>
                           <td className="py-2 px-3 text-amber-300">
-                            {formatLKR(Number(row.mapped['PETTY_CASH_BUDGET']) || 500000)}
+                            {formatLKR(Number(row.mapped['BUDGET_PETTY_CASH'] ?? row.mapped['PETTY_CASH_BUDGET']) || 0)}
                           </td>
                           <td className="py-2 px-3 text-slate-400">
                             {row.errors.length > 0 && (

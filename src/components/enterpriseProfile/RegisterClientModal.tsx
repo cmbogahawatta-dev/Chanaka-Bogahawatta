@@ -2265,12 +2265,12 @@ export const RegisterClientModal: React.FC<RegisterClientModalProps> = ({
                 </div>
 
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {projects.map(proj => {
+                  {projects.map((proj, idx) => {
                     const isChecked = assignedProjectIds.includes(proj.PROJECT_CODE) || assignedProjectIds.includes(proj.id);
 
                     return (
                       <label
-                        key={proj.id}
+                        key={`${proj.id || proj.PROJECT_CODE}-${idx}`}
                         className={`p-2.5 rounded-lg border flex items-center justify-between cursor-pointer transition-colors text-xs ${
                           isChecked
                             ? 'bg-purple-500/10 border-purple-500/40 text-purple-200'

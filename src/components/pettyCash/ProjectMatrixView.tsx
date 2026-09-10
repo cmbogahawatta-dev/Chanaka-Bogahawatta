@@ -103,14 +103,17 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
     e.preventDefault();
     if (!newProjectCode.trim() || !newProjectName.trim()) return;
 
+    const parsedBudget = Math.round((parseFloat(newProjectBudget) || 0) * 100) / 100;
+
     if (editingProjectId) {
       updateProject(editingProjectId, {
         PROJECT_CODE: newProjectCode.trim().toUpperCase(),
         PROJECT_NAME: newProjectName.trim(),
         CLIENT_NAME: newProjectClient.trim() || 'RDA / Provincial Road Authority',
         CLIENT: newProjectClient.trim() || 'RDA / Provincial Road Authority',
-        BUDGET: parseFloat(newProjectBudget) || 0,
-        budget: parseFloat(newProjectBudget) || 0,
+        BUDGET: parsedBudget,
+        budget: parsedBudget,
+        BUDGET_PETTY_CASH: parsedBudget,
         LOCATION: newProjectLocation.trim() || 'Sri Lanka',
       });
     } else {
@@ -119,8 +122,9 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
         PROJECT_NAME: newProjectName.trim(),
         CLIENT_NAME: newProjectClient.trim() || 'RDA / Provincial Road Authority',
         CLIENT: newProjectClient.trim() || 'RDA / Provincial Road Authority',
-        BUDGET: parseFloat(newProjectBudget) || 0,
-        budget: parseFloat(newProjectBudget) || 0,
+        BUDGET: parsedBudget,
+        budget: parsedBudget,
+        BUDGET_PETTY_CASH: parsedBudget,
         LOCATION: newProjectLocation.trim() || 'Sri Lanka',
         STATUS: 'Active'
       });
@@ -225,8 +229,8 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
                   Accounting Category
                 </th>
                 <th className="py-3 px-3 font-semibold text-slate-400 min-w-[100px]">Cost Group</th>
-                {pivotMatrix.projects.map((p) => (
-                  <th key={p.id} className="py-3 px-3 font-bold uppercase tracking-wider text-right min-w-[130px]">
+                {pivotMatrix.projects.map((p, idx) => (
+                  <th key={`${p.id || p.PROJECT_CODE}-${idx}`} className="py-3 px-3 font-bold uppercase tracking-wider text-right min-w-[130px]">
                     <div className="truncate" title={p.PROJECT_NAME}>
                       {p.PROJECT_CODE}
                     </div>
@@ -248,11 +252,11 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
                   <td className="py-2.5 px-3 font-sans text-slate-400 text-[11px] truncate max-w-[110px]">
                     {row.categoryGroup}
                   </td>
-                  {pivotMatrix.projects.map((p) => {
+                  {pivotMatrix.projects.map((p, idx) => {
                     const val = row.projectTotals[p.PROJECT_CODE] || 0;
                     return (
                       <td
-                        key={p.id}
+                        key={`${p.id || p.PROJECT_CODE}-${idx}`}
                         onClick={() => {
                           if (val > 0) {
                             setSelectedCell({
@@ -283,10 +287,10 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
                 <td colSpan={2} className="py-3 px-3.5 sticky left-0 bg-slate-800 font-sans uppercase tracking-wider text-xs">
                   TOTAL APPROVED SPEND
                 </td>
-                {pivotMatrix.projects.map((p) => {
+                {pivotMatrix.projects.map((p, idx) => {
                   const colTotal = pivotMatrix.columnTotals[p.PROJECT_CODE] || 0;
                   return (
-                    <td key={p.id} className="py-3 px-3 text-right font-black text-xs text-slate-100">
+                    <td key={`${p.id || p.PROJECT_CODE}-${idx}`} className="py-3 px-3 text-right font-black text-xs text-slate-100">
                       {colTotal.toLocaleString('en-LK', { minimumFractionDigits: 2 })}
                     </td>
                   );
@@ -301,10 +305,10 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
                 <td colSpan={2} className="py-2.5 px-3.5 sticky left-0 bg-slate-900 font-sans uppercase tracking-wider text-[11px] text-slate-400">
                   ALLOCATED PETTY CASH BUDGET
                 </td>
-                {pivotMatrix.projects.map((p) => {
+                {pivotMatrix.projects.map((p, idx) => {
                   const budget = Number(p.BUDGET_PETTY_CASH ?? p.BUDGET ?? 0);
                   return (
-                    <td key={p.id} className="py-2.5 px-3 text-right font-mono text-xs text-slate-300">
+                    <td key={`${p.id || p.PROJECT_CODE}-${idx}`} className="py-2.5 px-3 text-right font-mono text-xs text-slate-300">
                       {budget > 0 ? budget.toLocaleString('en-LK', { minimumFractionDigits: 2 }) : '-'}
                     </td>
                   );
@@ -319,7 +323,7 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
                 <td colSpan={2} className="py-2.5 px-3.5 sticky left-0 bg-slate-950 font-sans uppercase tracking-wider text-[11px] text-slate-400">
                   BUDGET UTILIZATION & ALERT
                 </td>
-                {pivotMatrix.projects.map((p) => {
+                {pivotMatrix.projects.map((p, idx) => {
                   const budget = Number(p.BUDGET_PETTY_CASH ?? p.BUDGET ?? 0);
                   const spent = pivotMatrix.columnTotals[p.PROJECT_CODE] || 0;
                   const pct = budget > 0 ? (spent / budget) * 100 : 0;
@@ -329,7 +333,7 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
                   const is80 = pct >= 80 && pct < 95;
 
                   return (
-                    <td key={p.id} className="py-2.5 px-3 text-right font-mono text-xs">
+                    <td key={`${p.id || p.PROJECT_CODE}-${idx}`} className="py-2.5 px-3 text-right font-mono text-xs">
                       {budget > 0 ? (
                         <div className="flex flex-col items-end gap-0.5">
                           <span
@@ -515,23 +519,29 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                projects.map((p) => {
+                projects.map((p, idx) => {
                   const spent = pivotMatrix.columnTotals[p.PROJECT_CODE] || 0;
                   return (
-                    <tr key={p.id} className="hover:bg-slate-800/40">
+                    <tr key={`${p.id || p.PROJECT_CODE}-${idx}`} className="hover:bg-slate-800/40">
                       <td className="py-2.5 px-3 font-mono font-bold text-emerald-400">{p.PROJECT_CODE}</td>
                       <td className="py-2.5 px-3 font-semibold text-slate-100">{p.PROJECT_NAME}</td>
-                      <td className="py-2.5 px-3 text-slate-300">{p.CLIENT_NAME || p.CLIENT || 'RDA'}</td>
-                      <td className="py-2.5 px-3 text-slate-400">{p.LOCATION || 'Sri Lanka'}</td>
+                      <td className="py-2.5 px-3 text-slate-300">{p.CLIENT || p.CLIENT_NAME || '—'}</td>
+                      <td className="py-2.5 px-3 text-slate-400">{p.LOCATION || '—'}</td>
                       <td className="py-2.5 px-3 text-right font-mono text-slate-300">
-                        {p.BUDGET || p.budget ? formatLKR(p.BUDGET || p.budget || 0) : 'Open'}
+                        {p.CONTRACT_VALUE || p.TOTAL_BUDGET || p.BUDGET || p.budget ? formatLKR(p.CONTRACT_VALUE || p.TOTAL_BUDGET || p.BUDGET || p.budget || 0) : 'Open'}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-100">
                         {formatLKR(spent)}
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
-                          {p.STATUS}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          p.STATUS === 'Active'
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            : p.STATUS === 'On Hold'
+                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}>
+                          {p.STATUS || 'Active'}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
@@ -611,9 +621,14 @@ export const ProjectMatrixView: React.FC<ProjectMatrixViewProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Budget in LKR</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-bold">Petty Cash Budget / Allocation (LKR)</label>
+                  <span className="text-[10px] text-emerald-400 font-mono">2 Decimals Allowed</span>
+                </div>
                 <input
                   type="number"
+                  step="0.01"
+                  min="0"
                   placeholder="e.g. 5000000.00"
                   value={newProjectBudget}
                   onChange={(e) => setNewProjectBudget(e.target.value)}

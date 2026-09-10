@@ -21,7 +21,8 @@ import {
   DollarSign,
   Layers,
   Lock,
-  KeyRound
+  KeyRound,
+  Clock
 } from 'lucide-react';
 import { usePettyCash } from '../../context/PettyCashContext';
 import {
@@ -84,6 +85,7 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
 
   // Step 4: Final output
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [commitError, setCommitError] = useState<string | null>(null);
   const [createdBatchId, setCreatedBatchId] = useState<string>('');
   const [importedCount, setImportedCount] = useState<number>(0);
   const [importedTotalAmount, setImportedTotalAmount] = useState<number>(0);
@@ -104,6 +106,7 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
     setValidationSummary(null);
     setAdminPin('');
     setAdminPinError(null);
+    setCommitError(null);
     setCreatedBatchId('');
     setImportedCount(0);
     setImportedTotalAmount(0);
@@ -288,6 +291,7 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
 
     setIsSubmitting(true);
     setAdminPinError(null);
+    setCommitError(null);
 
     // Check Admin PIN if direct approved mode is selected by non-admin
     if (approvalMode === 'APPROVED' && !isAdminSession) {
@@ -349,7 +353,7 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
         onSuccess(batchId);
       }
     } catch (err: any) {
-      alert(`Import Failed: ${err.message}`);
+      setCommitError(err.message || 'An unexpected error occurred during bulk import.');
     } finally {
       setIsSubmitting(false);
     }
@@ -828,6 +832,15 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
           {/* STEP 3: Admin Approval Strategy & Posting Controls */}
           {currentStep === 3 && validationSummary && (
             <div className="space-y-6">
+              {commitError && (
+                <div className="p-4 rounded-xl bg-rose-950/80 border border-rose-700 text-rose-300 text-xs flex items-center gap-3 animate-in fade-in duration-200 shadow-lg">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
+                  <div className="flex-1">
+                    <p className="font-bold text-rose-200">Import Submission Error</p>
+                    <p className="text-[11px] text-rose-300 mt-0.5">{commitError}</p>
+                  </div>
+                </div>
+              )}
               <div>
                 <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
@@ -901,7 +914,7 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-2 text-xs font-semibold text-amber-400">
-                    <ClockIcon className="w-4 h-4" />
+                    <Clock className="w-4 h-4" />
                     <span>Queued for Administrator Review</span>
                   </div>
                 </div>
@@ -1237,18 +1250,3 @@ export const BulkImportExpensesModal: React.FC<BulkImportExpensesModalProps> = (
   );
 };
 
-// Simple Clock Icon helper for queued badge
-function ClockIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-    >
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}

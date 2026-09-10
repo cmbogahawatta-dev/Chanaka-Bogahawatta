@@ -117,8 +117,12 @@ export const ProjectsView: React.FC = () => {
       const paymentsSpent = projPayments.reduce((acc, curr) => acc + (curr.AMOUNT || 0), 0);
 
       const totalActualCost = pettyCashSpent + fuelSpent + maintenanceSpent + procurementSpent + paymentsSpent;
-      const budget = proj.CONTRACT_VALUE || 15000000;
-      const pettyCashBudget = proj.BUDGET_PETTY_CASH || 2500000;
+      const budget = (proj.CONTRACT_VALUE !== undefined && proj.CONTRACT_VALUE !== null)
+        ? Number(proj.CONTRACT_VALUE)
+        : (proj.BUDGET ?? 15000000);
+      const pettyCashBudget = (proj.BUDGET_PETTY_CASH !== undefined && proj.BUDGET_PETTY_CASH !== null)
+        ? Number(proj.BUDGET_PETTY_CASH)
+        : (proj.BUDGET ?? 2500000);
       const percentUsed = budget > 0 ? (totalActualCost / budget) * 100 : 0;
 
       return {
@@ -378,8 +382,8 @@ export const ProjectsView: React.FC = () => {
             className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-purple-500"
           >
             <option value="ALL">All Active Projects</option>
-            {projects.map(p => (
-              <option key={p.id} value={p.PROJECT_CODE}>{p.PROJECT_CODE} - {p.PROJECT_NAME}</option>
+            {projects.map((p, idx) => (
+              <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>{p.PROJECT_CODE} - {p.PROJECT_NAME}</option>
             ))}
           </select>
 
@@ -453,8 +457,8 @@ export const ProjectsView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {filteredProjects.map((proj) => (
-                  <tr key={proj.id} className="hover:bg-slate-800/40 transition-colors">
+                {filteredProjects.map((proj, idx) => (
+                  <tr key={`${proj.id || proj.PROJECT_CODE}-${idx}`} className="hover:bg-slate-800/40 transition-colors">
                     <td className="py-3 px-3.5 font-mono font-bold text-purple-300">
                       <span className="px-2 py-0.5 rounded bg-purple-950/80 border border-purple-800/60 text-purple-300">
                         {proj.PROJECT_CODE}
@@ -521,9 +525,9 @@ export const ProjectsView: React.FC = () => {
       ) : (
         /* Cards Grid View with Individual Delete */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredProjects.map(proj => (
+          {filteredProjects.map((proj, idx) => (
             <div
-              key={proj.id}
+              key={`${proj.id || proj.PROJECT_CODE}-${idx}`}
               className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-4 shadow-sm"
             >
               {/* Title & Status */}
@@ -672,17 +676,39 @@ export const ProjectsView: React.FC = () => {
           onImportComplete={(importedRows) => {
             let count = 0;
             importedRows.forEach((row: any) => {
+              const code = String(row.PROJECT_CODE || row.CODE || '').trim().toUpperCase();
+              if (!code) return;
+
+              const name = String(row.PROJECT_NAME || row.NAME || code).trim();
+              const client = String(row.CLIENT || row.CLIENT_NAME || '').trim();
+              const location = String(row.LOCATION || '').trim();
+              const contractVal = Number(row.CONTRACT_VALUE ?? row.TOTAL_BUDGET ?? row.BUDGET ?? 0) || 0;
+              const pettyCashAllowance = Number(row.BUDGET_PETTY_CASH ?? row.PETTY_CASH_BUDGET ?? 0) || 0;
+              const pm = String(row.PROJECT_MANAGER || row.SUPERVISOR || '').trim();
+              const startDate = row.START_DATE ? String(row.START_DATE).trim() : new Date().toISOString().slice(0, 10);
+              const endDate = row.END_DATE ? String(row.END_DATE).trim() : '';
+              const status = (row.STATUS as any) || 'Active';
+              const remarks = String(row.REMARKS || row.DESCRIPTION || '').trim();
+
               addProject({
-                PROJECT_CODE: row.PROJECT_CODE || `PRJ-${Date.now().toString().slice(-4)}`,
-                PROJECT_NAME: row.PROJECT_NAME || 'Imported Construction Package',
-                CLIENT: row.CLIENT || 'RDA / Provincial Highway',
-                LOCATION: row.LOCATION || 'Sri Lanka',
-                BUDGET: Number(row.BUDGET) || 0,
-                CONTRACT_VALUE: Number(row.CONTRACT_VALUE || row.BUDGET) || 0,
-                START_DATE: row.START_DATE || new Date().toISOString().slice(0, 10),
-                END_DATE: row.END_DATE || '',
-                STATUS: (row.STATUS as any) || 'In Progress',
-                DESCRIPTION: row.DESCRIPTION || 'Bulk imported project'
+                PROJECT_CODE: code,
+                CODE: code,
+                PROJECT_NAME: name,
+                NAME: name,
+                CLIENT: client,
+                CLIENT_NAME: client,
+                LOCATION: location,
+                CONTRACT_VALUE: contractVal,
+                TOTAL_BUDGET: contractVal,
+                BUDGET: contractVal,
+                budget: contractVal,
+                BUDGET_PETTY_CASH: pettyCashAllowance,
+                PROJECT_MANAGER: pm,
+                START_DATE: startDate,
+                END_DATE: endDate,
+                STATUS: status,
+                REMARKS: remarks,
+                DESCRIPTION: remarks
               });
               count++;
             });

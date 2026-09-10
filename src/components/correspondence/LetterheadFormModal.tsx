@@ -343,8 +343,8 @@ export const LetterheadFormModal: React.FC<LetterheadFormModalProps> = ({
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:border-purple-500 focus:outline-none"
                   >
                     <option value="">-- No specific project restriction --</option>
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>
+                    {projects.map((p, idx) => (
+                      <option key={`${p.id || (p as any).CODE || (p as any).code}-${idx}`} value={p.id}>
                         [{p.CODE || (p as any).code}] {p.NAME || (p as any).name}
                       </option>
                     ))}

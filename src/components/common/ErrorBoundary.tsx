@@ -37,19 +37,33 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   private handleResetCache = () => {
     try {
-      // Clear non-critical local caches that might be corrupted
-      const keysToPreserve = new Set(['ema_erp_auth_token_v1']);
-      const allKeys: string[] = [];
+      // Clear ONLY transient UI caches, explicitly preserving all business data
+      const preservedPrefixes = [
+        'ema_petty_',
+        'ema_fleet_',
+        'ema_staff_',
+        'ema_erp_',
+        'ema_payment_',
+        'ema_invoice_',
+        'ema_doc_',
+        'ema_procure_'
+      ];
+
+      const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && !keysToPreserve.has(key)) {
-          allKeys.push(key);
+        if (key) {
+          const isBusinessData = preservedPrefixes.some(prefix => key.startsWith(prefix));
+          // Only clear temporary caches or UI error state
+          if (!isBusinessData || key.includes('_cache_') || key.includes('_temp_')) {
+            keysToRemove.push(key);
+          }
         }
       }
-      allKeys.forEach(k => localStorage.removeItem(k));
+      keysToRemove.forEach(k => localStorage.removeItem(k));
       sessionStorage.clear();
     } catch (e) {
-      console.error('Error clearing cache:', e);
+      console.error('Error clearing temporary cache:', e);
     }
     window.location.reload();
   };
@@ -107,7 +121,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 text-xs font-semibold flex items-center justify-center gap-2 transition-all border border-slate-700 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5 text-amber-400" />
-                Clear Cache & Reload
+                Clear Temporary Cache & Reload
               </button>
             </div>
           </div>

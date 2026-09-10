@@ -23,7 +23,7 @@ import { BudgetAlertsNotificationModal } from './BudgetAlertsNotificationModal';
 import { Expense, PettyCashNavTab } from '../../types/pettyCashTypes';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { adminSecurityService } from '../../services/adminSecurityService';
-import { Menu } from 'lucide-react';
+import { Menu, AlertTriangle } from 'lucide-react';
 
 interface PettyCashAppProps {
   currentModule: 'pettyCash' | 'fleetTrack';
@@ -34,7 +34,7 @@ export const PettyCashApp: React.FC<PettyCashAppProps> = ({
   currentModule,
   onSwitchModule
 }) => {
-  const { userRole } = usePettyCash();
+  const { userRole, storageWarning, dismissStorageWarning } = usePettyCash();
   const [activeTab, setActiveTab] = useState<PettyCashNavTab>('dashboard');
   const [previousTab, setPreviousTab] = useState<PettyCashNavTab>('dashboard');
   const [isOpenMobileSidebar, setIsOpenMobileSidebar] = useState<boolean>(false);
@@ -142,6 +142,21 @@ export const PettyCashApp: React.FC<PettyCashAppProps> = ({
 
         {/* Main Content View Switcher */}
         <main className="flex-1 lg:pl-6 min-w-0">
+          {storageWarning && (
+            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 text-xs flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>{storageWarning}</span>
+              </div>
+              <button
+                onClick={dismissStorageWarning}
+                className="text-amber-700 hover:text-amber-900 font-medium px-2 py-0.5 rounded text-xs hover:bg-amber-100 transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           {activeTab === 'dashboard' && (
             <PettyCashDashboardView
               onNavigateTab={(tab) => handleSelectTab(tab)}

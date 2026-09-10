@@ -388,8 +388,8 @@ export const MasterDashboardView: React.FC<MasterDashboardViewProps> = ({
                 className="bg-transparent font-bold text-slate-200 focus:outline-none cursor-pointer"
               >
                 <option value="ALL" className="bg-slate-900 text-slate-100">All Road Projects & Head Office</option>
-                {pettyProjects.map(p => (
-                  <option key={p.id} value={p.PROJECT_CODE} className="bg-slate-900 text-slate-100">
+                {pettyProjects.map((p, idx) => (
+                  <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE} className="bg-slate-900 text-slate-100">
                     {p.PROJECT_CODE} - {p.PROJECT_NAME.slice(0, 24)}...
                   </option>
                 ))}

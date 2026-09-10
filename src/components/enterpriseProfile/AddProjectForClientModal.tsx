@@ -61,8 +61,8 @@ export const AddProjectForClientModal: React.FC<AddProjectForClientModalProps> =
     e.preventDefault();
     if (!projectName.trim()) return;
 
-    const numContract = parseFloat(contractValue.replace(/,/g, '')) || 0;
-    const numBudget = parseFloat(pettyCashBudget.replace(/,/g, '')) || 500000;
+    const numContract = Math.round((parseFloat(contractValue.replace(/,/g, '')) || 0) * 100) / 100;
+    const numBudget = Math.round((parseFloat(pettyCashBudget.replace(/,/g, '')) || 500000) * 100) / 100;
 
     const newProject = addProject({
       PROJECT_CODE: projectCode.trim() || `PRJ-${String(projects.length + 1).padStart(3, '0')}`,
@@ -73,6 +73,7 @@ export const AddProjectForClientModal: React.FC<AddProjectForClientModalProps> =
       CONTRACT_VALUE: numContract,
       BUDGET_PETTY_CASH: numBudget,
       BUDGET: numBudget,
+      budget: numBudget,
       STATUS: status,
       START_DATE: startDate || undefined,
       END_DATE: endDate || undefined,
@@ -245,28 +246,36 @@ export const AddProjectForClientModal: React.FC<AddProjectForClientModalProps> =
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs text-slate-400 mb-1 font-medium">
-                  Contract Value (LKR)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs text-slate-400 font-medium">
+                    Contract Value (LKR)
+                  </label>
+                  <span className="text-[10px] text-purple-400 font-mono">2 Decimals Allowed</span>
+                </div>
                 <input
                   type="text"
-                  placeholder="e.g. 45,000,000"
+                  placeholder="e.g. 45,000,000.00"
                   value={contractValue}
                   onChange={e => setContractValue(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 font-mono focus:outline-none focus:border-purple-500"
                 />
+                <span className="text-[10px] text-slate-500 mt-1 block">Supports 2 decimal precision (e.g. 45,000,000.50)</span>
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1 font-medium">
-                  Petty Cash Initial Float (LKR)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs text-slate-400 font-medium">
+                    Petty Cash Initial Float / Allowance (LKR)
+                  </label>
+                  <span className="text-[10px] text-emerald-400 font-mono">2 Decimals Allowed</span>
+                </div>
                 <input
                   type="text"
-                  placeholder="e.g. 500,000"
+                  placeholder="e.g. 500,000.00"
                   value={pettyCashBudget}
                   onChange={e => setPettyCashBudget(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 font-mono focus:outline-none focus:border-purple-500"
                 />
+                <span className="text-[10px] text-slate-500 mt-1 block">Supports 2 decimal precision (e.g. 500,000.00)</span>
               </div>
             </div>
 

@@ -577,8 +577,8 @@ export const AdministrationView: React.FC = () => {
                 {projects.length === 0 ? (
                   <p className="text-center py-6 text-slate-500 italic">No projects registered.</p>
                 ) : (
-                  projects.map(p => (
-                    <div key={p.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between group hover:border-slate-700 transition-colors">
+                  projects.map((p, idx) => (
+                    <div key={`${p.id || p.PROJECT_CODE}-${idx}`} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between group hover:border-slate-700 transition-colors">
                       <div className="pr-2 min-w-0 flex-1">
                         <span className="font-mono font-bold text-purple-300">{p.PROJECT_CODE}</span>
                         <span className="block text-[11px] text-slate-300 truncate">{p.PROJECT_NAME}</span>
@@ -832,7 +832,7 @@ export const AdministrationView: React.FC = () => {
                         <span className="block text-[11px] text-slate-400 truncate">{d.licenseNumber} • {d.phone || 'No phone'}</span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${d.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${d.status === 'active' || (d.status as string) === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
                           {d.status}
                         </span>
                         <button

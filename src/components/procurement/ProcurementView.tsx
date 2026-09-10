@@ -237,8 +237,8 @@ export const ProcurementView: React.FC = () => {
             className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
           >
             <option value="ALL">All Projects</option>
-            {projects.map(p => (
-              <option key={p.id} value={p.PROJECT_CODE}>{p.PROJECT_CODE}</option>
+            {projects.map((p, idx) => (
+              <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>{p.PROJECT_CODE}</option>
             ))}
           </select>
 
@@ -411,8 +411,8 @@ export const ProcurementView: React.FC = () => {
                     onChange={(e) => setProjectCode(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200"
                   >
-                    {projects.map(p => (
-                      <option key={p.id} value={p.PROJECT_CODE}>{p.PROJECT_CODE} - {p.PROJECT_NAME}</option>
+                    {projects.map((p, idx) => (
+                      <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.PROJECT_CODE}>{p.PROJECT_CODE} - {p.PROJECT_NAME}</option>
                     ))}
                   </select>
                 </div>
