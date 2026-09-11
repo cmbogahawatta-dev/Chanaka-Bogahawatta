@@ -1,4 +1,47 @@
-export type LetterDirection = 'Incoming' | 'Outgoing' | 'Reply';
+export type LetterDirection = 'Incoming' | 'Outgoing' | 'Reply' | 'INCOMING' | 'OUTGOING';
+
+export type CorrespondenceDocumentType =
+  | 'LETTER'
+  | 'EMAIL'
+  | 'NOTICE'
+  | 'INSTRUCTION'
+  | 'SUBMISSION'
+  | 'RESPONSE'
+  | 'CLAIM'
+  | 'EOT'
+  | 'VARIATION'
+  | 'PAYMENT_REQUEST'
+  | 'OTHER';
+
+export type ContractualCategory =
+  | 'EOT'
+  | 'Delay'
+  | 'Variation'
+  | 'Payment'
+  | 'Contract'
+  | 'Procurement'
+  | 'Technical'
+  | 'QA/QC'
+  | 'HSE'
+  | 'Planning'
+  | 'Commercial'
+  | 'Financial'
+  | 'General';
+
+export type StakeholderPartyType =
+  | 'Client'
+  | 'Engineer'
+  | 'Consultant'
+  | 'Contractor'
+  | 'Government'
+  | 'Bank'
+  | 'Supplier'
+  | 'Subcontractor'
+  | 'CGF'
+  | 'CIDA'
+  | 'RDA'
+  | 'Other';
+
 export type LetterStatus =
   | 'Draft'
   | 'External Editing'
@@ -10,9 +53,39 @@ export type LetterStatus =
   | 'Approved'
   | 'Issued'
   | 'Archived'
-  | 'Review';
-export type LetterPriority = 'Low' | 'Normal' | 'High' | 'Urgent';
-export type LetterConfidentiality = 'Normal' | 'Restricted' | 'Confidential';
+  | 'Review'
+  | 'DRAFT'
+  | 'RECEIVED'
+  | 'SENT'
+  | 'ACTION_REQUIRED'
+  | 'PENDING_REPLY'
+  | 'REPLIED'
+  | 'CLOSED'
+  | 'OVERDUE';
+
+export type LetterPriority = 'Low' | 'Normal' | 'High' | 'Urgent' | 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+export type LetterConfidentiality =
+  | 'Normal'
+  | 'Restricted'
+  | 'Confidential'
+  | 'Strictly Confidential'
+  | 'NORMAL'
+  | 'RESTRICTED'
+  | 'CONFIDENTIAL';
+
+export interface CorrespondenceActionItem {
+  id: string;
+  correspondenceId: string;
+  action: string;
+  responsiblePerson: string;
+  dueDate: string;
+  priority: 'Low' | 'Normal' | 'High' | 'Urgent' | 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  status: 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  completionDate?: string;
+  remarks?: string;
+  createdAt: string;
+}
+
 export type LetterheadVariant = 'Company' | 'Project' | 'Finance' | 'Tender' | 'Confidential';
 export type LetterheadScope = 'Corporate' | 'Client' | 'Project' | 'Finance' | 'Tender' | 'Confidential';
 export type LetterTone = 'Formal' | 'Firm' | 'Diplomatic' | 'Contractual' | 'Conciliatory' | 'Urgent';
@@ -28,6 +101,9 @@ export interface Letter {
   id: string;
   letterNumber: string; // The primary reference: EMA/{Client Affix}/{Project Affix}/{Year}/{Suffix}
   direction: LetterDirection;
+  documentType?: CorrespondenceDocumentType;
+  contractualCategory?: ContractualCategory;
+  partyType?: StakeholderPartyType;
   category: string; // 'Project' | 'Client' | 'Bank' | 'CIDA' | 'CGF' | 'ISO' | 'Auditor' | 'Insurance' | 'Tax' | 'VAT' | 'Government' | 'Legal' | 'General'
   projectId?: string;
   projectCode?: string;
@@ -36,27 +112,47 @@ export interface Letter {
   clientId?: string;
   clientName?: string;
   clientAffix?: string; // e.g. RDA, CECB, MAGA
+  contractNumber?: string;
   sequenceYear?: string; // e.g. 2026
   sequenceNumber?: number; // Order index within client/project folder
-  linkedEntityType?: 'BANK_ACCOUNT' | 'REGISTRATION' | 'ISO_CERTIFICATE' | 'AUDITOR_REPORT' | 'INSURANCE_POLICY' | 'PROJECT_INVOICE';
+  linkedEntityType?: 'BANK_ACCOUNT' | 'REGISTRATION' | 'ISO_CERTIFICATE' | 'AUDITOR_REPORT' | 'INSURANCE_POLICY' | 'PROJECT_INVOICE' | 'VARIATION' | 'EOT' | 'CLAIM' | 'IPC';
   linkedEntityId?: string;
+  recipientName?: string;
   recipientOrganization?: string;
   recipientAddress?: string;
   attention?: string;
+  senderName?: string;
   senderOrganization?: string;
   subject: string;
   ourReference?: string;
   theirReference?: string;
+  referenceNumber?: string; // Generic reference number
   replyToLetterId?: string;
   previousLetterId?: string;
+  parentCorrespondenceId?: string;
+  relatedCorrespondenceIds?: string[];
   relationship?: 'Reply To' | 'Follow-up To' | 'References' | 'Supersedes' | 'Related To' | 'Escalation Of';
   date: string;
+  receivedDate?: string; // Stamped intake date for incoming letters
   priority: LetterPriority;
   confidentiality: LetterConfidentiality;
   replyRequired?: boolean;
   replyDueDate?: string;
   responsiblePersonId?: string;
-  replyStatus?: 'Pending' | 'Sent' | 'Overdue';
+  replyStatus?: 'Pending' | 'Sent' | 'Overdue' | 'PENDING_REPLY' | 'REPLIED' | 'NOT_REQUIRED';
+  
+  // Action Tracking
+  actionRequired?: boolean;
+  actionDescription?: string;
+  actionOwnerId?: string;
+  actionDueDate?: string;
+  actionItems?: CorrespondenceActionItem[];
+
+  // Document Revision Tracking
+  revisionLabel?: string; // e.g. 'Rev.00', 'Rev.01'
+  isSuperseded?: boolean;
+  supersededByLetterId?: string;
+
   bodyHtml: string;
   templateId?: string;
   letterheadVariant?: 'Company' | 'Project' | 'Finance' | 'Tender' | 'Confidential';

@@ -21,11 +21,14 @@ import { useTaxInvoice } from '../../context/TaxInvoiceContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { TaxInvoiceRegisterView } from '../invoices/TaxInvoiceRegisterView';
+import { QuotationRegisterView } from '../quotations/QuotationRegisterView';
+import { useQuotation } from '../../context/QuotationContext';
 import { ClientPaymentsView } from '../payments/views/ClientPaymentsView';
 import { ProjectProfitDashboard } from '../projects/ProjectProfitDashboard';
 import { formatLkr } from '../../utils/vatCalculations';
 
 export type ProjectIncomeTab =
+  | 'quotations'
   | 'tax_invoices'
   | 'client_payments'
   | 'receipts_history'
@@ -40,6 +43,7 @@ export const ProjectIncomeView: React.FC<ProjectIncomeViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<ProjectIncomeTab>(initialTab);
   const { invoices = [] } = useTaxInvoice();
+  const { quotations = [] } = useQuotation();
   const { income = [], projects = [] } = usePettyCash();
   const { setCurrentModule } = useEnterprise();
 
@@ -166,6 +170,32 @@ export const ProjectIncomeView: React.FC<ProjectIncomeViewProps> = ({
       {/* 0. PROJECT INCOME COMBINED HORIZONTAL NAVIGATION PANE (MATCHING STAFF & HR DIRECTORY PATTERN) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800 text-xs shadow-sm">
+          {/* Tab 0: Commercial Quotations & Estimates */}
+          <button
+            id="tab-project-quotations"
+            type="button"
+            onClick={() => setActiveTab('quotations')}
+            className={`px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'quotations'
+                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-950/50'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Quotations &amp; Estimates</span>
+            {quotations.length > 0 && (
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                  activeTab === 'quotations'
+                    ? 'bg-cyan-950 text-cyan-200 border border-cyan-400/40'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                }`}
+              >
+                {quotations.length}
+              </span>
+            )}
+          </button>
+
           {/* Tab 1: Tax Invoices */}
           <button
             id="tab-project-tax-invoices"
@@ -290,6 +320,12 @@ export const ProjectIncomeView: React.FC<ProjectIncomeViewProps> = ({
       </div>
 
       {/* VIEW CONTENT ROUTING */}
+      {activeTab === 'quotations' && (
+        <div className="animate-in fade-in duration-200">
+          <QuotationRegisterView />
+        </div>
+      )}
+
       {activeTab === 'tax_invoices' && (
         <div className="animate-in fade-in duration-200">
           <TaxInvoiceRegisterView />

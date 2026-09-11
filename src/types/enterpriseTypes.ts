@@ -12,6 +12,7 @@ export type EnterpriseModule =
   | 'invoices'
   | 'client-payments'
   | 'tax-invoices'
+  | 'quotations'
   | 'reports'
   | 'documents'
   | 'enterprise-profile'
@@ -34,18 +35,29 @@ export type EnterpriseRole =
 
 export type SyncStatus = 'ONLINE' | 'SYNCING' | 'OFFLINE' | 'SYNC_ERROR';
 
+export interface ProcurementOrderItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  totalAmount: number;
+}
+
 export interface ProcurementOrder {
   id: string;
   PO_NUMBER: string; // e.g. "PO-202608-012"
   DATE: string;
   PROJECT_CODE: string;
   REQUESTED_BY: string; // Supervisor / Engineer
-  SUPPLIER_NAME: string;
+  SUPPLIER_ID?: string; // Reference to Supplier Master
+  SUPPLIER_NAME: string; // Retained for full backward compatibility
   ITEM_DESCRIPTION: string;
   QUANTITY: number;
-  UNIT: 'Cubes' | 'MT' | 'Bags' | 'Units' | 'Liters' | 'Hours';
+  UNIT: 'Cubes' | 'MT' | 'Bags' | 'Units' | 'Liters' | 'Hours' | string;
   UNIT_PRICE: number;
   TOTAL_AMOUNT: number; // LKR
+  ITEMS?: ProcurementOrderItem[];
   STATUS: 'Pending Approval' | 'Approved' | 'Delivered' | 'Invoiced' | 'Paid' | 'Cancelled';
   PRIORITY: 'Low' | 'Medium' | 'High' | 'Urgent';
   DELIVERY_LOCATION: string;
@@ -60,6 +72,9 @@ export interface PaymentVoucher {
   DATE: string;
   PROJECT_CODE: string;
   BENEFICIARY: string;
+  SUPPLIER_ID?: string;
+  SUPPLIER_NAME?: string;
+  LINKED_INVOICE_ID?: string;
   CATEGORY: string;
   AMOUNT: number; // LKR
   PAYMENT_METHOD: 'Petty Cash' | 'Cheque' | 'Direct Bank Transfer' | 'Online Banking';
@@ -117,6 +132,7 @@ export interface EnterpriseDocument {
     | 'VEHICLE'
     | 'PROJECT'
     | 'PROCUREMENT'
+    | 'SUPPLIER'
     | 'PAYMENT'
     | 'ENTERPRISE_PROFILE'
     | 'REGISTRATION'

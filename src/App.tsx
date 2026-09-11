@@ -21,7 +21,9 @@ import { EnterpriseCompanyProvider } from './context/EnterpriseCompanyContext';
 import { EnterpriseBankingProvider } from './context/EnterpriseBankingContext';
 import { EnterpriseComplianceProvider } from './context/EnterpriseComplianceContext';
 import { EnterpriseCorrespondenceProvider } from './context/EnterpriseCorrespondenceContext';
+import { SupplierProvider } from './context/SupplierContext';
 import { TaxInvoiceProvider } from './context/TaxInvoiceContext';
+import { QuotationProvider } from './context/QuotationContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginView } from './components/auth/LoginView';
 
@@ -46,6 +48,7 @@ import { EnterpriseBankingView } from './components/banking/EnterpriseBankingVie
 import { EnterpriseComplianceView } from './components/compliance/EnterpriseComplianceView';
 import { EnterpriseCorrespondenceView } from './components/correspondence/EnterpriseCorrespondenceView';
 import { TaxInvoiceRegisterView } from './components/invoices/TaxInvoiceRegisterView';
+import { QuotationRegisterView } from './components/quotations/QuotationRegisterView';
 import { ClientPaymentsView } from './components/payments/views/ClientPaymentsView';
 import { ProjectIncomeView } from './components/projectIncome/ProjectIncomeView';
 import { FinancialInsightsView } from './components/financialInsights/FinancialInsightsView';
@@ -585,6 +588,9 @@ const EnterpriseAppContent: React.FC = () => {
             {/* MODULE 5: PROCUREMENT & MATERIALS */}
             {currentModule === 'procurement' && <ProcurementView />}
 
+            {/* MODULE 5.9: COMMERCIAL QUOTATIONS & ESTIMATES */}
+            {currentModule === 'quotations' && <QuotationRegisterView />}
+
             {/* MODULE 6: PROJECT INCOME (TAX INVOICES & CLIENT PAYMENTS WITH COMBINED HORIZONTAL NAVIGATION PANE) */}
             {(currentModule === 'project-income' || currentModule === 'tax-invoices' || currentModule === 'client-payments' || currentModule === 'invoices') && (
               <ProjectIncomeView
@@ -732,9 +738,13 @@ const AuthenticatedAppShell: React.FC = () => {
                                   <EnterpriseBankingProvider>
                                     <EnterpriseComplianceProvider>
                                       <EnterpriseCorrespondenceProvider>
-                                        <TaxInvoiceProvider>
-                                          <EnterpriseAppContent />
-                                        </TaxInvoiceProvider>
+                                        <SupplierProvider>
+                                          <TaxInvoiceProvider>
+                                            <QuotationProvider>
+                                              <EnterpriseAppContent />
+                                            </QuotationProvider>
+                                          </TaxInvoiceProvider>
+                                        </SupplierProvider>
                                       </EnterpriseCorrespondenceProvider>
                                     </EnterpriseComplianceProvider>
                                   </EnterpriseBankingProvider>

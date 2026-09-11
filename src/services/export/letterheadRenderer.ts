@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { EnterpriseProfileDetails } from '../../types/enterpriseProfileTypes';
-import { Letter, LetterheadTemplate } from '../../types/correspondenceTypes';
+import { Letter, LetterheadTemplate, LetterConfidentiality } from '../../types/correspondenceTypes';
 import { defaultLetterheads } from '../../utils/letterheadUtils';
 
 export type LetterheadVariant = 'Company' | 'Project' | 'Finance' | 'Tender' | 'Confidential';
@@ -14,7 +14,7 @@ export interface DrawLetterheadOptions {
   documentTitle?: string;
   referenceNumber?: string;
   dateStr?: string;
-  confidentiality?: 'Normal' | 'Restricted' | 'Confidential';
+  confidentiality?: LetterConfidentiality;
   pageNumber?: number;
   totalPages?: number;
 }

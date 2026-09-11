@@ -10,7 +10,8 @@ import {
   LetterConfidentiality,
   LetterTone,
   CorrespondenceAttachment,
-  LetterDownloadRecord
+  LetterDownloadRecord,
+  CorrespondenceActionItem
 } from '../types/correspondenceTypes';
 import { readWordDocumentFile } from '../services/export/wordImportService';
 import {
@@ -135,6 +136,23 @@ interface EnterpriseCorrespondenceContextType {
   updateGoogleDocLink: (id: string, docUrl: string, docId?: string, actorName?: string) => void;
   syncFromGoogleDoc: (id: string, newBodyHtml: string, actorName?: string) => void;
   importWordRevision: (id: string, extractedHtml: string, file: File, actorName?: string) => Promise<Letter>;
+  addActionItem: (
+    letterId: string,
+    item: Omit<CorrespondenceActionItem, 'id' | 'createdAt'>
+  ) => CorrespondenceActionItem;
+  updateActionItem: (
+    letterId: string,
+    actionItemId: string,
+    updates: Partial<CorrespondenceActionItem>
+  ) => void;
+  deleteActionItem: (letterId: string, actionItemId: string) => void;
+  linkRelatedCorrespondence: (letterId: string, relatedId: string) => void;
+  unlinkRelatedCorrespondence: (letterId: string, relatedId: string) => void;
+  updateReplyStatus: (
+    letterId: string,
+    status: 'Pending' | 'Sent' | 'Overdue',
+    replyLetterId?: string
+  ) => void;
 }
 
 const defaultTemplates: LetterTemplate[] = [
@@ -211,6 +229,9 @@ const initialLetters: Letter[] = [
     id: 'ltr-001',
     letterNumber: 'EMA/RDA/PIDM26/2026/001',
     direction: 'Outgoing',
+    documentType: 'SUBMISSION',
+    contractualCategory: 'Technical',
+    partyType: 'Client',
     category: 'Project',
     clientId: 'cl-rda',
     clientName: 'Road Development Authority (RDA)',
@@ -233,6 +254,7 @@ const initialLetters: Letter[] = [
     replyRequired: true,
     replyDueDate: '2026-08-28',
     replyStatus: 'Sent',
+    relatedCorrespondenceIds: ['ltr-002'],
     bodyHtml: `<p>Dear Eng. Karunaratne,</p>
 <p>We refer to the site progress meeting held on 10th August 2026 regarding Section 2 sub-base stabilization for Project PIDM26.</p>
 <p>Enclosed herewith please find three (03) copies of the revised Method Statement and detailed Traffic Diversion Scheme for the Kadawatha-Mirigama link chainage 14+200 to 16+800.</p>
@@ -255,18 +277,6 @@ const initialLetters: Letter[] = [
         letterheadName: '[Project] Kadawatha-Mirigama Site Stationery',
         fileSize: 142300,
         notes: 'Official PDF issued to Employer & Project Director'
-      },
-      {
-        id: 'dl-init-002',
-        letterId: 'ltr-001',
-        downloadedAt: '2026-08-14T09:45:00Z',
-        downloadedBy: 'Samantha Perera (Admin)',
-        format: 'DOCX',
-        filename: 'EMA_RDA_PIDM26_2026_001_Official_Correspondence.docx',
-        version: 1,
-        letterheadName: '[Project] Kadawatha-Mirigama Site Stationery',
-        fileSize: 84200,
-        notes: 'Draft exported to MS Word for Resident Engineer review'
       }
     ],
     createdAt: '2026-08-14T09:30:00Z',
@@ -276,6 +286,9 @@ const initialLetters: Letter[] = [
     id: 'ltr-002',
     letterNumber: 'EMA/RDA/PIDM26/2026/002',
     direction: 'Incoming',
+    documentType: 'INSTRUCTION',
+    contractualCategory: 'Technical',
+    partyType: 'Client',
     category: 'Client',
     clientId: 'cl-rda',
     clientName: 'Road Development Authority (RDA)',
@@ -292,12 +305,29 @@ const initialLetters: Letter[] = [
     theirReference: 'RDA/PD/CEP/TECH/425',
     ourReference: 'EMA/RDA/PIDM26/2026/002',
     replyToLetterId: 'ltr-001',
+    parentCorrespondenceId: 'ltr-001',
     relationship: 'Reply To',
     date: '2026-08-25',
+    receivedDate: '2026-08-26',
     priority: 'Normal',
     confidentiality: 'Normal',
     replyRequired: false,
     replyStatus: 'Sent',
+    actionRequired: true,
+    actionItems: [
+      {
+        id: 'act-001',
+        correspondenceId: 'ltr-002',
+        action: 'Install 24-hour illuminated signboards at Chainage 15+000',
+        responsiblePerson: 'Eng. K. Samarasinghe (Site Engineer)',
+        dueDate: '2026-09-05',
+        priority: 'HIGH',
+        status: 'COMPLETED',
+        completionDate: '2026-09-04',
+        remarks: 'Signboards commissioned and checked by police liaison officer',
+        createdAt: '2026-08-26T10:00:00Z'
+      }
+    ],
     bodyHtml: `<p>Dear Sirs,</p>
 <p>Reference is made to your letter EMA/RDA/PIDM26/2026/001 dated 14th August 2026.</p>
 <p>The Resident Engineer has reviewed your revised Method Statement and grants conditional approval, subject to mandatory 24-hour illuminated signboards and police traffic liaison at Chainage 15+000.</p>`,
@@ -313,6 +343,9 @@ const initialLetters: Letter[] = [
     id: 'ltr-003',
     letterNumber: 'EMA/CECB/CWP01/2026/001',
     direction: 'Outgoing',
+    documentType: 'SUBMISSION',
+    contractualCategory: 'QA/QC',
+    partyType: 'Engineer',
     category: 'Project',
     clientId: 'cl-cecb',
     clientName: 'Central Engineering Consultancy Bureau (CECB)',
@@ -334,6 +367,19 @@ const initialLetters: Letter[] = [
     replyRequired: true,
     replyDueDate: '2026-09-12',
     replyStatus: 'Pending',
+    actionRequired: true,
+    actionItems: [
+      {
+        id: 'act-002',
+        correspondenceId: 'ltr-003',
+        action: 'Follow up with Consultant Resident Engineer for signed protocol sheets',
+        responsiblePerson: 'Nimal Jayasuriya (QA Manager)',
+        dueDate: '2026-09-12',
+        priority: 'NORMAL',
+        status: 'OPEN',
+        createdAt: '2026-08-29T11:30:00Z'
+      }
+    ],
     bodyHtml: `<p>Dear Eng. Bandara,</p>
 <p>We are pleased to submit the certified Hydrostatic Pressure Test logs for the ductile iron pipelines installed under Sector 4.</p>
 <p>All test runs maintained an operational pressure of 12 bar over the requisite 6-hour duration without pressure drop.</p>
@@ -350,6 +396,9 @@ const initialLetters: Letter[] = [
     id: 'ltr-004',
     letterNumber: 'EMA/COMBANK/CORP/2026/001',
     direction: 'Outgoing',
+    documentType: 'LETTER',
+    contractualCategory: 'Commercial',
+    partyType: 'Bank',
     category: 'Bank',
     clientId: 'cl-combank',
     clientName: 'Commercial Bank of Ceylon PLC',
@@ -383,6 +432,208 @@ const initialLetters: Letter[] = [
     isLocked: false,
     attachedDocumentIds: [],
     createdAt: '2026-09-02T10:00:00Z'
+  },
+  {
+    id: 'ltr-005',
+    letterNumber: 'EMA/RDA/PIDM26/2026/003',
+    direction: 'Outgoing',
+    documentType: 'EOT',
+    contractualCategory: 'EOT',
+    partyType: 'Engineer',
+    category: 'Project',
+    clientId: 'cl-rda',
+    clientName: 'Road Development Authority (RDA)',
+    clientAffix: 'RDA',
+    projectId: 'PRJ-2026-001',
+    projectCode: 'PIDM26',
+    projectName: 'Kadawatha - Mirigama Expressway Rehabilitation',
+    projectAffix: 'PIDM26',
+    sequenceYear: '2026',
+    sequenceNumber: 3,
+    recipientOrganization: 'Resource Development Consultants (Engineer)',
+    recipientAddress: 'Consultant Resident Office, Kadawatha Interchange Site',
+    attention: 'Eng. P. Senanayake (The Engineer)',
+    subject: 'FIDIC Cl. 8.4 & 20.1: Notice of Claim for Extension of Time (EOT-01) - Unforeseen Geological Fault',
+    ourReference: 'EMA/RDA/PIDM26/2026/003',
+    theirReference: 'ENG/CEP/SITE/2026/78',
+    date: '2026-08-18',
+    priority: 'Urgent',
+    confidentiality: 'Normal',
+    replyRequired: true,
+    replyDueDate: '2026-09-01',
+    replyStatus: 'Pending',
+    relatedCorrespondenceIds: ['ltr-006', 'ltr-007'],
+    actionRequired: true,
+    actionItems: [
+      {
+        id: 'act-003',
+        correspondenceId: 'ltr-005',
+        action: 'Compile daily core drilling logs and borehole lab tests for Engineer submission',
+        responsiblePerson: 'Geotechnical Engineer (M. Wijeratne)',
+        dueDate: '2026-08-25',
+        priority: 'URGENT',
+        status: 'COMPLETED',
+        completionDate: '2026-08-24',
+        remarks: 'Core logs delivered under transmittal TR-GEO-14',
+        createdAt: '2026-08-18T14:00:00Z'
+      }
+    ],
+    bodyHtml: `<p>Dear Eng. Senanayake,</p>
+<p><strong>RE: CONTRACT NO. RDA/CEP/SEC-02 - NOTICE OF CLAIM FOR EXTENSION OF TIME (EOT-01) UNDER FIDIC CLAUSES 8.4 & 20.1</strong></p>
+<p>In accordance with Clause 20.1 [Contractor's Claims], we give formal notice of our intention to claim an Extension of the Time for Completion and associated additional cost arising from the unforeseen subsurface geological fault encounter between Chainage 14+200 and 14+850.</p>
+<p>Initial critical path impact analysis demonstrates a delay to the completion milestone of 42 calendar days.</p>`,
+    letterheadVariant: 'Project',
+    preparedBy: 'Contracts Director (C. Bogahawatta)',
+    status: 'Issued',
+    version: 1,
+    isLocked: true,
+    attachedDocumentIds: [],
+    createdAt: '2026-08-18T13:00:00Z',
+    issuedAt: '2026-08-18T15:00:00Z'
+  },
+  {
+    id: 'ltr-006',
+    letterNumber: 'RDC/CEP/ENG/2026/092',
+    direction: 'Incoming',
+    documentType: 'RESPONSE',
+    contractualCategory: 'EOT',
+    partyType: 'Engineer',
+    category: 'Project',
+    clientId: 'cl-rda',
+    clientName: 'Road Development Authority (RDA)',
+    clientAffix: 'RDA',
+    projectId: 'PRJ-2026-001',
+    projectCode: 'PIDM26',
+    projectName: 'Kadawatha - Mirigama Expressway Rehabilitation',
+    projectAffix: 'PIDM26',
+    sequenceYear: '2026',
+    sequenceNumber: 4,
+    senderOrganization: 'Resource Development Consultants (The Engineer)',
+    recipientOrganization: 'Apex Global Logistics Corp',
+    subject: 'Engineer Assessment on EOT-01 Notice & Request for Contemporaneous Records',
+    theirReference: 'RDC/CEP/ENG/2026/092',
+    ourReference: 'EMA/RDA/PIDM26/2026/003',
+    replyToLetterId: 'ltr-005',
+    parentCorrespondenceId: 'ltr-005',
+    relationship: 'Reply To',
+    date: '2026-08-30',
+    receivedDate: '2026-08-31',
+    priority: 'High',
+    confidentiality: 'Normal',
+    replyRequired: true,
+    replyDueDate: '2026-09-14',
+    replyStatus: 'Pending',
+    relatedCorrespondenceIds: ['ltr-005', 'ltr-007'],
+    actionRequired: true,
+    actionItems: [
+      {
+        id: 'act-004',
+        correspondenceId: 'ltr-006',
+        action: 'Submit Primavera P6 window delay analysis and daily heavy plant standby sheets',
+        responsiblePerson: 'Planning Engineer (R. Fernando)',
+        dueDate: '2026-09-14',
+        priority: 'HIGH',
+        status: 'IN_PROGRESS',
+        remarks: 'Time impact baseline run underway against Approved Baseline Rev. 02',
+        createdAt: '2026-08-31T09:00:00Z'
+      }
+    ],
+    bodyHtml: `<p>Dear Sirs,</p>
+<p>We acknowledge receipt of your Cl. 20.1 Notice of Claim (Ref: EMA/RDA/PIDM26/2026/003) dated 18th August 2026.</p>
+<p>Without prejudice to liability, the Engineer instructs you to maintain detailed contemporaneous records in accordance with Clause 20.1. Please submit your fully detailed claim with Primavera P6 native XER schedule files and weather meteorological data within the contractual 42-day period.</p>`,
+    preparedBy: 'Eng. P. Senanayake (The Engineer)',
+    status: 'Issued',
+    version: 1,
+    isLocked: true,
+    attachedDocumentIds: [],
+    createdAt: '2026-08-30T16:00:00Z',
+    issuedAt: '2026-08-30T16:00:00Z'
+  },
+  {
+    id: 'ltr-007',
+    letterNumber: 'EMA/RDA/PIDM26/2026/004',
+    direction: 'Outgoing',
+    documentType: 'VARIATION',
+    contractualCategory: 'Variation',
+    partyType: 'Engineer',
+    category: 'Project',
+    clientId: 'cl-rda',
+    clientName: 'Road Development Authority (RDA)',
+    clientAffix: 'RDA',
+    projectId: 'PRJ-2026-001',
+    projectCode: 'PIDM26',
+    projectName: 'Kadawatha - Mirigama Expressway Rehabilitation',
+    projectAffix: 'PIDM26',
+    sequenceYear: '2026',
+    sequenceNumber: 5,
+    recipientOrganization: 'Resource Development Consultants (Engineer)',
+    recipientAddress: 'Consultant Resident Office, Kadawatha Interchange Site',
+    attention: 'Eng. P. Senanayake (The Engineer)',
+    subject: 'Variation Proposal VP-02: Reinforced Concrete Retaining Wall In Lieu of Soil Slope at CH 14+350',
+    ourReference: 'EMA/RDA/PIDM26/2026/004',
+    date: '2026-09-04',
+    priority: 'Normal',
+    confidentiality: 'Normal',
+    replyRequired: true,
+    replyDueDate: '2026-09-18',
+    replyStatus: 'Pending',
+    relatedCorrespondenceIds: ['ltr-005', 'ltr-006'],
+    actionRequired: false,
+    bodyHtml: `<p>Dear Eng. Senanayake,</p>
+<p>Further to the site joint geotechnical inspection on 28th August 2026, we submit our formal Variation Proposal VP-02 under Clause 13.1 [Right to Vary].</p>
+<p>To avoid recurring slope instability and safeguard adjacent residential property boundaries, we propose replacing the 1:2 cut earth slope with a 4.5m cantilever RC retaining wall.</p>
+<p>Detailed structural calculations, reinforcement schedule, and BoQ star-rate breakdown are attached.</p>`,
+    letterheadVariant: 'Project',
+    preparedBy: 'Samantha Perera (Admin)',
+    status: 'Approved',
+    version: 1,
+    isLocked: false,
+    attachedDocumentIds: [],
+    createdAt: '2026-09-04T10:30:00Z'
+  },
+  {
+    id: 'ltr-008',
+    letterNumber: 'CIDA/CAP/2026/184',
+    direction: 'Incoming',
+    documentType: 'NOTICE',
+    contractualCategory: 'General',
+    partyType: 'CIDA',
+    category: 'CIDA',
+    senderOrganization: 'Construction Industry Development Authority (CIDA)',
+    recipientOrganization: 'Apex Global Logistics Corp',
+    subject: 'Annual Financial & Technical Capacity Audit for CS-2 Heavy Highway Grading Renewal',
+    theirReference: 'CIDA/CAP/2026/184',
+    date: '2026-08-20',
+    receivedDate: '2026-08-22',
+    priority: 'High',
+    confidentiality: 'Normal',
+    replyRequired: true,
+    replyDueDate: '2026-09-05',
+    replyStatus: 'Overdue',
+    actionRequired: true,
+    actionItems: [
+      {
+        id: 'act-005',
+        correspondenceId: 'ltr-008',
+        action: 'Submit audited balance sheets and heavy plant machinery register to CIDA Secretariat',
+        responsiblePerson: 'Compliance Director (K. Wickremasinghe)',
+        dueDate: '2026-09-05',
+        priority: 'URGENT',
+        status: 'IN_PROGRESS',
+        remarks: 'Overdue! Certified asset valuation scheduled for delivery today',
+        createdAt: '2026-08-22T10:00:00Z'
+      }
+    ],
+    bodyHtml: `<p>Dear Contractor,</p>
+<p>You are hereby notified that your annual Technical & Financial Evaluation for the renewal of your CS-2 National Construction Grading is due.</p>
+<p>Please furnish the prescribed Form CIDA-REG-04 together with certified audited financials, professional engineers list, and registered plant & equipment inventory on or before 5th September 2026.</p>`,
+    preparedBy: 'CIDA Registration Secretariat',
+    status: 'Issued',
+    version: 1,
+    isLocked: true,
+    attachedDocumentIds: [],
+    createdAt: '2026-08-20T08:00:00Z',
+    issuedAt: '2026-08-20T08:00:00Z'
   }
 ];
 
@@ -1460,6 +1711,127 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
     return newRecord;
   };
 
+  const addActionItem = (
+    letterId: string,
+    item: Omit<CorrespondenceActionItem, 'id' | 'createdAt'>
+  ): CorrespondenceActionItem => {
+    const newItem: CorrespondenceActionItem = {
+      ...item,
+      id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      correspondenceId: letterId,
+      createdAt: new Date().toISOString()
+    };
+
+    setLetters(prev =>
+      prev.map(l => {
+        if (l.id !== letterId) return l;
+        const currentActions = l.actionItems || [];
+        return {
+          ...l,
+          actionRequired: true,
+          actionItems: [...currentActions, newItem]
+        };
+      })
+    );
+
+    return newItem;
+  };
+
+  const updateActionItem = (
+    letterId: string,
+    actionItemId: string,
+    updates: Partial<CorrespondenceActionItem>
+  ) => {
+    setLetters(prev =>
+      prev.map(l => {
+        if (l.id !== letterId) return l;
+        const currentActions = l.actionItems || [];
+        const updatedActions = currentActions.map(a =>
+          a.id === actionItemId ? { ...a, ...updates } : a
+        );
+        const hasOpenActions = updatedActions.some(a => a.status === 'OPEN' || a.status === 'IN_PROGRESS');
+        return {
+          ...l,
+          actionRequired: hasOpenActions,
+          actionItems: updatedActions
+        };
+      })
+    );
+  };
+
+  const deleteActionItem = (letterId: string, actionItemId: string) => {
+    setLetters(prev =>
+      prev.map(l => {
+        if (l.id !== letterId) return l;
+        const currentActions = l.actionItems || [];
+        const remaining = currentActions.filter(a => a.id !== actionItemId);
+        return {
+          ...l,
+          actionRequired: remaining.some(a => a.status === 'OPEN' || a.status === 'IN_PROGRESS'),
+          actionItems: remaining
+        };
+      })
+    );
+  };
+
+  const linkRelatedCorrespondence = (letterId: string, relatedId: string) => {
+    if (letterId === relatedId) return;
+    setLetters(prev =>
+      prev.map(l => {
+        if (l.id === letterId) {
+          const current = l.relatedCorrespondenceIds || [];
+          if (!current.includes(relatedId)) {
+            return { ...l, relatedCorrespondenceIds: [...current, relatedId] };
+          }
+        }
+        if (l.id === relatedId) {
+          const current = l.relatedCorrespondenceIds || [];
+          if (!current.includes(letterId)) {
+            return { ...l, relatedCorrespondenceIds: [...current, letterId] };
+          }
+        }
+        return l;
+      })
+    );
+  };
+
+  const unlinkRelatedCorrespondence = (letterId: string, relatedId: string) => {
+    setLetters(prev =>
+      prev.map(l => {
+        if (l.id === letterId) {
+          return {
+            ...l,
+            relatedCorrespondenceIds: (l.relatedCorrespondenceIds || []).filter(id => id !== relatedId)
+          };
+        }
+        if (l.id === relatedId) {
+          return {
+            ...l,
+            relatedCorrespondenceIds: (l.relatedCorrespondenceIds || []).filter(id => id !== letterId)
+          };
+        }
+        return l;
+      })
+    );
+  };
+
+  const updateReplyStatus = (
+    letterId: string,
+    status: 'Pending' | 'Sent' | 'Overdue',
+    replyLetterId?: string
+  ) => {
+    setLetters(prev =>
+      prev.map(l => {
+        if (l.id !== letterId) return l;
+        return {
+          ...l,
+          replyStatus: status,
+          replyToLetterId: replyLetterId || l.replyToLetterId
+        };
+      })
+    );
+  };
+
   const resetCorrespondenceToDefaults = () => {
     setLetters(initialLetters);
     setVersions([]);
@@ -1515,7 +1887,13 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
         createRevision,
         updateGoogleDocLink,
         syncFromGoogleDoc,
-        importWordRevision
+        importWordRevision,
+        addActionItem,
+        updateActionItem,
+        deleteActionItem,
+        linkRelatedCorrespondence,
+        unlinkRelatedCorrespondence,
+        updateReplyStatus
       }}
     >
       {children}

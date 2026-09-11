@@ -37,7 +37,12 @@ import {
   AlertTriangle,
   Globe,
   RefreshCw,
-  Check
+  Check,
+  Inbox,
+  LayoutDashboard,
+  Table,
+  GitBranch,
+  Link
 } from 'lucide-react';
 import { useEnterpriseCorrespondence } from '../../context/EnterpriseCorrespondenceContext';
 import { useEnterpriseCompany } from '../../context/EnterpriseCompanyContext';
@@ -58,6 +63,12 @@ import { CorrespondenceFinalDocumentPanel } from './CorrespondenceFinalDocumentP
 import { CorrespondenceFinalizeModal } from './CorrespondenceFinalizeModal';
 import { GoogleDocsConnectModal } from './GoogleDocsConnectModal';
 import { CorrespondenceVersionDiffModal } from './CorrespondenceVersionDiffModal';
+import { CorrespondenceDashboardView } from './CorrespondenceDashboardView';
+import { CorrespondenceRegisterTable } from './CorrespondenceRegisterTable';
+import { CorrespondenceThreadView } from './CorrespondenceThreadView';
+import { CorrespondenceActionTrackerModal } from './CorrespondenceActionTrackerModal';
+import { CorrespondenceIntakeModal } from './CorrespondenceIntakeModal';
+import { CorrespondenceLinkModal } from './CorrespondenceLinkModal';
 import { groupLettersByClientAndProject } from '../../utils/correspondenceUtils';
 
 export const EnterpriseCorrespondenceView: React.FC = () => {
@@ -85,15 +96,30 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
     clearCorrespondenceHistory,
     clearAllCorrespondenceHistory,
     resetCorrespondenceToDefaults,
-    recordLetterDownload
+    recordLetterDownload,
+    addActionItem,
+    updateActionItem,
+    deleteActionItem,
+    linkRelatedCorrespondence,
+    unlinkRelatedCorrespondence,
+    updateReplyStatus
   } = useEnterpriseCorrespondence();
 
   const { profile } = useEnterpriseCompany();
   const { currentEnterprise } = useEnterprise();
 
-  const [activeTab, setActiveTab] = useState<'outbox' | 'templates' | 'letterheads'>('outbox');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'register' | 'outbox' | 'templates' | 'letterheads'>('dashboard');
+  const [registerViewMode, setRegisterViewMode] = useState<
+    'all' | 'incoming' | 'outgoing' | 'drafts' | 'pending_action' | 'pending_reply' | 'overdue'
+  >('all');
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(letters[0] || null);
   const [previewLetterheadModalTarget, setPreviewLetterheadModalTarget] = useState<LetterheadTemplate | null>(null);
+
+  // New Contractual Action & Thread Modals
+  const [isIntakeModalOpen, setIsIntakeModalOpen] = useState<boolean>(false);
+  const [actionTrackerLetter, setActionTrackerLetter] = useState<Letter | null>(null);
+  const [threadModalLetter, setThreadModalLetter] = useState<Letter | null>(null);
+  const [linkModalLetter, setLinkModalLetter] = useState<Letter | null>(null);
 
   // Modal state for View Prior to Download and Download History
   const [isPriorDownloadModalOpen, setIsPriorDownloadModalOpen] = useState<boolean>(false);
@@ -320,6 +346,83 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
     }
   };
 
+  const handleSaveIncoming = (letterData: Partial<Letter>, file?: File) => {
+    const incomingAttachments: CorrespondenceAttachment[] = file
+      ? [
+          {
+            id: `att-${Date.now()}`,
+            letterId: '',
+            name: file.name,
+            size: file.size,
+            fileType: file.type || 'application/pdf',
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: 'Document Controller',
+            category: 'SUPPORTING_DOCUMENT',
+            dataUrl: URL.createObjectURL(file)
+          }
+        ]
+      : [];
+
+    const now = new Date().toISOString();
+    const created = createLetter({
+      direction: 'Incoming',
+      status: 'RECEIVED',
+      letterNumber: letterData.letterNumber || letterData.theirReference || `IN-${Date.now().toString().slice(-6)}`,
+      subject: letterData.subject || 'Incoming Correspondence',
+      bodyHtml: letterData.bodyHtml || '<p>Incoming document registered into enterprise correspondence intake register.</p>',
+      date: letterData.date || now.split('T')[0],
+      receivedDate: letterData.receivedDate || now.split('T')[0],
+      senderOrganization: letterData.senderOrganization || 'External Stakeholder',
+      senderName: letterData.senderName || '',
+      recipientOrganization: letterData.recipientOrganization || currentEnterprise?.name || 'Apex Global Logistics Corp',
+      recipientName: letterData.recipientName || 'Managing Director / Secretariat',
+      category: letterData.category || 'Project',
+      documentType: letterData.documentType || 'LETTER',
+      contractualCategory: letterData.contractualCategory || 'General',
+      partyType: letterData.partyType || 'Other',
+      priority: letterData.priority || 'Normal',
+      confidentiality: letterData.confidentiality || 'Normal',
+      projectId: letterData.projectId,
+      projectCode: letterData.projectCode,
+      projectName: letterData.projectName,
+      projectAffix: letterData.projectAffix,
+      clientId: letterData.clientId,
+      clientName: letterData.clientName,
+      clientAffix: letterData.clientAffix,
+      theirReference: letterData.theirReference,
+      ourReference: letterData.ourReference,
+      replyRequired: letterData.replyRequired,
+      replyDueDate: letterData.replyDueDate,
+      replyStatus: letterData.replyRequired ? 'Pending' : undefined,
+      actionRequired: letterData.actionRequired,
+      actionDescription: letterData.actionDescription,
+      actionDueDate: letterData.actionDueDate,
+      actionOwnerId: letterData.actionOwnerId,
+      actionItems: letterData.actionItems || [],
+      relatedCorrespondenceIds: letterData.relatedCorrespondenceIds || [],
+      parentCorrespondenceId: letterData.parentCorrespondenceId,
+      relationship: letterData.relationship,
+      preparedBy: 'Document Controller / Secretariat',
+      attachedDocumentIds: [],
+      attachments: incomingAttachments
+    });
+
+    setIsIntakeModalOpen(false);
+    setSelectedLetter(created);
+  };
+
+  const handleComposeReply = (parentLetter: Letter) => {
+    setComposeModalParams({
+      clientAffix: parentLetter.clientAffix,
+      clientName: parentLetter.clientName,
+      projectAffix: parentLetter.projectAffix,
+      projectCode: parentLetter.projectCode,
+      projectName: parentLetter.projectName,
+      letterheadId: parentLetter.letterheadId
+    });
+    setIsComposeModalOpen(true);
+  };
+
   const handleDownloadPdf = (letterToPrint: Letter) => {
     const targetLetterhead = letterToPrint.letterheadId
       ? getLetterheadById(letterToPrint.letterheadId)
@@ -357,52 +460,114 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
               </span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-400">
-              Project & Client Folders with Automatic Reference Protocol{' '}
+              Contractual Register, Automated Action Tracking, & Official Reference Protocol{' '}
               <span className="font-mono text-purple-300 font-medium">(EMA/Client/Project/Year/Suffix)</span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {/* Toggle Folder Tree */}
+        <div className="flex items-center flex-wrap gap-2">
+          {/* Main Navigation Tabs */}
+          <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                activeTab === 'dashboard'
+                  ? 'bg-purple-600 text-white shadow-md font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5 text-purple-300" />
+              <span>Dashboard</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('register')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                activeTab === 'register'
+                  ? 'bg-purple-600 text-white shadow-md font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Table className="w-3.5 h-3.5 text-purple-300" />
+              <span>Register</span>
+              <span className="ml-0.5 text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-purple-300 border border-purple-500/30 font-mono">
+                {letters.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('outbox')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                activeTab === 'outbox'
+                  ? 'bg-purple-600 text-white shadow-md font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Editor & Letterhead Studio"
+            >
+              <FileText className="w-3.5 h-3.5 text-purple-300" />
+              <span>Studio</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('templates')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                activeTab === 'templates'
+                  ? 'bg-purple-600 text-white shadow-md font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-purple-300" />
+              <span>Templates ({templates.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('letterheads')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                activeTab === 'letterheads'
+                  ? 'bg-purple-600 text-white shadow-md font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Manage Official Company Stationery & Letterheads"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-300" />
+              <span>Letterheads ({letterheads.length})</span>
+            </button>
+          </div>
+
+          {/* Toggle Folder Tree (Studio view only) */}
+          {activeTab === 'outbox' && (
+            <button
+              onClick={() => setShowFolderSidebar(!showFolderSidebar)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors flex items-center gap-1.5 ${
+                showFolderSidebar
+                  ? 'bg-purple-600/20 text-purple-300 border-purple-500/40'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+              }`}
+              title="Toggle Folder Tree Sidebar"
+            >
+              <FolderTree className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden sm:inline">Folders</span>
+            </button>
+          )}
+
+          {/* Log Incoming Button */}
           <button
-            onClick={() => setShowFolderSidebar(!showFolderSidebar)}
-            className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors flex items-center gap-1.5 ${
-              showFolderSidebar
-                ? 'bg-purple-600/20 text-purple-300 border-purple-500/40'
-                : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
-            }`}
-            title="Toggle Folder Tree Sidebar"
+            onClick={() => setIsIntakeModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
+            title="Log and stamp incoming correspondence, notices, or site instructions"
           >
-            <FolderTree className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden sm:inline">Folders</span>
+            <Inbox className="w-3.5 h-3.5" />
+            <span>Log Incoming</span>
           </button>
 
-          {/* Templates Tab */}
+          {/* Compose Outgoing Button */}
           <button
-            onClick={() => setActiveTab(activeTab === 'templates' ? 'outbox' : 'templates')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors flex items-center gap-1.5 ${
-              activeTab === 'templates'
-                ? 'bg-purple-600 text-white border-purple-500 shadow-md'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-            }`}
+            onClick={() => handleOpenCompose()}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-emerald-600/20"
           >
-            <Layers className="w-3.5 h-3.5" />
-            Templates ({templates.length})
-          </button>
-
-          {/* Letterheads Tab */}
-          <button
-            onClick={() => setActiveTab(activeTab === 'letterheads' ? 'outbox' : 'letterheads')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors flex items-center gap-1.5 ${
-              activeTab === 'letterheads'
-                ? 'bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-600/20 font-semibold'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-            }`}
-            title="Manage Official Company Stationery & Letterheads"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400" />
-            Letterheads ({letterheads.length})
+            <Plus className="w-4 h-4" />
+            <span>Compose Letter</span>
           </button>
 
           {/* Admin Clear History Button */}
@@ -418,20 +583,48 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
               setSelectedLetter(null);
             }}
           />
-
-          {/* Compose Button */}
-          <button
-            onClick={() => handleOpenCompose()}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-emerald-600/20"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Compose Official Letter</span>
-          </button>
         </div>
       </div>
 
       {/* Main Workspace Layout */}
       <div className="flex-1 flex overflow-hidden">
+        {/* VIEW: DASHBOARD & RADAR */}
+        {activeTab === 'dashboard' && (
+          <CorrespondenceDashboardView
+            letters={letters}
+            onSelectTab={tabKey => {
+              setRegisterViewMode(tabKey as any);
+              setActiveTab('register');
+            }}
+            onOpenIncomingIntake={() => setIsIntakeModalOpen(true)}
+            onOpenOutgoingCompose={() => handleOpenCompose()}
+            onSelectLetter={letter => {
+              setSelectedLetter(letter);
+              setActiveTab('outbox');
+            }}
+          />
+        )}
+
+        {/* VIEW: MASTER CORRESPONDENCE REGISTER */}
+        {activeTab === 'register' && (
+          <div className="flex-1 flex flex-col overflow-hidden bg-slate-900">
+            <CorrespondenceRegisterTable
+              viewMode={registerViewMode}
+              letters={letters}
+              selectedLetterId={activeSelectedLetter?.id || null}
+              onSelectLetter={letter => {
+                setSelectedLetter(letter);
+                setActiveTab('outbox');
+              }}
+              onOpenIntakeModal={() => setIsIntakeModalOpen(true)}
+              onOpenComposeModal={() => handleOpenCompose()}
+              onOpenActionTracker={letter => setActionTrackerLetter(letter)}
+              onOpenThreadView={letter => setThreadModalLetter(letter)}
+              onDownloadPdf={letter => handleDownloadPdf(letter)}
+              onDownloadWord={letter => handleExportWord(letter)}
+            />
+          </div>
+        )}
         {/* VIEW 1: OUTBOX & FOLDER EXPLORER */}
         {activeTab === 'outbox' && (
           <div className="flex-1 flex overflow-hidden">
@@ -820,6 +1013,49 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
                           {activeSelectedLetter?.attachments?.length}
                         </span>
                       )}
+                    </button>
+
+                    {/* ACTION DIRECTIVES TRACKER */}
+                    <button
+                      type="button"
+                      onClick={() => activeSelectedLetter && setActionTrackerLetter(activeSelectedLetter)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition-colors"
+                      title="Manage action items, tasks, responsible persons, and deadlines"
+                    >
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      Actions
+                      {((activeSelectedLetter?.actionItems?.length || 0) > 0 || activeSelectedLetter?.actionRequired) && (
+                        <span className="ml-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] px-1.5 py-0.2 rounded-full font-bold font-mono">
+                          {activeSelectedLetter?.actionItems?.filter(a => a.status === 'OPEN' || a.status === 'IN_PROGRESS').length || (activeSelectedLetter?.actionRequired ? 1 : 0)}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* CONTRACTUAL THREAD & REFERENCES */}
+                    <button
+                      type="button"
+                      onClick={() => activeSelectedLetter && setThreadModalLetter(activeSelectedLetter)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-semibold transition-colors"
+                      title="View chronological reference thread and linked contractual letters"
+                    >
+                      <GitBranch className="w-3.5 h-3.5 text-purple-400" />
+                      Thread
+                      {((activeSelectedLetter?.relatedCorrespondenceIds?.length || 0) > 0 || activeSelectedLetter?.replyToLetterId || activeSelectedLetter?.parentCorrespondenceId) && (
+                        <span className="ml-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] px-1.5 py-0.2 rounded-full font-bold font-mono">
+                          {(activeSelectedLetter?.relatedCorrespondenceIds?.length || 0) + (activeSelectedLetter?.replyToLetterId ? 1 : 0)}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* LINK RELATED CORRESPONDENCE */}
+                    <button
+                      type="button"
+                      onClick={() => activeSelectedLetter && setLinkModalLetter(activeSelectedLetter)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold transition-colors"
+                      title="Link or unlink related letters for claims, delays, or replies"
+                    >
+                      <Link className="w-3.5 h-3.5 text-blue-400" />
+                      Link
                     </button>
 
                     <button
@@ -1931,6 +2167,84 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
               >
                 Create Revision
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CORRESPONDENCE INTAKE (LOG INCOMING NOTICES & LETTERS) */}
+      {isIntakeModalOpen && (
+        <CorrespondenceIntakeModal
+          existingLetters={letters}
+          onClose={() => setIsIntakeModalOpen(false)}
+          onSaveIncoming={(letterData, file) => handleSaveIncoming(letterData, file)}
+        />
+      )}
+
+      {/* MODAL: ACTION ITEMS & CONTRACTUAL DIRECTIVES TRACKER */}
+      {actionTrackerLetter && (
+        <CorrespondenceActionTrackerModal
+          letter={letters.find(l => l.id === actionTrackerLetter.id) || actionTrackerLetter}
+          onClose={() => setActionTrackerLetter(null)}
+          onAddActionItem={(letterId, item) => addActionItem(letterId, item)}
+          onUpdateActionItem={(letterId, actionItemId, updates) => updateActionItem(letterId, actionItemId, updates)}
+          onDeleteActionItem={(letterId, actionItemId) => deleteActionItem(letterId, actionItemId)}
+        />
+      )}
+
+      {/* MODAL: LINK RELATED CORRESPONDENCE & CLAIMS */}
+      {linkModalLetter && (
+        <CorrespondenceLinkModal
+          currentLetter={letters.find(l => l.id === linkModalLetter.id) || linkModalLetter}
+          allLetters={letters}
+          onClose={() => setLinkModalLetter(null)}
+          onLinkLetter={(letterId, targetId) => linkRelatedCorrespondence(letterId, targetId)}
+          onUnlinkLetter={(letterId, targetId) => unlinkRelatedCorrespondence(letterId, targetId)}
+        />
+      )}
+
+      {/* MODAL: CONTRACTUAL REFERENCE THREAD & CHRONOLOGY */}
+      {threadModalLetter && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg text-purple-400">
+                  <GitBranch className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                    Contractual Reference Chain & Chronology
+                    <span className="font-mono text-purple-400 text-xs font-semibold">
+                      {threadModalLetter.letterNumber}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Chronological progression of notices, site instructions, claims, and responses
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setThreadModalLetter(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950/30">
+              <CorrespondenceThreadView
+                currentLetter={letters.find(l => l.id === threadModalLetter.id) || threadModalLetter}
+                allLetters={letters}
+                onSelectLetter={l => {
+                  setSelectedLetter(l);
+                  setThreadModalLetter(l);
+                }}
+                onComposeReply={l => {
+                  setThreadModalLetter(null);
+                  handleComposeReply(l);
+                }}
+                onOpenLinkModal={l => setLinkModalLetter(l)}
+              />
             </div>
           </div>
         </div>

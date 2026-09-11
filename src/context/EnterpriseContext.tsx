@@ -80,12 +80,23 @@ const INITIAL_PROCUREMENT: ProcurementOrder[] = [
     DATE: '2026-08-25',
     PROJECT_CODE: 'PIDM 26',
     REQUESTED_BY: 'BUDDIKA',
+    SUPPLIER_ID: 'sup-001',
     SUPPLIER_NAME: 'Lanka ReadyMix (Pvt) Ltd',
     ITEM_DESCRIPTION: 'Grade 30 Ready Mix Concrete for Culvert Base',
     QUANTITY: 18,
     UNIT: 'Cubes',
     UNIT_PRICE: 28500,
     TOTAL_AMOUNT: 513000,
+    ITEMS: [
+      {
+        id: 'po-item-1-1',
+        description: 'Grade 30 Ready Mix Concrete for Culvert Base',
+        quantity: 18,
+        unit: 'Cubes',
+        unitPrice: 28500,
+        totalAmount: 513000
+      }
+    ],
     STATUS: 'Approved',
     PRIORITY: 'High',
     DELIVERY_LOCATION: 'PIDM 26 Site Yard, Ch 14+200',
@@ -97,12 +108,23 @@ const INITIAL_PROCUREMENT: ProcurementOrder[] = [
     DATE: '2026-08-26',
     PROJECT_CODE: 'PIDM 28',
     REQUESTED_BY: 'GEETH',
+    SUPPLIER_ID: 'sup-002',
     SUPPLIER_NAME: 'Tokyo Super Cement PLC',
     ITEM_DESCRIPTION: 'Portland Hydraulic Cement 50kg Bags',
     QUANTITY: 250,
     UNIT: 'Bags',
     UNIT_PRICE: 2450,
     TOTAL_AMOUNT: 612500,
+    ITEMS: [
+      {
+        id: 'po-item-2-1',
+        description: 'Portland Hydraulic Cement 50kg Bags',
+        quantity: 250,
+        unit: 'Bags',
+        unitPrice: 2450,
+        totalAmount: 612500
+      }
+    ],
     STATUS: 'Delivered',
     PRIORITY: 'Medium',
     DELIVERY_LOCATION: 'PIDM 28 Central Warehouse, Gampaha',
@@ -114,12 +136,23 @@ const INITIAL_PROCUREMENT: ProcurementOrder[] = [
     DATE: '2026-08-27',
     PROJECT_CODE: 'PIDM 27',
     REQUESTED_BY: 'LASANTHA',
+    SUPPLIER_ID: 'sup-003',
     SUPPLIER_NAME: 'Maha Oya River Sand Suppliers',
     ITEM_DESCRIPTION: 'River Sand for Masonry and Plastering',
     QUANTITY: 8,
     UNIT: 'Cubes',
     UNIT_PRICE: 32000,
     TOTAL_AMOUNT: 256000,
+    ITEMS: [
+      {
+        id: 'po-item-3-1',
+        description: 'River Sand for Masonry and Plastering',
+        quantity: 8,
+        unit: 'Cubes',
+        unitPrice: 32000,
+        totalAmount: 256000
+      }
+    ],
     STATUS: 'Pending Approval',
     PRIORITY: 'High',
     DELIVERY_LOCATION: 'PIDM 27 Bridge Abutment Section',
@@ -328,11 +361,29 @@ export const EnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Data Collections with local persistence
   const [procurementOrders, setProcurementOrders] = useState<ProcurementOrder[]>(() => {
+    const normalizeProcurementList = (list: ProcurementOrder[]): ProcurementOrder[] => {
+      return list.map(o => ({
+        ...o,
+        ITEMS: o.ITEMS && Array.isArray(o.ITEMS) && o.ITEMS.length > 0
+          ? o.ITEMS
+          : [
+              {
+                id: `po-item-${o.id}-1`,
+                description: o.ITEM_DESCRIPTION,
+                quantity: o.QUANTITY,
+                unit: o.UNIT,
+                unitPrice: o.UNIT_PRICE,
+                totalAmount: o.TOTAL_AMOUNT || (o.QUANTITY * o.UNIT_PRICE)
+              }
+            ]
+      }));
+    };
+
     try {
       const saved = localStorage.getItem('ema_enterprise_procurement_v1');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return normalizeProcurementList(parsed);
       }
     } catch {
       // fallback to initial
@@ -340,7 +391,7 @@ export const EnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       localStorage.setItem('ema_enterprise_procurement_v1', JSON.stringify(INITIAL_PROCUREMENT));
     } catch {}
-    return INITIAL_PROCUREMENT;
+    return normalizeProcurementList(INITIAL_PROCUREMENT);
   });
 
   const [paymentVouchers, setPaymentVouchers] = useState<PaymentVoucher[]>(() => {
