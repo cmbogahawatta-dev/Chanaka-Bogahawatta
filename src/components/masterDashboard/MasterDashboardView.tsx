@@ -775,8 +775,8 @@ export const MasterDashboardView: React.FC<MasterDashboardViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80 font-mono">
-              {projectOperationsMatrix.map((p) => (
-                <tr key={p.projectCode} className="hover:bg-slate-800/50 transition-colors">
+              {projectOperationsMatrix.map((p, idx) => (
+                <tr key={`${p.projectCode}-${idx}`} className="hover:bg-slate-800/50 transition-colors">
                   <td className="py-3 px-3.5 font-sans">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-black text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800 text-[10px]">

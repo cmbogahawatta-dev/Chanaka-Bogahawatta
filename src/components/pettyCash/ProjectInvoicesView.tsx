@@ -837,8 +837,8 @@ export const ProjectInvoicesView: React.FC<ProjectInvoicesViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 font-mono">
-                  {projectFinancialSummaries.map(p => (
-                    <tr key={p.project.id} className="hover:bg-slate-800/40">
+                  {projectFinancialSummaries.map((p, idx) => (
+                    <tr key={`${p.project.id || p.project.PROJECT_CODE}-${idx}`} className="hover:bg-slate-800/40">
                       <td className="py-2.5 px-3 font-bold text-emerald-400">
                         {p.project.PROJECT_CODE}
                       </td>

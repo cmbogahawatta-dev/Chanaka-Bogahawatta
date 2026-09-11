@@ -908,14 +908,14 @@ export const ProjectProfitDashboard: React.FC<ProjectProfitDashboardProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredProjects.map((p) => {
+                filteredProjects.map((p, idx) => {
                   const isProfitable = p.netProfit >= 0;
                   const isHealthy = p.profitMarginPercent >= 15;
                   const isLoss = p.netProfit < 0;
 
                   return (
                     <tr
-                      key={p.projectCode}
+                      key={`${p.projectCode}-${idx}`}
                       className="hover:bg-slate-800/40 transition-colors group cursor-pointer"
                       onClick={() => setSelectedProjectCode(p.projectCode)}
                     >

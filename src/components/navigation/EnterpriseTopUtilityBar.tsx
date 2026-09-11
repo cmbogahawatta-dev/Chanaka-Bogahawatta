@@ -216,9 +216,9 @@ export const EnterpriseTopUtilityBar: React.FC<EnterpriseTopUtilityBarProps> = (
                   </button>
                 )}
                 <div className="border-t border-slate-800 my-1"></div>
-                {accessibleProjects.map(p => (
+                {accessibleProjects.map((p, idx) => (
                   <button
-                    key={p.id}
+                    key={`${p.id || p.PROJECT_CODE}-${idx}`}
                     onClick={() => { onSelectProjectFilter(p.PROJECT_CODE); setShowProjectMenu(false); }}
                     className={`w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between text-xs ${
                       selectedProjectFilter === p.PROJECT_CODE

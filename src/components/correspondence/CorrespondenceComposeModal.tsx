@@ -915,8 +915,8 @@ export const CorrespondenceComposeModal: React.FC<CorrespondenceComposeModalProp
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:border-emerald-500 focus:outline-none"
                   >
                     <option value="">-- Choose Project Code --</option>
-                    {filteredProjects.map(p => (
-                      <option key={p.id} value={p.id}>
+                    {filteredProjects.map((p, idx) => (
+                      <option key={`${p.id || p.PROJECT_CODE}-${idx}`} value={p.id}>
                         {p.PROJECT_CODE} - {p.PROJECT_NAME} ({p.CLIENT || 'General'})
                       </option>
                     ))}

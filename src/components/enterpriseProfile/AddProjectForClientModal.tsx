@@ -377,9 +377,9 @@ export const AddProjectForClientModal: React.FC<AddProjectForClientModalProps> =
                   </p>
                 </div>
               ) : (
-                availableProjectsToLink.map(p => (
+                availableProjectsToLink.map((p, idx) => (
                   <label
-                    key={p.id}
+                    key={`${p.id || p.PROJECT_CODE}-${idx}`}
                     className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
                       selectedProjectId === p.id
                         ? 'bg-purple-600/15 border-purple-500/60 text-slate-100 shadow-sm'
