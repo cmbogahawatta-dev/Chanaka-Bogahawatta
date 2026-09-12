@@ -12,18 +12,28 @@ import {
   FileCheck2,
   Filter,
   ShieldCheck,
-  Eye
+  Eye,
+  Trash2,
+  Edit3
 } from 'lucide-react';
 import { useSupplier } from '../../context/SupplierContext';
 import { Supplier, SupplierEvaluation } from '../../types/supplierTypes';
 import { SupplierEvaluationModal } from './SupplierEvaluationModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 export const SupplierPerformanceView: React.FC = () => {
-  const { suppliers } = useSupplier();
+  const { suppliers, deleteEvaluation, clearEvaluationsHistory } = useSupplier();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRating, setSelectedRating] = useState<string>('ALL');
   const [selectedSupplierForAudit, setSelectedSupplierForAudit] = useState<Supplier | null>(null);
+  const [editingEvaluation, setEditingEvaluation] = useState<SupplierEvaluation | null>(null);
+  const [deleteTargetEvaluation, setDeleteTargetEvaluation] = useState<{
+    supplierId: string;
+    supplierName: string;
+    evaluation: SupplierEvaluation;
+  } | null>(null);
 
   // Filtered Suppliers
   const filteredSuppliers = useMemo(() => {
@@ -47,15 +57,26 @@ export const SupplierPerformanceView: React.FC = () => {
 
   // Aggregate evaluations across all suppliers
   const allEvaluations = useMemo(() => {
-    const evs: Array<{ supplierName: string; supplierCode: string; evaluation: SupplierEvaluation }> = [];
+    const evs: Array<{ supplierId: string; supplierName: string; supplierCode: string; evaluation: SupplierEvaluation }> = [];
     suppliers.forEach(s => {
-      (s.performance.evaluationHistory || []).forEach(ev => {
+      (s.evaluationHistory || []).forEach(ev => {
         evs.push({
+          supplierId: s.id,
           supplierName: s.name,
           supplierCode: s.code,
           evaluation: ev
         });
       });
+      if (s.performance?.evaluationHistory && (!s.evaluationHistory || s.evaluationHistory.length === 0)) {
+        (s.performance.evaluationHistory || []).forEach(ev => {
+          evs.push({
+            supplierId: s.id,
+            supplierName: s.name,
+            supplierCode: s.code,
+            evaluation: ev
+          });
+        });
+      }
     });
     return evs.sort((a, b) => new Date(b.evaluation.evaluationDate).getTime() - new Date(a.evaluation.evaluationDate).getTime());
   }, [suppliers]);
@@ -83,13 +104,24 @@ export const SupplierPerformanceView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setSelectedSupplierForAudit(suppliers[0] || null)}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition-all active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Conduct Performance Audit</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <AdminClearHistoryButton
+            id="btn-admin-clear-evaluations"
+            moduleName="Supplier Performance Evaluations"
+            itemCount={allEvaluations.length}
+            itemDescription="performance audits and vendor scorecard history"
+            preservedItemsDescription="Supplier profiles and billing ledgers remain completely intact."
+            onClear={() => clearEvaluationsHistory()}
+          />
+
+          <button
+            onClick={() => setSelectedSupplierForAudit(suppliers[0] || null)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition-all active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Conduct Performance Audit</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. KPI Metrics */}
@@ -253,7 +285,29 @@ export const SupplierPerformanceView: React.FC = () => {
                   </span>
                   <span className="text-[11px] font-bold text-amber-400">Score: {item.evaluation.overallScore}% ({item.evaluation.rating})</span>
                 </div>
-                <span className="text-[10px] text-slate-500">{item.evaluation.evaluationDate}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 mr-1">{item.evaluation.evaluationDate}</span>
+                  <button
+                    onClick={() => {
+                      const s = suppliers.find(sup => sup.id === item.supplierId);
+                      if (s) {
+                        setSelectedSupplierForAudit(s);
+                        setEditingEvaluation(item.evaluation);
+                      }
+                    }}
+                    className="p-1 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-800 transition-colors"
+                    title="Edit / Review Evaluation"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteTargetEvaluation(item)}
+                    className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                    title="Delete Evaluation Record"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               <p className="text-xs text-slate-300 italic">{item.evaluation.comments}</p>
@@ -272,8 +326,31 @@ export const SupplierPerformanceView: React.FC = () => {
       {selectedSupplierForAudit && (
         <SupplierEvaluationModal
           isOpen={Boolean(selectedSupplierForAudit)}
-          onClose={() => setSelectedSupplierForAudit(null)}
+          onClose={() => {
+            setSelectedSupplierForAudit(null);
+            setEditingEvaluation(null);
+          }}
           supplier={selectedSupplierForAudit}
+          editEvaluation={editingEvaluation || undefined}
+        />
+      )}
+
+      {deleteTargetEvaluation && (
+        <UniversalDeleteModal
+          isOpen={true}
+          onClose={() => setDeleteTargetEvaluation(null)}
+          module="procurement"
+          recordType="Performance Evaluation"
+          recordId={deleteTargetEvaluation.evaluation.id || 'eval'}
+          recordCode={deleteTargetEvaluation.evaluation.projectCode || 'EVAL'}
+          recordTitle={`${deleteTargetEvaluation.supplierName} - Score: ${deleteTargetEvaluation.evaluation.overallScore}%`}
+          additionalDetails={`Evaluated on: ${deleteTargetEvaluation.evaluation.evaluationDate}, Rating: ${deleteTargetEvaluation.evaluation.rating}`}
+          onDelete={() => {
+            if (deleteTargetEvaluation.evaluation.id) {
+              deleteEvaluation(deleteTargetEvaluation.supplierId, deleteTargetEvaluation.evaluation.id);
+            }
+            setDeleteTargetEvaluation(null);
+          }}
         />
       )}
     </div>

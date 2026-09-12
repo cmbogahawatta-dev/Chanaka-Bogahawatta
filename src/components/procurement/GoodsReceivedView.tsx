@@ -17,15 +17,19 @@ import {
   Download,
   ExternalLink,
   Layers,
-  X
+  X,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { useSupplier } from '../../context/SupplierContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { GoodsReceivedNote } from '../../types/supplierTypes';
 import { GoodsReceivedModal } from './GoodsReceivedModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 export const GoodsReceivedView: React.FC = () => {
-  const { grns, suppliers, updateGRNStatus } = useSupplier();
+  const { grns, suppliers, updateGRNStatus, deleteGRN, clearGRNHistory } = useSupplier();
   const { projects } = usePettyCash();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,6 +37,8 @@ export const GoodsReceivedView: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<string>('ALL');
 
   const [isNewGRNModalOpen, setIsNewGRNModalOpen] = useState(false);
+  const [editingGRN, setEditingGRN] = useState<GoodsReceivedNote | null>(null);
+  const [deleteTargetGRN, setDeleteTargetGRN] = useState<GoodsReceivedNote | null>(null);
   const [viewingGRN, setViewingGRN] = useState<GoodsReceivedNote | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<{ title: string; fileName: string; dataUrl: string } | null>(null);
 
@@ -83,13 +89,26 @@ export const GoodsReceivedView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsNewGRNModalOpen(true)}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Issue Site GRN</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <AdminClearHistoryButton
+            id="btn-admin-clear-grns"
+            moduleName="Goods Received Notes"
+            itemCount={grns.length}
+            itemDescription="goods received notes and site delivery logs"
+            preservedItemsDescription="Purchase orders and supplier catalog records remain intact."
+            onClear={() => clearGRNHistory()}
+          />
+          <button
+            onClick={() => {
+              setEditingGRN(null);
+              setIsNewGRNModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Issue Site GRN</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. KPI Metrics Bar */}
@@ -285,13 +304,32 @@ export const GoodsReceivedView: React.FC = () => {
                         </span>
                       </td>
                       <td className="p-3 text-right">
-                        <button
-                          onClick={() => setViewingGRN(grn)}
-                          className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded transition-colors"
-                          title="View GRN Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setViewingGRN(grn)}
+                            className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded transition-colors"
+                            title="View GRN Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingGRN(grn);
+                              setIsNewGRNModalOpen(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded transition-colors"
+                            title="Edit Goods Received Note"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTargetGRN(grn)}
+                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
+                            title="Delete Goods Received Note"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -510,20 +548,48 @@ export const GoodsReceivedView: React.FC = () => {
               )}
             </div>
 
-            <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-slate-200 font-bold hover:bg-slate-700 transition-colors"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print GRN Docket</span>
-              </button>
-              <button
-                onClick={() => setViewingGRN(null)}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors"
-              >
-                Close
-              </button>
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const toEdit = viewingGRN;
+                    setViewingGRN(null);
+                    setEditingGRN(toEdit);
+                    setIsNewGRNModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Edit GRN</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const toDel = viewingGRN;
+                    setViewingGRN(null);
+                    setDeleteTargetGRN(toDel);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-800 font-bold text-xs transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-slate-200 font-bold hover:bg-slate-700 transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print GRN Docket</span>
+                </button>
+                <button
+                  onClick={() => setViewingGRN(null)}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -575,11 +641,33 @@ export const GoodsReceivedView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: New GRN */}
+      {/* Modal: New / Edit GRN */}
       <GoodsReceivedModal
         isOpen={isNewGRNModalOpen}
-        onClose={() => setIsNewGRNModalOpen(false)}
+        onClose={() => {
+          setIsNewGRNModalOpen(false);
+          setEditingGRN(null);
+        }}
+        editGRN={editingGRN}
       />
+
+      {/* Universal Delete Modal */}
+      {deleteTargetGRN && (
+        <UniversalDeleteModal
+          isOpen={true}
+          onClose={() => setDeleteTargetGRN(null)}
+          module="procurement"
+          recordType="Goods Received Note"
+          recordId={deleteTargetGRN.id}
+          recordCode={deleteTargetGRN.grnNumber}
+          recordTitle={deleteTargetGRN.itemDescription || 'Material Delivery'}
+          additionalDetails={`GRN for ${deleteTargetGRN.supplierName} (Note: ${deleteTargetGRN.deliveryNoteNumber}, Delivered: ${deleteTargetGRN.receivedQuantity} ${deleteTargetGRN.unit})`}
+          onDelete={() => {
+            deleteGRN(deleteTargetGRN.id);
+            setDeleteTargetGRN(null);
+          }}
+        />
+      )}
     </div>
   );
 };

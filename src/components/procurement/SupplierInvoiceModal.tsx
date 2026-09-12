@@ -20,13 +20,14 @@ import {
 import { useSupplier } from '../../context/SupplierContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
-import { Supplier, SupplierInvoiceItem } from '../../types/supplierTypes';
+import { Supplier, SupplierInvoiceItem, SupplierInvoice } from '../../types/supplierTypes';
 
 interface SupplierInvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
   preselectedSupplier?: Supplier | null;
   preselectedPoId?: string;
+  editInvoice?: SupplierInvoice | null;
 }
 
 interface FormInvoiceItem {
@@ -42,9 +43,10 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
   isOpen,
   onClose,
   preselectedSupplier,
-  preselectedPoId
+  preselectedPoId,
+  editInvoice
 }) => {
-  const { suppliers, addInvoice } = useSupplier();
+  const { suppliers, addInvoice, updateInvoice } = useSupplier();
   const { procurementOrders } = useEnterprise();
   const { projects } = usePettyCash();
 
@@ -111,24 +113,67 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
 
   // Initialize
   useEffect(() => {
-    if (preselectedSupplier) {
-      setSupplierId(preselectedSupplier.id);
-    } else if (suppliers.length > 0 && !supplierId) {
-      setSupplierId(suppliers[0].id);
-    }
+    if (editInvoice) {
+      setSupplierId(editInvoice.supplierId || '');
+      setPoId(editInvoice.poId || '');
+      setProjectCode(editInvoice.projectCode || 'PIDM 26');
+      setSupplierInvoiceRef(editInvoice.supplierInvoiceRef || '');
+      setInvoiceDate(editInvoice.invoiceDate || new Date().toISOString().slice(0, 10));
+      setDueDate(editInvoice.dueDate || '');
+      setVatPercent(editInvoice.vatPercent ?? 18);
+      setDiscountAmount(editInvoice.discountAmount ?? 0);
+      setRemarks(editInvoice.remarks || '');
+      setStatus(
+        editInvoice.status === 'Draft' || editInvoice.status === 'Approved'
+          ? editInvoice.status
+          : 'Pending Approval'
+      );
+      setInvoiceAttachmentName(editInvoice.invoiceAttachmentName || null);
+      setInvoiceAttachmentData(editInvoice.invoiceAttachmentData || null);
 
-    if (preselectedPoId) {
-      setPoId(preselectedPoId);
-      const matchPo = procurementOrders.find(p => p.id === preselectedPoId);
-      if (matchPo) {
-        setProjectCode(matchPo.PROJECT_CODE);
-        populateFromPo(matchPo);
-        if (matchPo.SUPPLIER_ID) {
-          setSupplierId(matchPo.SUPPLIER_ID);
+      if (editInvoice.items && editInvoice.items.length > 0) {
+        setItems(
+          editInvoice.items.map((it, idx) => ({
+            id: it.id || `inv-item-${Date.now()}-${idx}`,
+            description: it.description || '',
+            quantity: it.quantity || 1,
+            unit: it.unit || 'Units',
+            unitPrice: it.unitPrice || 0,
+            totalAmount: it.totalAmount || (it.quantity || 1) * (it.unitPrice || 0)
+          }))
+        );
+      } else {
+        setItems([
+          {
+            id: `inv-item-${Date.now()}-1`,
+            description: editInvoice.supplierName || 'Invoiced Supplies',
+            quantity: 1,
+            unit: 'Units',
+            unitPrice: editInvoice.subtotal || editInvoice.grossAmount || 0,
+            totalAmount: editInvoice.subtotal || editInvoice.grossAmount || 0
+          }
+        ]);
+      }
+    } else {
+      if (preselectedSupplier) {
+        setSupplierId(preselectedSupplier.id);
+      } else if (suppliers.length > 0 && !supplierId) {
+        setSupplierId(suppliers[0].id);
+      }
+
+      if (preselectedPoId) {
+        setPoId(preselectedPoId);
+        const matchPo = procurementOrders.find(p => p.id === preselectedPoId);
+        if (matchPo) {
+          setProjectCode(matchPo.PROJECT_CODE);
+          populateFromPo(matchPo);
+          if (matchPo.SUPPLIER_ID) {
+            setSupplierId(matchPo.SUPPLIER_ID);
+          }
         }
       }
     }
-  }, [preselectedSupplier, preselectedPoId, suppliers, procurementOrders]);
+  }, [editInvoice, preselectedSupplier, preselectedPoId, suppliers, procurementOrders]);
 
   // When PO is picked, autofill
   const handlePoChange = (selectedPoId: string) => {
@@ -298,27 +343,51 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
       totalAmount: Number(it.totalAmount) || 0
     }));
 
-    addInvoice({
-      supplierInvoiceRef: supplierInvoiceRef.trim(),
-      poId: poId || undefined,
-      poNumber: po?.PO_NUMBER || undefined,
-      supplierId,
-      supplierName: supplier?.name || 'Supplier',
-      projectCode,
-      invoiceDate,
-      dueDate: dueDate || invoiceDate,
-      grossAmount: grossSubtotal,
-      subtotal: grossSubtotal,
-      vatAmount,
-      discountAmount,
-      netAmount,
-      currency: supplier?.creditTerms?.currency || 'LKR',
-      status,
-      items: formattedItems,
-      invoiceAttachmentName: invoiceAttachmentName || undefined,
-      invoiceAttachmentData: invoiceAttachmentData || undefined,
-      remarks: remarks.trim()
-    });
+    if (editInvoice) {
+      updateInvoice(editInvoice.id, {
+        supplierInvoiceRef: supplierInvoiceRef.trim(),
+        poId: poId || undefined,
+        poNumber: po?.PO_NUMBER || editInvoice.poNumber,
+        supplierId,
+        supplierName: supplier?.name || editInvoice.supplierName || 'Supplier',
+        projectCode,
+        invoiceDate,
+        dueDate: dueDate || invoiceDate,
+        grossAmount: grossSubtotal,
+        subtotal: grossSubtotal,
+        vatAmount,
+        discountAmount,
+        netAmount,
+        currency: supplier?.creditTerms?.currency || editInvoice.currency || 'LKR',
+        status,
+        items: formattedItems,
+        invoiceAttachmentName: invoiceAttachmentName || undefined,
+        invoiceAttachmentData: invoiceAttachmentData || undefined,
+        remarks: remarks.trim()
+      });
+    } else {
+      addInvoice({
+        supplierInvoiceRef: supplierInvoiceRef.trim(),
+        poId: poId || undefined,
+        poNumber: po?.PO_NUMBER || undefined,
+        supplierId,
+        supplierName: supplier?.name || 'Supplier',
+        projectCode,
+        invoiceDate,
+        dueDate: dueDate || invoiceDate,
+        grossAmount: grossSubtotal,
+        subtotal: grossSubtotal,
+        vatAmount,
+        discountAmount,
+        netAmount,
+        currency: supplier?.creditTerms?.currency || 'LKR',
+        status,
+        items: formattedItems,
+        invoiceAttachmentName: invoiceAttachmentName || undefined,
+        invoiceAttachmentData: invoiceAttachmentData || undefined,
+        remarks: remarks.trim()
+      });
+    }
 
     onClose();
   };
@@ -334,7 +403,7 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-100">
-                Register Supplier / Vendor Tax Invoice
+                {editInvoice ? `Edit Supplier Invoice (${editInvoice.supplierInvoiceRef})` : 'Register Supplier / Vendor Tax Invoice'}
               </h3>
               <p className="text-xs text-slate-400">
                 Itemized invoice line breakdown, 3-way matching with Purchase Order, VAT & upload vendor invoice copy.
@@ -786,7 +855,7 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
                 className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/20 transition-all active:scale-95"
               >
                 <Save className="w-4 h-4" />
-                <span>Record Supplier Invoice</span>
+                <span>{editInvoice ? 'Save & Update Invoice' : 'Record Supplier Invoice'}</span>
               </button>
             </div>
           </div>

@@ -39,6 +39,7 @@ import { QuotationRevisionModal } from './QuotationRevisionModal';
 import { ConvertToInvoiceModal } from './ConvertToInvoiceModal';
 import { QuotationSettingsModal } from './QuotationSettingsModal';
 import { DeleteQuotationModal } from './DeleteQuotationModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 
 export const QuotationRegisterView: React.FC = () => {
   const {
@@ -49,7 +50,8 @@ export const QuotationRegisterView: React.FC = () => {
     convertToTaxInvoice,
     deleteQuotation,
     downloadQuotationPdf,
-    printQuotationPdf
+    printQuotationPdf,
+    clearQuotationsHistory
   } = useQuotation();
 
   const { currentUser, navigateToModule } = useEnterprise();
@@ -281,6 +283,15 @@ export const QuotationRegisterView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <AdminClearHistoryButton
+            id="btn-admin-clear-quotations"
+            moduleName="Quotations & Estimates"
+            itemCount={quotations.length}
+            itemDescription="commercial quotations and cost estimates"
+            preservedItemsDescription="Tax invoices and client master records remain completely intact."
+            onClear={() => clearQuotationsHistory()}
+          />
+
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition-colors"

@@ -29,7 +29,9 @@ import {
   Camera,
   Layers,
   LayoutDashboard,
-  Coins
+  Coins,
+  Boxes,
+  Scale
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePRV } from '../../context/PRVContext';
@@ -39,6 +41,8 @@ import { useStaff } from '../../context/StaffContext';
 import { useLeave } from '../../context/LeaveContext';
 import { useQuotation } from '../../context/QuotationContext';
 import { useSupplier } from '../../context/SupplierContext';
+import { useInventory } from '../../context/InventoryContext';
+import { useReceivablesPayables } from '../../context/ReceivablesPayablesContext';
 import { EnterpriseModule } from '../../types/enterpriseTypes';
 import { PRVSubMenu } from '../../types/prvTypes';
 import { useAuth } from '../../context/AuthContext';
@@ -75,6 +79,8 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
   const { leaveRequests = [] } = useLeave();
   const { quotations = [] } = useQuotation();
   const { suppliers = [] } = useSupplier();
+  const { lowStockAlerts = [] } = useInventory();
+  const { dashboardMetrics } = useReceivablesPayables();
 
   const pendingPRVsCount = (paymentRequests || []).filter(
     p => p.status === 'SUBMITTED' || p.status === 'ACCOUNTS_L1_APPROVED' || p.status === 'ACCOUNTS_L2_APPROVED' || p.status === 'PAYMENT_PROOF_PENDING'
@@ -187,6 +193,17 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
       badge: suppliers.length > 0 ? suppliers.length : undefined,
       badgeColor: 'bg-orange-950 text-orange-400 border border-orange-800',
       requiredPermission: 'procurement.view'
+    },
+    {
+      id: 'inventory',
+      label: 'Inventory / Store Management',
+      shortLabel: 'Stores/Stock',
+      icon: Boxes,
+      color: 'text-amber-400',
+      activeBg: 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+      shortcut: 'Alt+8',
+      badge: lowStockAlerts.length > 0 ? lowStockAlerts.length : undefined,
+      badgeColor: 'bg-rose-950 text-rose-300 border border-rose-800'
     }
   ];
 
@@ -530,7 +547,55 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
           </div>
         )}
 
-        {/* 3. FINANCIAL INSIGHTS */}
+        {/* 3. RECEIVABLES & PAYABLES */}
+        <div className="relative group">
+          <button
+            id="nav-receivables-payables"
+            type="button"
+            onClick={() => setCurrentModule('receivables-payables')}
+            className={`w-full flex items-center gap-2.5 rounded-lg transition-all text-xs font-semibold ${
+              isCollapsed
+                ? 'p-2 justify-center'
+                : 'px-2.5 py-1.5 justify-between'
+            } ${
+              currentModule === 'receivables-payables'
+                ? 'bg-blue-500/10 border-blue-500/30 text-blue-300 border shadow-sm font-bold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Scale className={`w-4 h-4 shrink-0 transition-transform ${currentModule === 'receivables-payables' ? 'text-blue-400' : 'text-slate-400 group-hover:scale-110'}`} />
+              {!isCollapsed && (
+                <span className="truncate text-[11px]">Receivables &amp; Payables</span>
+              )}
+            </div>
+
+            {!isCollapsed && (
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono leading-none bg-blue-950 text-blue-300 border border-blue-800">
+                Net 7.6M
+              </span>
+            )}
+
+            {isCollapsed && (
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-400 ring-2 ring-slate-950" />
+            )}
+          </button>
+
+          {/* Collapsed Tooltip */}
+          {isCollapsed && (
+            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-700 text-slate-100 text-xs font-medium rounded-lg shadow-xl z-50 whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95">
+              <span>Receivables &amp; Payables</span>
+              <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-1 py-0.2 rounded border border-slate-800">
+                AR / AP
+              </span>
+              <span className="text-[10px] font-mono px-1 rounded bg-blue-950 text-blue-300 border border-blue-800">
+                Net 7.6M
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 4. FINANCIAL INSIGHTS */}
         {canViewInsights && (
           <div className="relative group">
             <button

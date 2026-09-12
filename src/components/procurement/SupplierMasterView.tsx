@@ -34,13 +34,15 @@ import { SupplierInvoiceModal } from './SupplierInvoiceModal';
 import { GoodsReceivedModal } from './GoodsReceivedModal';
 import { SupplierContractModal } from './SupplierContractModal';
 import { SupplierCategoryModal } from './SupplierCategoryModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 interface SupplierMasterViewProps {
   onNavigateToPO?: (supplierId: string) => void;
 }
 
 export const SupplierMasterView: React.FC<SupplierMasterViewProps> = ({ onNavigateToPO }) => {
-  const { suppliers, deleteSupplier, categories } = useSupplier();
+  const { suppliers, deleteSupplier, categories, clearSuppliersHistory } = useSupplier();
   const { currentRole } = useEnterprise();
   const isAdmin = currentRole === 'ADMIN' || currentRole === 'OWNER';
 
@@ -53,6 +55,7 @@ export const SupplierMasterView: React.FC<SupplierMasterViewProps> = ({ onNaviga
   // Modals state
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [deleteTargetSupplier, setDeleteTargetSupplier] = useState<Supplier | null>(null);
 
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedSupplierForDetail, setSelectedSupplierForDetail] = useState<Supplier | null>(null);
@@ -178,6 +181,15 @@ export const SupplierMasterView: React.FC<SupplierMasterViewProps> = ({ onNaviga
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <AdminClearHistoryButton
+            id="btn-admin-clear-suppliers"
+            moduleName="Supplier Master Directory"
+            itemCount={suppliers.length}
+            itemDescription="registered supplier profiles and vendor directory records"
+            preservedItemsDescription="Financial ledgers and payment vouchers remain completely intact."
+            onClear={() => clearSuppliersHistory()}
+          />
+
           <button
             type="button"
             onClick={() => setIsCategoryModalOpen(true)}
@@ -442,7 +454,7 @@ export const SupplierMasterView: React.FC<SupplierMasterViewProps> = ({ onNaviga
                   {isAdmin && (
                     <button
                       type="button"
-                      onClick={() => handleDelete(supplier)}
+                      onClick={() => setDeleteTargetSupplier(supplier)}
                       className="p-1.5 rounded-xl hover:bg-rose-950/80 text-slate-500 hover:text-rose-400 transition-colors"
                       title="Remove Supplier"
                     >
@@ -566,6 +578,15 @@ export const SupplierMasterView: React.FC<SupplierMasterViewProps> = ({ onNaviga
                           >
                             <Award className="w-3.5 h-3.5" />
                           </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => setDeleteTargetSupplier(supplier)}
+                              className="p-1 text-slate-400 hover:text-rose-400 rounded"
+                              title="Remove Supplier"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -648,6 +669,26 @@ export const SupplierMasterView: React.FC<SupplierMasterViewProps> = ({ onNaviga
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
       />
+
+      {deleteTargetSupplier && (
+        <UniversalDeleteModal
+          isOpen={true}
+          onClose={() => setDeleteTargetSupplier(null)}
+          module="procurement"
+          recordType="Supplier Profile"
+          recordId={deleteTargetSupplier.id}
+          recordCode={deleteTargetSupplier.code}
+          recordTitle={deleteTargetSupplier.name}
+          additionalDetails={`TIN: ${deleteTargetSupplier.tin || 'N/A'}, Categories: ${deleteTargetSupplier.categories?.join(', ') || deleteTargetSupplier.supplierType || 'General'}, Status: ${deleteTargetSupplier.status}`}
+          onDelete={() => {
+            deleteSupplier(deleteTargetSupplier.id);
+            if (selectedSupplierForDetail?.id === deleteTargetSupplier.id) {
+              setIsDetailModalOpen(false);
+            }
+            setDeleteTargetSupplier(null);
+          }}
+        />
+      )}
     </div>
   );
 };

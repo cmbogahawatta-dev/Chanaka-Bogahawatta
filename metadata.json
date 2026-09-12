@@ -1,6 +1,6 @@
 {
   "name": "EMA Enterprise Corporate Suite - Construction & Fleet Operations",
-  "description": "Unified Construction & Fleet Operations ERP uniting Commercial Quotations & Estimates, Tax Invoices, Petty Cash & Expenses, FleetTrack Vehicles, Projects, Staff Directory, Procurement, Payments, Documents, and Executive Reporting with enterprise cryptographic authorization.",
+  "description": "Unified Construction & Fleet Operations ERP uniting Commercial Quotations & Estimates, Receivables & Payables (AR/AP), Tax Invoices, Petty Cash & Expenses, FleetTrack Vehicles, Inventory & Store Management, Projects, Staff Directory, Procurement, Payments, Documents, and Executive Reporting with enterprise cryptographic authorization.",
   "requestFramePermissions": [
     "camera"
   ],

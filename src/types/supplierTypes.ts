@@ -237,6 +237,7 @@ export interface SupplierInvoice {
   dueDate: string;
   grossAmount: number;
   subtotal?: number;
+  vatPercent?: number;
   vatAmount: number;
   discountAmount: number;
   retentionDeducted?: number;

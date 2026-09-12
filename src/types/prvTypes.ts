@@ -204,6 +204,10 @@ export interface PaymentRequestVoucher {
   approvals: PaymentApprovalRecord[];
   transaction?: PaymentTransaction;
   linkedExpenseId?: string;
+  linkedPayableBillId?: string;
+  poNumber?: string;
+  grnNumber?: string;
+  supplierInvoiceNumber?: string;
   auditTrail: PRVAuditEntry[];
   
   createdAt: string;

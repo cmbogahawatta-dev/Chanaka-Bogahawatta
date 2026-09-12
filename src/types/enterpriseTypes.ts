@@ -6,6 +6,8 @@ export type EnterpriseModule =
   | 'staff'
   | 'projects'
   | 'procurement'
+  | 'inventory'
+  | 'receivables-payables'
   | 'project-income'
   | 'payments'
   | 'financial-insights'

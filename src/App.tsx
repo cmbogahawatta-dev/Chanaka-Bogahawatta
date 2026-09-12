@@ -24,6 +24,8 @@ import { EnterpriseCorrespondenceProvider } from './context/EnterpriseCorrespond
 import { SupplierProvider } from './context/SupplierContext';
 import { TaxInvoiceProvider } from './context/TaxInvoiceContext';
 import { QuotationProvider } from './context/QuotationContext';
+import { InventoryProvider } from './context/InventoryContext';
+import { ReceivablesPayablesProvider } from './context/ReceivablesPayablesContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginView } from './components/auth/LoginView';
 
@@ -52,6 +54,8 @@ import { QuotationRegisterView } from './components/quotations/QuotationRegister
 import { ClientPaymentsView } from './components/payments/views/ClientPaymentsView';
 import { ProjectIncomeView } from './components/projectIncome/ProjectIncomeView';
 import { FinancialInsightsView } from './components/financialInsights/FinancialInsightsView';
+import { InventoryView } from './components/inventory/InventoryView';
+import { ReceivablesPayablesView } from './components/receivablesPayables/ReceivablesPayablesView';
 
 // Petty Cash Components
 import { PettyCashDashboardView } from './components/pettyCash/PettyCashDashboardView';
@@ -588,6 +592,9 @@ const EnterpriseAppContent: React.FC = () => {
             {/* MODULE 5: PROCUREMENT & MATERIALS */}
             {currentModule === 'procurement' && <ProcurementView />}
 
+            {/* MODULE 5.5: INVENTORY / STORE MANAGEMENT */}
+            {currentModule === 'inventory' && <InventoryView />}
+
             {/* MODULE 5.9: COMMERCIAL QUOTATIONS & ESTIMATES */}
             {currentModule === 'quotations' && <QuotationRegisterView />}
 
@@ -602,6 +609,9 @@ const EnterpriseAppContent: React.FC = () => {
 
             {/* MODULE 6.5: FINANCE / PRV DISBURSEMENTS & AUDIT */}
             {currentModule === 'payments' && <PaymentsView initialTab="vouchers" />}
+
+            {/* MODULE 6.6: 11. RECEIVABLES & PAYABLES (AR & AP WITH EXECUTIVE DASHBOARD) */}
+            {currentModule === 'receivables-payables' && <ReceivablesPayablesView />}
 
             {/* MODULE 6.8: FINANCIAL INSIGHTS & ANALYTICS */}
             {currentModule === 'financial-insights' && <FinancialInsightsView />}
@@ -741,7 +751,11 @@ const AuthenticatedAppShell: React.FC = () => {
                                         <SupplierProvider>
                                           <TaxInvoiceProvider>
                                             <QuotationProvider>
-                                              <EnterpriseAppContent />
+                                              <InventoryProvider>
+                                                <ReceivablesPayablesProvider>
+                                                  <EnterpriseAppContent />
+                                                </ReceivablesPayablesProvider>
+                                              </InventoryProvider>
                                             </QuotationProvider>
                                           </TaxInvoiceProvider>
                                         </SupplierProvider>

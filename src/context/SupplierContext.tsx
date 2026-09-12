@@ -70,6 +70,9 @@ interface SupplierContextType {
 
   // Invoices
   addInvoice: (invoice: Omit<SupplierInvoice, 'id' | 'invoiceNumber' | 'paidAmount' | 'status'> & { status?: SupplierInvoice['status'] }) => SupplierInvoice;
+  updateInvoice: (id: string, updates: Partial<SupplierInvoice>) => void;
+  deleteInvoice: (id: string) => void;
+  clearInvoicesHistory: () => void;
   updateInvoiceStatus: (invoiceId: string, status: SupplierInvoice['status'], reason?: string) => void;
   recordInvoicePayment: (invoiceId: string, paidAmount: number, paymentRef?: string, voucherId?: string) => void;
 
@@ -77,11 +80,16 @@ interface SupplierContextType {
   addGoodsReceivedNote: (grn: Omit<GoodsReceivedNote, 'id' | 'grnNumber'>) => GoodsReceivedNote;
   addGRN: (grn: Omit<GoodsReceivedNote, 'id' | 'grnNumber'>) => GoodsReceivedNote;
   updateGoodsReceivedNote: (id: string, updates: Partial<GoodsReceivedNote>) => void;
+  deleteGoodsReceivedNote: (id: string) => void;
+  deleteGRN: (id: string) => void;
+  clearGRNHistory: () => void;
   updateGRNStatus: (id: string, status: GoodsReceivedNote['status'], reason?: string) => void;
   setPrimaryBank: (supplierId: string, accountId: string) => void;
 
   // Performance Evaluation
   submitPerformanceEvaluation: (supplierId: string, evaluation: Omit<SupplierEvaluationHistory, 'id' | 'supplierId' | 'evaluationDate' | 'evaluator' | 'evaluatorRole'>) => void;
+  deleteEvaluation: (supplierId: string, evalId: string) => void;
+  clearEvaluationsHistory: () => void;
   overridePerformanceScore: (supplierId: string, newRating: SupplierPerformanceScore['rating'], reason: string) => void;
 
   // Analytics & Aggregates
@@ -882,6 +890,18 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
     }));
   };
 
+  const updateInvoice = (id: string, updates: Partial<SupplierInvoice>) => {
+    setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, ...updates } : inv));
+  };
+
+  const deleteInvoice = (id: string) => {
+    setInvoices(prev => prev.filter(inv => inv.id !== id));
+  };
+
+  const clearInvoicesHistory = () => {
+    setInvoices([]);
+  };
+
   // Goods Received Notes Operations
   const addGoodsReceivedNote = (grn: Omit<GoodsReceivedNote, 'id' | 'grnNumber'>): GoodsReceivedNote => {
     const grnNumber = `GRN-${new Date().toISOString().slice(0, 7).replace('-', '')}-${String(goodsReceivedNotes.length + 1).padStart(3, '0')}`;
@@ -897,6 +917,16 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const updateGoodsReceivedNote = (id: string, updates: Partial<GoodsReceivedNote>) => {
     setGoodsReceivedNotes(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
+  };
+
+  const deleteGoodsReceivedNote = (id: string) => {
+    setGoodsReceivedNotes(prev => prev.filter(g => g.id !== id));
+  };
+
+  const deleteGRN = deleteGoodsReceivedNote;
+
+  const clearGRNHistory = () => {
+    setGoodsReceivedNotes([]);
   };
 
   // Performance Evaluations
@@ -972,6 +1002,33 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
         ]
       };
     }));
+  };
+
+  const deleteEvaluation = (supplierId: string, evalId: string) => {
+    setSuppliers(prev => prev.map(s => {
+      if (s.id !== supplierId) return s;
+      const filtered = (s.evaluationHistory || []).filter(e => e.id !== evalId);
+      const filteredPerf = (s.performance?.evaluationHistory || []).filter((e: any) => e.id !== evalId);
+      return {
+        ...s,
+        evaluationHistory: filtered,
+        performance: {
+          ...s.performance,
+          evaluationHistory: filteredPerf
+        }
+      };
+    }));
+  };
+
+  const clearEvaluationsHistory = () => {
+    setSuppliers(prev => prev.map(s => ({
+      ...s,
+      evaluationHistory: [],
+      performance: {
+        ...s.performance,
+        evaluationHistory: []
+      }
+    })));
   };
 
   // Aggregation & Financial Calculations
@@ -1183,13 +1240,21 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
         updateCategory,
         deleteCategory,
         addInvoice,
+        updateInvoice,
+        deleteInvoice,
+        clearInvoicesHistory,
         updateInvoiceStatus,
         recordInvoicePayment,
         addGoodsReceivedNote,
         addGRN,
         updateGoodsReceivedNote,
+        deleteGoodsReceivedNote,
+        deleteGRN,
+        clearGRNHistory,
         updateGRNStatus,
         submitPerformanceEvaluation,
+        deleteEvaluation,
+        clearEvaluationsHistory,
         overridePerformanceScore,
         getSupplierFinancials,
         getSupplierPOs,
@@ -1218,3 +1283,5 @@ export const useSupplier = (): SupplierContextType => {
   }
   return context;
 };
+
+export const useSuppliers = useSupplier;

@@ -33,7 +33,9 @@ import {
   CheckCircle2,
   Camera,
   LayoutDashboard,
-  Coins
+  Coins,
+  Boxes,
+  Scale
 } from 'lucide-react';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
@@ -149,6 +151,15 @@ export const GlobalCommandPaletteModal: React.FC<GlobalCommandPaletteModalProps>
       color: 'text-orange-400',
       action: () => { setCurrentModule('procurement'); onClose(); }
     },
+    {
+      id: 'nav-inventory',
+      type: 'Navigation',
+      title: 'Inventory & Store Management',
+      subtitle: 'Material Master, Stock Balances, GRN, Issues, Returns, Transfers, Adjustments, Stocktake',
+      icon: Boxes,
+      color: 'text-amber-400',
+      action: () => { setCurrentModule('inventory'); onClose(); }
+    },
     // 1. PROJECT INCOME (Incoming money)
     {
       id: 'nav-project-income',
@@ -226,6 +237,17 @@ export const GlobalCommandPaletteModal: React.FC<GlobalCommandPaletteModalProps>
     },
 
     // 3. FINANCIAL INSIGHTS
+    // 3. RECEIVABLES & PAYABLES (AR & AP)
+    {
+      id: 'nav-receivables-payables',
+      type: 'Navigation',
+      title: '11. Receivables & Payables (AR / AP)',
+      subtitle: 'Accounts Receivable (Inflow LKR 25.4M), Accounts Payable (Outflow LKR 17.8M), Net Position (LKR 7.6M)',
+      icon: Scale,
+      color: 'text-blue-400',
+      action: () => { setCurrentModule('receivables-payables'); onClose(); }
+    },
+
     {
       id: 'nav-financial-insights',
       type: 'Navigation',

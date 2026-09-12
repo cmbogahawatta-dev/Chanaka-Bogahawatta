@@ -20,16 +20,20 @@ import {
   ExternalLink,
   Layers,
   FileText,
-  X
+  X,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { useSupplier } from '../../context/SupplierContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { SupplierInvoice, SupplierInvoiceStatus } from '../../types/supplierTypes';
 import { SupplierInvoiceModal } from './SupplierInvoiceModal';
+import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
+import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 
 export const SupplierInvoicesView: React.FC = () => {
-  const { invoices, suppliers, recordInvoicePayment, updateInvoiceStatus } = useSupplier();
+  const { invoices, suppliers, recordInvoicePayment, updateInvoiceStatus, deleteInvoice, clearInvoicesHistory } = useSupplier();
   const { projects } = usePettyCash();
   const { addPaymentVoucher, currentRole } = useEnterprise();
 
@@ -38,6 +42,8 @@ export const SupplierInvoicesView: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<string>('ALL');
 
   const [isNewInvoiceModalOpen, setIsNewInvoiceModalOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<SupplierInvoice | null>(null);
+  const [deleteTargetInvoice, setDeleteTargetInvoice] = useState<SupplierInvoice | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<SupplierInvoice | null>(null);
   const [settlementInvoice, setSettlementInvoice] = useState<SupplierInvoice | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<{ title: string; fileName: string; dataUrl: string } | null>(null);
@@ -144,13 +150,26 @@ export const SupplierInvoicesView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsNewInvoiceModalOpen(true)}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Record Supplier Invoice</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <AdminClearHistoryButton
+            id="btn-admin-clear-invoices"
+            moduleName="Supplier Invoices"
+            itemCount={invoices.length}
+            itemDescription="registered vendor tax invoices and accounts payable records"
+            preservedItemsDescription="Purchase orders and supplier catalog records remain intact."
+            onClear={() => clearInvoicesHistory()}
+          />
+          <button
+            onClick={() => {
+              setEditingInvoice(null);
+              setIsNewInvoiceModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Record Supplier Invoice</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. KPI Metrics Bar */}
@@ -363,6 +382,23 @@ export const SupplierInvoicesView: React.FC = () => {
                             title="View Invoice Details"
                           >
                             <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingInvoice(inv);
+                              setIsNewInvoiceModalOpen(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded transition-colors"
+                            title="Edit Supplier Invoice"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTargetInvoice(inv)}
+                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
+                            title="Delete Supplier Invoice"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -600,20 +636,48 @@ export const SupplierInvoicesView: React.FC = () => {
               )}
             </div>
 
-            <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-slate-200 font-bold hover:bg-slate-700 transition-colors"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print Invoice Voucher</span>
-              </button>
-              <button
-                onClick={() => setViewingInvoice(null)}
-                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors"
-              >
-                Close
-              </button>
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const toEdit = viewingInvoice;
+                    setViewingInvoice(null);
+                    setEditingInvoice(toEdit);
+                    setIsNewInvoiceModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Edit Invoice</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const toDel = viewingInvoice;
+                    setViewingInvoice(null);
+                    setDeleteTargetInvoice(toDel);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-800 font-bold text-xs transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-slate-200 font-bold hover:bg-slate-700 transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Invoice Voucher</span>
+                </button>
+                <button
+                  onClick={() => setViewingInvoice(null)}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -763,11 +827,33 @@ export const SupplierInvoicesView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: New Supplier Invoice */}
+      {/* Modal: New / Edit Supplier Invoice */}
       <SupplierInvoiceModal
         isOpen={isNewInvoiceModalOpen}
-        onClose={() => setIsNewInvoiceModalOpen(false)}
+        onClose={() => {
+          setIsNewInvoiceModalOpen(false);
+          setEditingInvoice(null);
+        }}
+        editInvoice={editingInvoice}
       />
+
+      {/* Universal Delete Modal */}
+      {deleteTargetInvoice && (
+        <UniversalDeleteModal
+          isOpen={true}
+          onClose={() => setDeleteTargetInvoice(null)}
+          module="procurement"
+          recordType="Supplier Invoice"
+          recordId={deleteTargetInvoice.id}
+          recordCode={deleteTargetInvoice.invoiceNumber}
+          recordTitle={`${deleteTargetInvoice.supplierInvoiceRef} - ${deleteTargetInvoice.supplierName}`}
+          additionalDetails={`Project ${deleteTargetInvoice.projectCode}, Net Amount: ${formatLKR(deleteTargetInvoice.netAmount)}, Status: ${deleteTargetInvoice.status}`}
+          onDelete={() => {
+            deleteInvoice(deleteTargetInvoice.id);
+            setDeleteTargetInvoice(null);
+          }}
+        />
+      )}
     </div>
   );
 };

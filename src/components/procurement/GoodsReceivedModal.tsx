@@ -20,13 +20,14 @@ import {
 import { useSupplier } from '../../context/SupplierContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
 import { usePettyCash } from '../../context/PettyCashContext';
-import { Supplier, GRNStatus, GRNItem } from '../../types/supplierTypes';
+import { Supplier, GRNStatus, GRNItem, GoodsReceivedNote } from '../../types/supplierTypes';
 
 interface GoodsReceivedModalProps {
   isOpen: boolean;
   onClose: () => void;
   preselectedSupplier?: Supplier | null;
   preselectedPoId?: string;
+  editGRN?: GoodsReceivedNote | null;
 }
 
 interface FormGRNItem {
@@ -44,9 +45,10 @@ export const GoodsReceivedModal: React.FC<GoodsReceivedModalProps> = ({
   isOpen,
   onClose,
   preselectedSupplier,
-  preselectedPoId
+  preselectedPoId,
+  editGRN
 }) => {
-  const { suppliers, addGRN } = useSupplier();
+  const { suppliers, addGRN, updateGoodsReceivedNote } = useSupplier();
   const { procurementOrders, currentUser } = useEnterprise();
   const { projects } = usePettyCash();
 
@@ -115,24 +117,65 @@ export const GoodsReceivedModal: React.FC<GoodsReceivedModalProps> = ({
   };
 
   useEffect(() => {
-    if (preselectedSupplier) {
-      setSupplierId(preselectedSupplier.id);
-    } else if (suppliers.length > 0 && !supplierId) {
-      setSupplierId(suppliers[0].id);
-    }
+    if (editGRN) {
+      setPoId(editGRN.poId || '');
+      setSupplierId(editGRN.supplierId || '');
+      setProjectCode(editGRN.projectCode || 'PIDM 26');
+      setDeliveryDate(editGRN.deliveryDate || new Date().toISOString().slice(0, 10));
+      setDeliveryNoteNumber(editGRN.deliveryNoteNumber || '');
+      setVehicleNumber(editGRN.vehicleNumber || '');
+      setReceivedBy(editGRN.receivedBy || currentUser || 'Site Engineer');
+      setQualityInspectionRemarks(editGRN.qualityInspectionRemarks || '');
+      setDeliveryNoteAttachmentName(editGRN.deliveryNoteAttachmentName || null);
+      setDeliveryNoteAttachmentData(editGRN.deliveryNoteAttachmentData || null);
 
-    if (preselectedPoId) {
-      setPoId(preselectedPoId);
-      const matchPo = procurementOrders.find(p => p.id === preselectedPoId);
-      if (matchPo) {
-        setProjectCode(matchPo.PROJECT_CODE);
-        populateFromPo(matchPo);
-        if (matchPo.SUPPLIER_ID) {
-          setSupplierId(matchPo.SUPPLIER_ID);
+      if (editGRN.items && editGRN.items.length > 0) {
+        setItems(
+          editGRN.items.map((it, idx) => ({
+            id: it.id || `grn-item-${Date.now()}-${idx}`,
+            description: it.description || '',
+            unit: it.unit || 'Units',
+            orderedQuantity: it.orderedQuantity || 0,
+            receivedQuantity: it.receivedQuantity || 0,
+            acceptedQuantity: it.acceptedQuantity ?? it.receivedQuantity ?? 0,
+            rejectedQuantity: it.rejectedQuantity || 0,
+            rejectionReason: it.rejectionReason || ''
+          }))
+        );
+      } else {
+        setItems([
+          {
+            id: `item-${Date.now()}-1`,
+            description: editGRN.itemDescription || 'Material Delivery',
+            unit: editGRN.unit || 'Cubes',
+            orderedQuantity: editGRN.orderedQuantity ?? 10,
+            receivedQuantity: editGRN.receivedQuantity ?? 10,
+            acceptedQuantity: editGRN.acceptedQuantity ?? 10,
+            rejectedQuantity: editGRN.rejectedQuantity ?? 0,
+            rejectionReason: ''
+          }
+        ]);
+      }
+    } else {
+      if (preselectedSupplier) {
+        setSupplierId(preselectedSupplier.id);
+      } else if (suppliers.length > 0 && !supplierId) {
+        setSupplierId(suppliers[0].id);
+      }
+
+      if (preselectedPoId) {
+        setPoId(preselectedPoId);
+        const matchPo = procurementOrders.find(p => p.id === preselectedPoId);
+        if (matchPo) {
+          setProjectCode(matchPo.PROJECT_CODE);
+          populateFromPo(matchPo);
+          if (matchPo.SUPPLIER_ID) {
+            setSupplierId(matchPo.SUPPLIER_ID);
+          }
         }
       }
     }
-  }, [preselectedSupplier, preselectedPoId, suppliers, procurementOrders]);
+  }, [editGRN, preselectedSupplier, preselectedPoId, suppliers, procurementOrders, currentUser]);
 
   const handlePoSelect = (selectedPoId: string) => {
     setPoId(selectedPoId);
@@ -287,28 +330,53 @@ export const GoodsReceivedModal: React.FC<GoodsReceivedModalProps> = ({
 
     const primaryItem = formattedItems[0];
 
-    addGRN({
-      poId: poId || undefined,
-      poNumber: po?.PO_NUMBER || undefined,
-      supplierId,
-      supplierName: supplier?.name || 'Supplier',
-      projectCode,
-      deliveryDate,
-      deliveryNoteNumber: deliveryNoteNumber.trim(),
-      vehicleNumber: vehicleNumber.trim() || undefined,
-      receivedBy: receivedBy.trim(),
-      itemDescription: items.length > 1 ? `${primaryItem.description} (+${items.length - 1} more items)` : primaryItem.description,
-      unit: primaryItem.unit,
-      orderedQuantity: items.reduce((acc, it) => acc + (it.orderedQuantity || 0), 0),
-      receivedQuantity: totalDelivered,
-      acceptedQuantity: totalAccepted,
-      rejectedQuantity: totalRejected,
-      items: formattedItems,
-      qualityInspectionRemarks: qualityInspectionRemarks.trim() || 'Site physical inspection & QA specifications verified.',
-      deliveryNoteAttachmentName: deliveryNoteAttachmentName || undefined,
-      deliveryNoteAttachmentData: deliveryNoteAttachmentData || undefined,
-      status
-    });
+    if (editGRN) {
+      updateGoodsReceivedNote(editGRN.id, {
+        poId: poId || undefined,
+        poNumber: po?.PO_NUMBER || editGRN.poNumber,
+        supplierId,
+        supplierName: supplier?.name || editGRN.supplierName || 'Supplier',
+        projectCode,
+        deliveryDate,
+        deliveryNoteNumber: deliveryNoteNumber.trim(),
+        vehicleNumber: vehicleNumber.trim() || undefined,
+        receivedBy: receivedBy.trim(),
+        itemDescription: items.length > 1 ? `${primaryItem.description} (+${items.length - 1} more items)` : primaryItem.description,
+        unit: primaryItem.unit,
+        orderedQuantity: items.reduce((acc, it) => acc + (it.orderedQuantity || 0), 0),
+        receivedQuantity: totalDelivered,
+        acceptedQuantity: totalAccepted,
+        rejectedQuantity: totalRejected,
+        items: formattedItems,
+        qualityInspectionRemarks: qualityInspectionRemarks.trim() || 'Site physical inspection & QA specifications verified.',
+        deliveryNoteAttachmentName: deliveryNoteAttachmentName || undefined,
+        deliveryNoteAttachmentData: deliveryNoteAttachmentData || undefined,
+        status
+      });
+    } else {
+      addGRN({
+        poId: poId || undefined,
+        poNumber: po?.PO_NUMBER || undefined,
+        supplierId,
+        supplierName: supplier?.name || 'Supplier',
+        projectCode,
+        deliveryDate,
+        deliveryNoteNumber: deliveryNoteNumber.trim(),
+        vehicleNumber: vehicleNumber.trim() || undefined,
+        receivedBy: receivedBy.trim(),
+        itemDescription: items.length > 1 ? `${primaryItem.description} (+${items.length - 1} more items)` : primaryItem.description,
+        unit: primaryItem.unit,
+        orderedQuantity: items.reduce((acc, it) => acc + (it.orderedQuantity || 0), 0),
+        receivedQuantity: totalDelivered,
+        acceptedQuantity: totalAccepted,
+        rejectedQuantity: totalRejected,
+        items: formattedItems,
+        qualityInspectionRemarks: qualityInspectionRemarks.trim() || 'Site physical inspection & QA specifications verified.',
+        deliveryNoteAttachmentName: deliveryNoteAttachmentName || undefined,
+        deliveryNoteAttachmentData: deliveryNoteAttachmentData || undefined,
+        status
+      });
+    }
 
     onClose();
   };
@@ -325,7 +393,7 @@ export const GoodsReceivedModal: React.FC<GoodsReceivedModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-slate-100">
-                  Create Goods Received Note (GRN)
+                  {editGRN ? `Edit Goods Received Note (${editGRN.grnNumber})` : 'Create Goods Received Note (GRN)'}
                 </h3>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                   status === 'Accepted'
@@ -770,7 +838,7 @@ export const GoodsReceivedModal: React.FC<GoodsReceivedModalProps> = ({
                 className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
               >
                 <Save className="w-4 h-4" />
-                <span>Issue Goods Received Note (GRN)</span>
+                <span>{editGRN ? 'Save & Update GRN' : 'Issue Goods Received Note (GRN)'}</span>
               </button>
             </div>
           </div>

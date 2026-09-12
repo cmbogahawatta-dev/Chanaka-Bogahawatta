@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Award,
@@ -12,32 +12,58 @@ import {
 } from 'lucide-react';
 import { useSupplier } from '../../context/SupplierContext';
 import { usePettyCash } from '../../context/PettyCashContext';
-import { Supplier, PerformanceRating } from '../../types/supplierTypes';
+import { Supplier, PerformanceRating, SupplierEvaluation } from '../../types/supplierTypes';
 
 interface SupplierEvaluationModalProps {
   isOpen: boolean;
   onClose: () => void;
   supplier: Supplier;
+  editEvaluation?: SupplierEvaluation;
 }
 
 export const SupplierEvaluationModal: React.FC<SupplierEvaluationModalProps> = ({
   isOpen,
   onClose,
-  supplier
+  supplier,
+  editEvaluation
 }) => {
   const { submitPerformanceEvaluation } = useSupplier();
   const { projects } = usePettyCash();
 
-  const [projectCode, setProjectCode] = useState(projects[0]?.PROJECT_CODE || 'PIDM 26');
-  const [deliveryScore, setDeliveryScore] = useState(supplier.performance.deliveryScore || 85);
-  const [qualityScore, setQualityScore] = useState(supplier.performance.qualityScore || 85);
-  const [priceScore, setPriceScore] = useState(supplier.performance.priceScore || 85);
-  const [documentationScore, setDocumentationScore] = useState(supplier.performance.documentationScore || 85);
-  const [paymentComplianceScore, setPaymentComplianceScore] = useState(supplier.performance.paymentComplianceScore || 85);
-  const [responsivenessScore, setResponsivenessScore] = useState(supplier.performance.responsivenessScore || 85);
+  const [projectCode, setProjectCode] = useState(editEvaluation?.projectCode || projects[0]?.PROJECT_CODE || 'PIDM 26');
+  const [deliveryScore, setDeliveryScore] = useState(editEvaluation?.scores?.deliveryScore || editEvaluation?.deliveryScore || supplier.performance.deliveryScore || 85);
+  const [qualityScore, setQualityScore] = useState(editEvaluation?.scores?.qualityScore || editEvaluation?.qualityScore || supplier.performance.qualityScore || 85);
+  const [priceScore, setPriceScore] = useState(editEvaluation?.scores?.priceScore || editEvaluation?.priceScore || supplier.performance.priceScore || 85);
+  const [documentationScore, setDocumentationScore] = useState(editEvaluation?.scores?.documentationScore || editEvaluation?.documentationScore || supplier.performance.documentationScore || 85);
+  const [paymentComplianceScore, setPaymentComplianceScore] = useState(editEvaluation?.scores?.paymentComplianceScore || supplier.performance.paymentComplianceScore || 85);
+  const [responsivenessScore, setResponsivenessScore] = useState(editEvaluation?.scores?.responsivenessScore || supplier.performance.responsivenessScore || 85);
 
-  const [comments, setComments] = useState('');
-  const [correctiveAction, setCorrectiveAction] = useState('');
+  const [comments, setComments] = useState(editEvaluation?.comments || '');
+  const [correctiveAction, setCorrectiveAction] = useState(editEvaluation?.correctiveAction || '');
+
+  useEffect(() => {
+    if (editEvaluation) {
+      setProjectCode(editEvaluation.projectCode || projects[0]?.PROJECT_CODE || 'PIDM 26');
+      setDeliveryScore(editEvaluation.scores?.deliveryScore || editEvaluation.deliveryScore || 85);
+      setQualityScore(editEvaluation.scores?.qualityScore || editEvaluation.qualityScore || 85);
+      setPriceScore(editEvaluation.scores?.priceScore || editEvaluation.priceScore || 85);
+      setDocumentationScore(editEvaluation.scores?.documentationScore || editEvaluation.documentationScore || 85);
+      setPaymentComplianceScore(editEvaluation.scores?.paymentComplianceScore || 85);
+      setResponsivenessScore(editEvaluation.scores?.responsivenessScore || 85);
+      setComments(editEvaluation.comments || '');
+      setCorrectiveAction(editEvaluation.correctiveAction || '');
+    } else if (supplier) {
+      setProjectCode(projects[0]?.PROJECT_CODE || 'PIDM 26');
+      setDeliveryScore(supplier.performance.deliveryScore || 85);
+      setQualityScore(supplier.performance.qualityScore || 85);
+      setPriceScore(supplier.performance.priceScore || 85);
+      setDocumentationScore(supplier.performance.documentationScore || 85);
+      setPaymentComplianceScore(supplier.performance.paymentComplianceScore || 85);
+      setResponsivenessScore(supplier.performance.responsivenessScore || 85);
+      setComments('');
+      setCorrectiveAction('');
+    }
+  }, [editEvaluation, supplier, isOpen, projects]);
 
   if (!isOpen) return null;
 
