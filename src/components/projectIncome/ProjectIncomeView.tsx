@@ -305,6 +305,17 @@ export const ProjectIncomeView: React.FC<ProjectIncomeViewProps> = ({
 
         {/* Quick Context Indicator / Status Pill */}
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setCurrentModule('receivables-payables')}
+            className="px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 text-xs bg-blue-950/70 hover:bg-blue-900 text-blue-300 border border-blue-800/80 shadow-sm"
+            title="Jump to 11. Receivables & Payables Ledger"
+          >
+            <Scale className="w-3.5 h-3.5 text-blue-400" />
+            <span>AR / AP Ledger</span>
+            <ArrowUpRight className="w-3.5 h-3.5 text-blue-400" />
+          </button>
+
           <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs">
             <span className="text-slate-400">Total Billed:</span>
             <span className="font-mono font-bold text-emerald-400">

@@ -14,6 +14,8 @@ export const INITIAL_RECEIVABLE_INVOICES: ReceivableInvoice[] = [
     project: 'PIDM 26 - Central Expressway Sec 2',
     status: 'OVERDUE',
     workOrderOrContract: 'RDA/EX/2025/C2-014',
+    linkedTaxInvoiceId: 'inv-001',
+    sourceModule: 'PROJECT_INCOME',
     paymentHistory: [
       {
         id: 'rec-pay-01',
@@ -169,6 +171,13 @@ export const INITIAL_PAYABLE_BILLS: PayableBill[] = [
     overdueDays: 18,
     project: 'PIDM 26 - Central Expressway Sec 2',
     status: 'OVERDUE',
+    linkedSupplierInvoiceId: 'inv-sup-01',
+    linkedProcurementOrderId: 'PO-2026-0038',
+    linkedGrnId: 'GRN-2026-0041',
+    linkedPrvId: 'prv-45',
+    prvNumber: 'PRV-2026-00045',
+    prvStatus: 'OWNER_APPROVED',
+    sourceModule: 'PROCUREMENT',
     paymentHistory: [
       {
         id: 'pay-disb-01',
@@ -201,6 +210,13 @@ export const INITIAL_PAYABLE_BILLS: PayableBill[] = [
     overdueDays: 10,
     project: 'PIDM 26 - Central Expressway Sec 2',
     status: 'OVERDUE',
+    linkedSupplierInvoiceId: 'inv-sup-02',
+    linkedProcurementOrderId: 'PO-2026-0044',
+    linkedGrnId: 'GRN-2026-0045',
+    linkedPrvId: 'prv-44',
+    prvNumber: 'PRV-2026-00044',
+    prvStatus: 'SUBMITTED',
+    sourceModule: 'PROCUREMENT',
     paymentHistory: [
       {
         id: 'pay-disb-02',

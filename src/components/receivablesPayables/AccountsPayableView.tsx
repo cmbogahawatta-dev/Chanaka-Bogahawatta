@@ -36,13 +36,25 @@ export const AccountsPayableView: React.FC<AccountsPayableViewProps> = ({
   onOpenPaymentModal,
   onOpenDeleteModal
 }) => {
-  const { payables } = useReceivablesPayables();
+  const { payables, createPRVForPayable } = useReceivablesPayables();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OVERDUE' | 'DUE_SOON' | 'PARTIAL' | 'CURRENT' | 'PAID'>('ALL');
   const [supplierFilter, setSupplierFilter] = useState<string>('ALL');
   const [sortField, setSortField] = useState<'dueDate' | 'amount' | 'outstanding'>('dueDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [prvFeedback, setPrvFeedback] = useState<string | null>(null);
+
+  const handleRaisePRV = (bill: PayableBill) => {
+    const res = createPRVForPayable(bill.id);
+    if (res.success) {
+      setPrvFeedback(`Success: Payment Request Voucher ${res.prvNumber} generated for ${bill.supplier}! Linked to Bill #${bill.invoiceNumber}`);
+      setTimeout(() => setPrvFeedback(null), 6000);
+    } else {
+      setPrvFeedback(`Could not generate PRV: ${res.error || 'Unknown error'}`);
+      setTimeout(() => setPrvFeedback(null), 5000);
+    }
+  };
 
   // Extract distinct suppliers
   const uniqueSuppliers = useMemo(() => {
@@ -245,6 +257,23 @@ export const AccountsPayableView: React.FC<AccountsPayableViewProps> = ({
         </div>
       </div>
 
+      {/* PRV Generation Feedback Banner */}
+      {prvFeedback && (
+        <div className="p-3 bg-purple-950/80 border border-purple-700/80 rounded-xl text-purple-200 text-xs flex items-center justify-between gap-2 shadow-lg animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="font-semibold text-white">{prvFeedback}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPrvFeedback(null)}
+            className="text-[11px] font-semibold text-purple-400 hover:text-white px-2 py-0.5 rounded bg-purple-900/60"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Accounts Payable Table (Fields matching exact user prompt: Supplier, PO, GRN, Invoice, Due date, Amount, Paid, Outstanding) */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -365,8 +394,20 @@ export const AccountsPayableView: React.FC<AccountsPayableViewProps> = ({
                       </td>
 
                       {/* Invoice */}
-                      <td className="px-4 py-3 font-mono font-bold text-white whitespace-nowrap">
-                        {item.invoiceNumber}
+                      <td className="px-4 py-3 font-mono text-white whitespace-nowrap">
+                        <div className="font-bold">{item.invoiceNumber}</div>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          {item.sourceModule === 'PROCUREMENT' && (
+                            <span className="text-[9px] font-sans px-1.5 py-0.2 rounded bg-amber-950/70 text-amber-300 border border-amber-800/80" title="Linked to Procurement Module">
+                              Procurement
+                            </span>
+                          )}
+                          {item.prvNumber && (
+                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-950 text-purple-300 border border-purple-800" title={`Linked to Payment Request ${item.prvNumber} (${item.prvStatus || 'PRV'})`}>
+                              {item.prvNumber}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Due Date */}
@@ -396,6 +437,18 @@ export const AccountsPayableView: React.FC<AccountsPayableViewProps> = ({
                       {/* Actions */}
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
+                          {item.outstanding > 0 && !item.prvNumber && (
+                            <button
+                              type="button"
+                              onClick={() => handleRaisePRV(item)}
+                              className="px-2 py-1 bg-purple-950/70 hover:bg-purple-900 text-purple-300 border border-purple-800/80 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 shadow-sm"
+                              title="Raise Payment Request Voucher (PRV) in Payment Module"
+                            >
+                              <Receipt className="w-3 h-3 text-purple-400" />
+                              <span>Raise PRV</span>
+                            </button>
+                          )}
+
                           {item.outstanding > 0 && (
                             <button
                               type="button"

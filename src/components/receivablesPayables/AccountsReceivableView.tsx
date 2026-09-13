@@ -355,6 +355,11 @@ export const AccountsReceivableView: React.FC<AccountsReceivableViewProps> = ({
                               CURRENT
                             </span>
                           )}
+                          {(item.sourceModule === 'TAX_INVOICE' || item.sourceModule === 'PROJECT_INCOME' || item.linkedTaxInvoiceId) && (
+                            <span className="text-[9px] font-sans px-1.5 py-0.2 rounded font-normal bg-cyan-950/70 text-cyan-300 border border-cyan-800/80" title="Synchronized from Project Income Tax Invoices">
+                              Income
+                            </span>
+                          )}
                         </div>
                       </td>
 

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
@@ -1224,138 +1225,6 @@ app.post('/api/jibble/sync-leave', async (req: Request, res: Response) => {
 });
 
 
-// AI Official Corporate Letter Drafting
-app.post('/api/ai/draft-letter', async (req: Request, res: Response) => {
-  try {
-    const { enterpriseId, recipientOrganization, purpose, category, tone = 'Formal' } = req.body;
-
-    if (!purpose) {
-      res.status(400).json({ error: 'Purpose or prompt is required for drafting.' });
-      return;
-    }
-
-    const ai = getGeminiClient();
-    if (!ai) {
-      // High-grade fallback template
-      const fallbackSubject = `Official Correspondence: ${purpose.slice(0, 55)}`;
-      const fallbackHtml = `<p>Dear Sir / Madam,</p>
-<p><strong>RE: ${fallbackSubject.toUpperCase()}</strong></p>
-<p>We write on behalf of Apex Global Logistics Corp regarding ${purpose}.</p>
-<p>Please review our official submission and contemporaneous records enclosed herewith. Should further clarification or site inspection be required, please do not hesitate to contact our executive project secretariat.</p>
-<p>We appreciate your prompt attention and look forward to your formal response.</p>
-<p>Yours faithfully,<br/><strong>Apex Global Logistics Corp</strong><br/>Executive Project Operations</p>`;
-
-      res.json({
-        success: true,
-        source: 'template_fallback',
-        subject: fallbackSubject,
-        bodyHtml: fallbackHtml
-      });
-      return;
-    }
-
-    const systemPrompt = `You are a corporate legal secretary and contracts specialist for an enterprise logistics and engineering corporation ("Apex Global Logistics Corp").
-Draft a formal corporate business letter based on the following:
-- Recipient: ${recipientOrganization || 'Valued Client / Authority'}
-- Category: ${category || 'Official Business'}
-- Tone: ${tone}
-- Purpose: ${purpose}
-
-Requirements:
-Return clean valid JSON with:
-- "subject": A professional, concise subject line with reference header
-- "bodyHtml": The letter body in clean semantic HTML (<p>, <strong>, <ul>, <li>). Do not include full HTML/body tags. Include professional opening, context, contractual/operational details, action required, and formal closing.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: systemPrompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            subject: { type: Type.STRING },
-            bodyHtml: { type: Type.STRING }
-          },
-          required: ['subject', 'bodyHtml']
-        }
-      }
-    });
-
-    const textOutput = response.text?.trim() || '{}';
-    const parsed = JSON.parse(textOutput);
-
-    res.json({
-      success: true,
-      source: 'gemini',
-      subject: parsed.subject,
-      bodyHtml: parsed.bodyHtml
-    });
-  } catch (error: any) {
-    console.error('AI letter draft failed:', error);
-    res.status(500).json({
-      success: false,
-      error: error?.message || 'Failed to generate draft'
-    });
-  }
-});
-
-// AI Letter Tone Transformation
-app.post('/api/ai/transform-letter', async (req: Request, res: Response) => {
-  try {
-    const { bodyHtml, tone } = req.body;
-
-    if (!bodyHtml) {
-      res.status(400).json({ error: 'Body HTML is required.' });
-      return;
-    }
-
-    const ai = getGeminiClient();
-    if (!ai) {
-      res.json({
-        success: true,
-        source: 'simulated',
-        transformedBodyHtml: `<p><em>[Tone adapted to ${tone}]</em></p>${bodyHtml}`
-      });
-      return;
-    }
-
-    const prompt = `Rewrite the following corporate letter body in a strictly "${tone}" tone while preserving all factual names, dates, amounts, and contractual commitments.
-Letter body:
-${bodyHtml}
-
-Return clean JSON with a single key "transformedBodyHtml" containing semantic HTML paragraphs.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            transformedBodyHtml: { type: Type.STRING }
-          },
-          required: ['transformedBodyHtml']
-        }
-      }
-    });
-
-    const parsed = JSON.parse(response.text?.trim() || '{}');
-    res.json({
-      success: true,
-      source: 'gemini',
-      transformedBodyHtml: parsed.transformedBodyHtml || bodyHtml
-    });
-  } catch (error: any) {
-    console.error('AI transform tone failed:', error);
-    res.status(500).json({
-      success: false,
-      error: error?.message || 'Failed to transform letter'
-    });
-  }
-});
-
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
@@ -1373,8 +1242,11 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`FleetTrack server listening on http://0.0.0.0:${PORT}`);
+    console.log(`Server listening on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Fatal server startup error:', err);
+  process.exit(1);
+});

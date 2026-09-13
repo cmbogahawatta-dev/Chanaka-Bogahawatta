@@ -11,11 +11,14 @@ import {
   CheckCircle2,
   Calendar,
   Layers,
-  CreditCard
+  CreditCard,
+  Link2,
+  Receipt
 } from 'lucide-react';
 import { usePRV } from '../../context/PRVContext';
 import { usePettyCash } from '../../context/PettyCashContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
+import { useReceivablesPayables } from '../../context/ReceivablesPayablesContext';
 import {
   PRVPriority,
   PayeeType,
@@ -33,6 +36,7 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
   const { createPaymentRequest, paymentRequests } = usePRV();
   const { projects, categories } = usePettyCash();
   const { currentUser, currentRole } = useEnterprise();
+  const { payables, linkPayableToPRV } = useReceivablesPayables();
 
   // Next PRV number preview
   const nextPrvNumber = useMemo(() => {
@@ -53,6 +57,7 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Form State
+  const [selectedPayableId, setSelectedPayableId] = useState<string>('');
   const [requestDate, setRequestDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [department, setDepartment] = useState<string>('Site Operations & Earthwork');
   const [projectCode, setProjectCode] = useState<string>(projects[0]?.PROJECT_CODE || 'PIDM 26');
@@ -133,6 +138,33 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
     setAttachments(prev => [...prev, sampleAtt]);
   };
 
+  const handleSelectPayable = (payableId: string) => {
+    setSelectedPayableId(payableId);
+    if (!payableId) return;
+
+    const bill = payables.find(p => p.id === payableId);
+    if (!bill) return;
+
+    setPayeeName(bill.supplier);
+    setPayeeType('Supplier');
+    setAmount(bill.outstanding > 0 ? bill.outstanding : bill.amount);
+    setPurpose(`Procurement Settlement: ${bill.supplier} - Invoice ${bill.invoiceNumber}`);
+    setDescription(`Payment request for Accounts Payable Bill #${bill.invoiceNumber} (PO: ${bill.poNumber}, GRN: ${bill.grnNumber}). Total liability: LKR ${bill.amount.toLocaleString()}.`);
+    if (bill.dueDate) {
+      setRequiredDate(bill.dueDate);
+    }
+    if (bill.project) {
+      const matchProj = projects.find(
+        p =>
+          p.PROJECT_CODE.toLowerCase() === bill.project?.toLowerCase() ||
+          p.PROJECT_NAME.toLowerCase().includes(bill.project?.toLowerCase() || '')
+      );
+      if (matchProj) {
+        setProjectCode(matchProj.PROJECT_CODE);
+      }
+    }
+  };
+
   const handleSubmit = (submitImmediately: boolean) => {
     if (!purpose.trim()) {
       setValidationError('Please enter a Payment Purpose (Subject).');
@@ -151,8 +183,9 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
 
     const selectedProj = projects.find(p => p.PROJECT_CODE === projectCode);
     const selectedCat = categories.find(c => c.CATEGORY_NAME === expenseCategory);
+    const selectedPayable = payables.find(p => p.id === selectedPayableId);
 
-    createPaymentRequest(
+    const created = createPaymentRequest(
       {
         requestDate,
         requestedBy: currentUser,
@@ -182,10 +215,18 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
         vatAmount,
         totalAmount,
         paymentReference: paymentReference.trim() || undefined,
-        attachments
+        attachments,
+        linkedPayableBillId: selectedPayableId || undefined,
+        supplierInvoiceNumber: selectedPayable ? selectedPayable.invoiceNumber : undefined,
+        poNumber: selectedPayable ? selectedPayable.poNumber : undefined,
+        grnNumber: selectedPayable ? selectedPayable.grnNumber : undefined
       },
       submitImmediately
     );
+
+    if (selectedPayableId && created) {
+      linkPayableToPRV(selectedPayableId, created.id);
+    }
 
     onClose();
   };
@@ -227,6 +268,50 @@ export const CreatePRVModal: React.FC<CreatePRVModalProps> = ({ isOpen, onClose 
               <span>{validationError}</span>
             </div>
           )}
+
+          {/* SECTION 0: LINK WITH ACCOUNTS PAYABLE BILL (PROCUREMENT) */}
+          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-purple-950/30 p-3.5 rounded-xl border border-purple-800/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-purple-300 font-bold">
+                <Link2 className="w-4 h-4 text-purple-400" />
+                <span className="uppercase tracking-wider text-[11px]">Link with Accounts Payable Bill (Optional)</span>
+              </div>
+              <span className="text-[10px] text-purple-400 font-mono bg-purple-950/80 px-2 py-0.5 rounded border border-purple-800/80">
+                Procurement &amp; AP Integration
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-1 gap-2">
+              <select
+                value={selectedPayableId}
+                onChange={(e) => handleSelectPayable(e.target.value)}
+                className="w-full bg-slate-900 border border-purple-700/60 rounded-lg p-2.5 text-slate-200 focus:border-purple-400 focus:outline-none text-xs"
+              >
+                <option value="">-- Standalone Voucher (No AP Bill Linked) --</option>
+                {payables.map((bill) => (
+                  <option key={bill.id} value={bill.id}>
+                    {bill.supplier} | Bill #{bill.invoiceNumber} (PO: {bill.poNumber}, GRN: {bill.grnNumber}) | Due: {bill.dueDate} | Bal: LKR {bill.outstanding.toLocaleString()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedPayableId && (
+              <div className="p-2 bg-purple-950/60 border border-purple-800/70 rounded-lg text-[11px] text-purple-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-3.5 h-3.5 text-purple-400" />
+                  <span>
+                    Linked to <strong className="text-white">{payables.find(p => p.id === selectedPayableId)?.supplier}</strong> (Invoice #{payables.find(p => p.id === selectedPayableId)?.invoiceNumber}).
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSelectPayable('')}
+                  className="text-purple-400 hover:text-white underline font-semibold"
+                >
+                  Unlink
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* SECTION 1: REQUEST INFORMATION */}
           <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-4">

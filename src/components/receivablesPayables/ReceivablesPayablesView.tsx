@@ -10,7 +10,11 @@ import {
   Trash2,
   Plus,
   Clock,
-  DollarSign
+  DollarSign,
+  RefreshCw,
+  Link2,
+  CheckCircle2,
+  ChevronDown
 } from 'lucide-react';
 import { useReceivablesPayables } from '../../context/ReceivablesPayablesContext';
 import { ReceivableInvoice, PayableBill } from '../../types/receivablesPayablesTypes';
@@ -34,7 +38,78 @@ export const ReceivablesPayablesView: React.FC<ReceivablesPayablesViewProps> = (
   initialTab = 'dashboard'
 }) => {
   const [activeTab, setActiveTab] = useState<ReceivablesPayablesTab>(initialTab);
-  const { receivables, payables, dashboardMetrics, deleteReceivable, deletePayable } = useReceivablesPayables();
+  const {
+    receivables,
+    payables,
+    dashboardMetrics,
+    deleteReceivable,
+    deletePayable,
+    syncAllCrossModule,
+    syncFromProjectIncome,
+    syncFromProcurement,
+    syncFromPRV
+  } = useReceivablesPayables();
+
+  // Cross-module sync states
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [showSyncDropdown, setShowSyncDropdown] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<{
+    message: string;
+    details?: string;
+  } | null>(null);
+
+  const handleSyncAll = () => {
+    setIsSyncing(true);
+    setShowSyncDropdown(false);
+    setTimeout(() => {
+      const res = syncAllCrossModule();
+      setSyncFeedback({
+        message: res.message,
+        details: `Tax Invoices: +${res.taxInvoicesAdded}, Δ${res.taxInvoicesUpdated} | Procurement Bills: +${res.supplierInvoicesAdded}, Δ${res.supplierInvoicesUpdated} | PRV Disbursed: Δ${res.prvLinksUpdated}`
+      });
+      setIsSyncing(false);
+      setTimeout(() => setSyncFeedback(null), 6000);
+    }, 400);
+  };
+
+  const handleSyncProjectIncome = () => {
+    setIsSyncing(true);
+    setShowSyncDropdown(false);
+    setTimeout(() => {
+      const res = syncFromProjectIncome();
+      setSyncFeedback({
+        message: res.message
+      });
+      setIsSyncing(false);
+      setTimeout(() => setSyncFeedback(null), 5000);
+    }, 300);
+  };
+
+  const handleSyncProcurement = () => {
+    setIsSyncing(true);
+    setShowSyncDropdown(false);
+    setTimeout(() => {
+      const res = syncFromProcurement();
+      setSyncFeedback({
+        message: res.message
+      });
+      setIsSyncing(false);
+      setTimeout(() => setSyncFeedback(null), 5000);
+    }, 300);
+  };
+
+  const handleSyncPRV = () => {
+    setIsSyncing(true);
+    setShowSyncDropdown(false);
+    setTimeout(() => {
+      const res = syncFromPRV();
+      setSyncFeedback({
+        message: res.message
+      });
+      setIsSyncing(false);
+      setTimeout(() => setSyncFeedback(null), 5000);
+    }, 300);
+  };
 
   // Modals state
   const [isNewARModalOpen, setIsNewARModalOpen] = useState(false);
@@ -103,7 +178,75 @@ export const ReceivablesPayablesView: React.FC<ReceivablesPayablesViewProps> = (
         </div>
 
         {/* Action Controls & Clear History */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative">
+          {/* Cross-Module Sync Dropdown Trigger */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowSyncDropdown(!showSyncDropdown)}
+              disabled={isSyncing}
+              className="px-3 py-2 bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800/80 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
+              title="Synchronize linked Tax Invoices, Procurement Bills & PRV Vouchers"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-400' : 'text-blue-300'}`} />
+              <span>Link &amp; Sync</span>
+              <ChevronDown className="w-3 h-3 text-blue-400" />
+            </button>
+
+            {showSyncDropdown && (
+              <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2 z-50 text-xs space-y-1 animate-in fade-in zoom-in-95">
+                <div className="px-2 py-1.5 font-bold text-slate-300 border-b border-slate-800 text-[11px] uppercase tracking-wider flex items-center justify-between">
+                  <span>Cross-Module Sync</span>
+                  <span className="text-[10px] font-mono text-blue-400">Live Context</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSyncAll}
+                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-blue-600 hover:text-white text-slate-200 flex items-center justify-between transition-colors font-medium"
+                >
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 text-blue-400 group-hover:text-white" />
+                    <span>Sync All Modules</span>
+                  </div>
+                  <span className="text-[10px] font-mono opacity-70">Auto</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSyncProjectIncome}
+                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-emerald-600 hover:text-white text-slate-300 flex items-center justify-between transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Project Income (Tax Invoices)</span>
+                  </div>
+                  <span className="text-[10px] font-mono opacity-70">→ AR</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSyncProcurement}
+                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-amber-600 hover:text-white text-slate-300 flex items-center justify-between transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <ArrowDownRight className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Procurement (PO &amp; Bills)</span>
+                  </div>
+                  <span className="text-[10px] font-mono opacity-70">→ AP</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSyncPRV}
+                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-purple-600 hover:text-white text-slate-300 flex items-center justify-between transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Receipt className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Payment Requests (PRV)</span>
+                  </div>
+                  <span className="text-[10px] font-mono opacity-70">Disbursed</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={() => setIsClearHistoryModalOpen(true)}
@@ -136,6 +279,30 @@ export const ReceivablesPayablesView: React.FC<ReceivablesPayablesViewProps> = (
           </button>
         </div>
       </div>
+
+      {/* Sync Feedback Toast / Banner */}
+      {syncFeedback && (
+        <div className="p-3 bg-blue-950/80 border border-blue-700/80 rounded-2xl text-blue-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-lg animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div>
+              <span className="font-bold text-white">{syncFeedback.message}</span>
+              {syncFeedback.details && (
+                <div className="text-[11px] text-blue-300/80 font-mono mt-0.5">
+                  {syncFeedback.details}
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSyncFeedback(null)}
+            className="text-[11px] font-semibold text-blue-400 hover:text-white px-2 py-1 rounded bg-blue-900/60 self-start sm:self-center"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Navigation Sub-Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800 text-xs shadow-sm">

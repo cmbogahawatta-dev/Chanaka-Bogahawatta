@@ -12,6 +12,9 @@ import {
   INITIAL_RECEIVABLE_INVOICES,
   INITIAL_PAYABLE_BILLS
 } from '../data/receivablesPayablesSeedData';
+import { useTaxInvoice } from './TaxInvoiceContext';
+import { useSupplier } from './SupplierContext';
+import { usePRV } from './PRVContext';
 
 interface ReceivablesPayablesContextType {
   receivables: ReceivableInvoice[];
@@ -29,6 +32,8 @@ interface ReceivablesPayablesContextType {
       client: string;
       project: string;
       workOrderOrContract?: string;
+      linkedTaxInvoiceId?: string;
+      sourceModule?: 'MANUAL' | 'PROJECT_INCOME' | 'TAX_INVOICE';
       notes?: string;
     }
   ) => ReceivableInvoice;
@@ -60,6 +65,13 @@ interface ReceivablesPayablesContextType {
       amount: number;
       paid?: number;
       project?: string;
+      linkedSupplierInvoiceId?: string;
+      linkedProcurementOrderId?: string;
+      linkedGrnId?: string;
+      linkedPrvId?: string;
+      prvNumber?: string;
+      prvStatus?: string;
+      sourceModule?: 'MANUAL' | 'PROCUREMENT' | 'PRV';
       notes?: string;
     }
   ) => PayableBill;
@@ -77,6 +89,33 @@ interface ReceivablesPayablesContextType {
       recordedBy?: string;
     }
   ) => void;
+
+  // Cross-Module Linking & Synchronization
+  syncFromProjectIncome: () => { addedCount: number; updatedCount: number; message: string };
+  syncFromProcurement: () => { addedCount: number; updatedCount: number; message: string };
+  syncFromPRV: () => { updatedCount: number; message: string };
+  createPRVForPayable: (
+    payableId: string,
+    options?: {
+      amount?: number;
+      purpose?: string;
+      expenseCategory?: string;
+      costCentre?: string;
+      requestedBy?: string;
+    }
+  ) => { success: boolean; prvNumber?: string; error?: string };
+  linkPayableToPRV: (payableId: string, prvId: string) => void;
+  linkPayableToProcurement: (payableId: string, supplierInvoiceId: string, poNumber?: string, grnNumber?: string) => void;
+  linkReceivableToTaxInvoice: (receivableId: string, taxInvoiceId: string) => void;
+  syncAllCrossModule: () => {
+    totalSynced: number;
+    taxInvoicesAdded: number;
+    taxInvoicesUpdated: number;
+    supplierInvoicesAdded: number;
+    supplierInvoicesUpdated: number;
+    prvLinksUpdated: number;
+    message: string;
+  };
 
   // Clear / Reset Actions
   clearReceivablesHistory: () => void;
@@ -125,6 +164,11 @@ export function getBillStatus(amount: number, paid: number, dueDateStr: string):
 }
 
 export const ReceivablesPayablesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Connected ERP Contexts
+  const { invoices: taxInvoices, recordClientPayment: recordTaxInvoicePayment } = useTaxInvoice();
+  const { invoices: supplierInvoices, recordInvoicePayment: recordSupplierInvoicePayment } = useSupplier();
+  const { paymentRequests, createPaymentRequest } = usePRV();
+
   // Load receivables from localStorage or initial seed
   const [receivables, setReceivables] = useState<ReceivableInvoice[]>(() => {
     try {
@@ -274,6 +318,28 @@ export const ReceivablesPayablesProvider: React.FC<{ children: React.ReactNode }
           const updatedOutstanding = Math.max(0, inv.amount - updatedPaid);
           const updatedStatus = getInvoiceStatus(inv.amount, updatedPaid, inv.dueDate);
 
+          // Cross-record payment to linked Project Income (Tax Invoice) if present
+          if (inv.linkedTaxInvoiceId && recordTaxInvoicePayment) {
+            try {
+              recordTaxInvoicePayment({
+                invoiceId: inv.linkedTaxInvoiceId,
+                invoiceNumber: inv.invoiceNumber,
+                projectCode: inv.project,
+                clientName: inv.client,
+                paymentDate: payment.date,
+                amountReceived: Number(payment.amount) || 0,
+                paymentMethod: payment.paymentMethod === 'CHEQUE' ? 'Cheque' : payment.paymentMethod === 'CASH' ? 'Cash' : 'Bank Transfer (NEFT)',
+                paymentReference: payment.referenceNumber || 'AR-REC',
+                receiptNumber: `REC-${Date.now().toString().slice(-6)}`,
+                bankAccount: payment.bankAccount || 'Commercial Bank Corporate',
+                recordedBy: payment.recordedBy || 'Finance Officer',
+                notes: payment.notes || 'Recorded via Accounts Receivable ledger'
+              });
+            } catch (err) {
+              console.warn('Cross-record to TaxInvoice error:', err);
+            }
+          }
+
           return {
             ...inv,
             paid: updatedPaid,
@@ -285,7 +351,7 @@ export const ReceivablesPayablesProvider: React.FC<{ children: React.ReactNode }
         })
       );
     },
-    []
+    [recordTaxInvoicePayment]
   );
 
   // Add Payable
@@ -398,6 +464,19 @@ export const ReceivablesPayablesProvider: React.FC<{ children: React.ReactNode }
           const updatedOutstanding = Math.max(0, bill.amount - updatedPaid);
           const updatedStatus = getBillStatus(bill.amount, updatedPaid, bill.dueDate);
 
+          // Cross-record disbursement to linked Procurement Supplier Invoice if present
+          if (bill.linkedSupplierInvoiceId && recordSupplierInvoicePayment) {
+            try {
+              recordSupplierInvoicePayment(
+                bill.linkedSupplierInvoiceId,
+                newDisbursement.amount,
+                payment.referenceNumber || 'AP-DISB'
+              );
+            } catch (err) {
+              console.warn('Cross-record to SupplierInvoice error:', err);
+            }
+          }
+
           return {
             ...bill,
             paid: updatedPaid,
@@ -409,7 +488,7 @@ export const ReceivablesPayablesProvider: React.FC<{ children: React.ReactNode }
         })
       );
     },
-    []
+    [recordSupplierInvoicePayment]
   );
 
   // Clear History functions
@@ -430,6 +509,426 @@ export const ReceivablesPayablesProvider: React.FC<{ children: React.ReactNode }
     setReceivables(INITIAL_RECEIVABLE_INVOICES);
     setPayables(INITIAL_PAYABLE_BILLS);
   }, []);
+
+  // 1. Sync Receivables with Project Income (Tax Invoices)
+  const syncFromProjectIncome = useCallback(() => {
+    if (!taxInvoices || taxInvoices.length === 0) {
+      return { addedCount: 0, updatedCount: 0, message: 'No tax invoices found in Project Income' };
+    }
+
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    setReceivables(prev => {
+      const updatedList = [...prev];
+
+      taxInvoices.forEach(tInv => {
+        // Skip cancelled or draft invoices if needed, but include all valid ones
+        if (tInv.status === 'CANCELLED') return;
+
+        const existingIdx = updatedList.findIndex(
+          r => r.linkedTaxInvoiceId === tInv.id || r.invoiceNumber.toLowerCase() === tInv.serialNumber.toLowerCase()
+        );
+
+        const paid = tInv.amountReceived || 0;
+        const amount = tInv.netPayable || tInv.totalConsideration || 0;
+        const outstanding = Math.max(0, amount - paid);
+        const dueDate = tInv.dueDate || tInv.invoiceDate;
+        const overdueDays = calculateOverdueDays(dueDate);
+        const status = getInvoiceStatus(amount, paid, dueDate);
+
+        if (existingIdx >= 0) {
+          const curr = updatedList[existingIdx];
+          const newPaid = Math.max(curr.paid || 0, paid);
+          updatedList[existingIdx] = {
+            ...curr,
+            amount,
+            paid: newPaid,
+            outstanding: Math.max(0, amount - newPaid),
+            dueDate,
+            overdueDays,
+            status: getInvoiceStatus(amount, newPaid, dueDate),
+            linkedTaxInvoiceId: tInv.id,
+            sourceModule: 'PROJECT_INCOME',
+            client: tInv.purchaserName || curr.client,
+            project: tInv.projectCode || tInv.projectName || curr.project,
+            updatedAt: new Date().toISOString()
+          };
+          updatedCount++;
+        } else {
+          const newRec: ReceivableInvoice = {
+            id: `rec-tax-${tInv.id}`,
+            invoiceNumber: tInv.serialNumber,
+            invoiceDate: tInv.invoiceDate,
+            dueDate,
+            amount,
+            paid,
+            outstanding,
+            overdueDays,
+            client: tInv.purchaserName || 'Client Authority',
+            project: tInv.projectCode || tInv.projectName || 'PIDM 26',
+            status,
+            workOrderOrContract: tInv.projectCode,
+            linkedTaxInvoiceId: tInv.id,
+            sourceModule: 'PROJECT_INCOME',
+            paymentHistory: paid > 0 ? [
+              {
+                id: `pay-sync-${Date.now()}-${tInv.id}`,
+                date: tInv.invoiceDate,
+                amount: paid,
+                referenceNumber: 'Project Income Payment Sync',
+                paymentMethod: 'BANK_TRANSFER',
+                notes: 'Synced from Project Income Tax Invoice',
+                recordedBy: 'Income Ledger Sync',
+                recordedAt: new Date().toISOString()
+              }
+            ] : [],
+            notes: `Synced from Official IRD Tax Invoice ${tInv.serialNumber}`,
+            createdAt: tInv.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          updatedList.unshift(newRec);
+          addedCount++;
+        }
+      });
+
+      return updatedList;
+    });
+
+    return {
+      addedCount,
+      updatedCount,
+      message: `Project Income sync complete: ${addedCount} new receivables imported, ${updatedCount} updated.`
+    };
+  }, [taxInvoices]);
+
+  // 2. Sync Payables with Procurement (Supplier Invoices & PO/GRN)
+  const syncFromProcurement = useCallback(() => {
+    if (!supplierInvoices || supplierInvoices.length === 0) {
+      return { addedCount: 0, updatedCount: 0, message: 'No supplier invoices found in Procurement' };
+    }
+
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    setPayables(prev => {
+      const updatedList = [...prev];
+
+      supplierInvoices.forEach(sInv => {
+        const existingIdx = updatedList.findIndex(
+          p => p.linkedSupplierInvoiceId === sInv.id || p.invoiceNumber.toLowerCase() === sInv.invoiceNumber.toLowerCase()
+        );
+
+        const paid = sInv.paidAmount || 0;
+        const amount = sInv.netAmount || sInv.grossAmount || 0;
+        const outstanding = Math.max(0, amount - paid);
+        const dueDate = sInv.dueDate;
+        const overdueDays = calculateOverdueDays(dueDate);
+        const status = getBillStatus(amount, paid, dueDate);
+
+        if (existingIdx >= 0) {
+          const curr = updatedList[existingIdx];
+          const newPaid = Math.max(curr.paid || 0, paid);
+          updatedList[existingIdx] = {
+            ...curr,
+            amount,
+            paid: newPaid,
+            outstanding: Math.max(0, amount - newPaid),
+            dueDate,
+            overdueDays,
+            status: getBillStatus(amount, newPaid, dueDate),
+            linkedSupplierInvoiceId: sInv.id,
+            linkedProcurementOrderId: sInv.poNumber || curr.poNumber,
+            linkedGrnId: sInv.grnNumber || curr.grnNumber,
+            sourceModule: 'PROCUREMENT',
+            updatedAt: new Date().toISOString()
+          };
+          updatedCount++;
+        } else {
+          const newPay: PayableBill = {
+            id: `pay-proc-${sInv.id}`,
+            supplier: sInv.supplierName,
+            supplierId: sInv.supplierId,
+            poNumber: sInv.poNumber || 'PO-2026-GEN',
+            grnNumber: sInv.grnNumber || 'GRN-2026-GEN',
+            invoiceNumber: sInv.invoiceNumber,
+            billDate: sInv.invoiceDate || new Date().toISOString().split('T')[0],
+            dueDate,
+            amount,
+            paid,
+            outstanding,
+            overdueDays,
+            project: sInv.projectCode || 'PIDM 26',
+            status,
+            linkedSupplierInvoiceId: sInv.id,
+            linkedProcurementOrderId: sInv.poNumber,
+            linkedGrnId: sInv.grnNumber,
+            sourceModule: 'PROCUREMENT',
+            paymentHistory: paid > 0 ? [
+              {
+                id: `disb-sync-${Date.now()}-${sInv.id}`,
+                date: sInv.invoiceDate || new Date().toISOString().split('T')[0],
+                amount: paid,
+                referenceNumber: 'Procurement Disbursement Sync',
+                paymentMethod: 'BANK_TRANSFER',
+                notes: 'Synced from Procurement Supplier Invoice',
+                recordedBy: 'Procurement Sync',
+                recordedAt: new Date().toISOString()
+              }
+            ] : [],
+            notes: `Synced from Procurement Supplier Invoice ${sInv.supplierInvoiceRef || sInv.invoiceNumber}`,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          updatedList.unshift(newPay);
+          addedCount++;
+        }
+      });
+
+      return updatedList;
+    });
+
+    return {
+      addedCount,
+      updatedCount,
+      message: `Procurement sync complete: ${addedCount} new bills imported, ${updatedCount} updated.`
+    };
+  }, [supplierInvoices]);
+
+  // 3. Sync Payables with PRV (Payment Request Vouchers & Disbursements)
+  const syncFromPRV = useCallback(() => {
+    if (!paymentRequests || paymentRequests.length === 0) {
+      return { updatedCount: 0, message: 'No Payment Request Vouchers found' };
+    }
+
+    let updatedCount = 0;
+
+    setPayables(prev =>
+      prev.map(bill => {
+        // Find matching PRV
+        const matchingPrv = paymentRequests.find(
+          p =>
+            p.linkedPayableBillId === bill.id ||
+            (p.supplierInvoiceNumber && p.supplierInvoiceNumber.trim().toLowerCase() === bill.invoiceNumber.trim().toLowerCase()) ||
+            (p.poNumber && bill.poNumber && p.poNumber.trim().toLowerCase() === bill.poNumber.trim().toLowerCase())
+        );
+
+        if (!matchingPrv) return bill;
+
+        const isPaidInPRV = matchingPrv.status === 'PAID';
+        const prvPaidAmount = isPaidInPRV ? matchingPrv.totalAmount : 0;
+        const newPaid = Math.max(bill.paid || 0, prvPaidAmount);
+        const newOutstanding = Math.max(0, bill.amount - newPaid);
+        const newStatus = getBillStatus(bill.amount, newPaid, bill.dueDate);
+
+        const hasChanges =
+          bill.linkedPrvId !== matchingPrv.id ||
+          bill.prvNumber !== matchingPrv.prvNumber ||
+          bill.prvStatus !== matchingPrv.status ||
+          (isPaidInPRV && bill.paid < prvPaidAmount);
+
+        if (hasChanges) {
+          updatedCount++;
+          const paymentHistory = [...(bill.paymentHistory || [])];
+          if (isPaidInPRV && !paymentHistory.some(p => p.referenceNumber === matchingPrv.prvNumber)) {
+            paymentHistory.unshift({
+              id: `pay-prv-disb-${matchingPrv.id}`,
+              date: new Date().toISOString().split('T')[0],
+              amount: matchingPrv.totalAmount,
+              referenceNumber: matchingPrv.prvNumber,
+              paymentMethod: 'BANK_TRANSFER',
+              bankAccount: 'Commercial Bank Corporate #10029381',
+              notes: `Disbursement completed via PRV ${matchingPrv.prvNumber}`,
+              recordedBy: 'PRV Payment Settlement',
+              recordedAt: new Date().toISOString()
+            });
+          }
+
+          return {
+            ...bill,
+            linkedPrvId: matchingPrv.id,
+            prvNumber: matchingPrv.prvNumber,
+            prvStatus: matchingPrv.status,
+            paid: newPaid,
+            outstanding: newOutstanding,
+            status: newStatus,
+            paymentHistory,
+            updatedAt: new Date().toISOString()
+          };
+        }
+
+        return bill;
+      })
+    );
+
+    return {
+      updatedCount,
+      message: `PRV link sync complete: ${updatedCount} payables updated with live PRV status.`
+    };
+  }, [paymentRequests]);
+
+  // Keep PRVs synchronized with Payables automatically when paymentRequests change
+  useEffect(() => {
+    if (paymentRequests && paymentRequests.length > 0) {
+      syncFromPRV();
+    }
+  }, [paymentRequests, syncFromPRV]);
+
+  // 4. Create a Payment Request Voucher (PRV) directly from an Accounts Payable bill
+  const createPRVForPayable = useCallback(
+    (
+      payableId: string,
+      options?: {
+        amount?: number;
+        purpose?: string;
+        expenseCategory?: string;
+        costCentre?: string;
+        requestedBy?: string;
+      }
+    ) => {
+      const bill = payables.find(p => p.id === payableId);
+      if (!bill) {
+        return { success: false, error: 'Payable bill not found' };
+      }
+
+      const disburseAmount = options?.amount ?? bill.outstanding;
+      if (disburseAmount <= 0) {
+        return { success: false, error: 'Bill has zero outstanding liability' };
+      }
+
+      try {
+        const newPrv = createPaymentRequest(
+          {
+            requestDate: new Date().toISOString().split('T')[0],
+            requestedBy: options?.requestedBy || 'Procurement & Finance Desk',
+            requestedByEmail: 'procurement@emaenterprise.com',
+            department: 'Procurement & Accounts Payable',
+            projectId: bill.project || 'PRJ-GEN',
+            projectCode: bill.project || 'PIDM 26',
+            costCentre: options?.costCentre || `CC-${bill.project || 'AP-DISBURSEMENT'}`,
+            expenseCategoryId: 'cat-materials',
+            expenseCategory: options?.expenseCategory || 'Material Supply & Subcontracts',
+            purpose: options?.purpose || `Settlement for Invoice ${bill.invoiceNumber} (${bill.supplier})`,
+            description: `Payment Request Voucher generated from Accounts Payable for ${bill.supplier}. Bill #${bill.invoiceNumber}, PO: ${bill.poNumber}, GRN: ${bill.grnNumber}. Total liability: LKR ${bill.amount.toLocaleString()}, Outstanding: LKR ${bill.outstanding.toLocaleString()}.`,
+            requiredDate: bill.dueDate || new Date().toISOString().split('T')[0],
+            priority: 'Medium',
+            payeeType: 'Supplier',
+            payeeName: bill.supplier,
+            accountName: bill.supplier,
+            bankName: 'Commercial Bank of Ceylon',
+            accountNumber: '1000-8491-0028',
+            paymentMethod: 'Bank Transfer',
+            amount: disburseAmount,
+            totalAmount: disburseAmount,
+            currency: 'LKR',
+            attachments: [],
+            linkedPayableBillId: bill.id,
+            poNumber: bill.poNumber,
+            grnNumber: bill.grnNumber,
+            supplierInvoiceNumber: bill.invoiceNumber
+          },
+          true
+        );
+
+        // Update bill with linked PRV number and status
+        setPayables(prev =>
+          prev.map(p =>
+            p.id === payableId
+              ? {
+                  ...p,
+                  linkedPrvId: newPrv.id,
+                  prvNumber: newPrv.prvNumber,
+                  prvStatus: newPrv.status,
+                  updatedAt: new Date().toISOString()
+                }
+              : p
+          )
+        );
+
+        return { success: true, prvNumber: newPrv.prvNumber, prvId: newPrv.id };
+      } catch (err: any) {
+        return { success: false, error: err?.message || 'Failed to generate Payment Request Voucher' };
+      }
+    },
+    [payables, createPaymentRequest]
+  );
+
+  // Link specific Payable to PRV
+  const linkPayableToPRV = useCallback((payableId: string, prvId: string) => {
+    const targetPrv = paymentRequests?.find(p => p.id === prvId);
+    if (!targetPrv) return;
+
+    setPayables(prev =>
+      prev.map(b =>
+        b.id === payableId
+          ? {
+              ...b,
+              linkedPrvId: targetPrv.id,
+              prvNumber: targetPrv.prvNumber,
+              prvStatus: targetPrv.status,
+              updatedAt: new Date().toISOString()
+            }
+          : b
+      )
+    );
+  }, [paymentRequests]);
+
+  // Link specific Payable to Procurement
+  const linkPayableToProcurement = useCallback((payableId: string, supplierInvoiceId: string, poNumber?: string, grnNumber?: string) => {
+    setPayables(prev =>
+      prev.map(b =>
+        b.id === payableId
+          ? {
+              ...b,
+              linkedSupplierInvoiceId: supplierInvoiceId,
+              linkedProcurementOrderId: poNumber || b.poNumber,
+              linkedGrnId: grnNumber || b.grnNumber,
+              sourceModule: 'PROCUREMENT',
+              updatedAt: new Date().toISOString()
+            }
+          : b
+      )
+    );
+  }, []);
+
+  // Link specific Receivable to Tax Invoice
+  const linkReceivableToTaxInvoice = useCallback((receivableId: string, taxInvoiceId: string) => {
+    setReceivables(prev =>
+      prev.map(r =>
+        r.id === receivableId
+          ? {
+              ...r,
+              linkedTaxInvoiceId: taxInvoiceId,
+              sourceModule: 'PROJECT_INCOME',
+              updatedAt: new Date().toISOString()
+            }
+          : r
+      )
+    );
+  }, []);
+
+  // Master cross-module sync
+  const syncAllCrossModule = useCallback(() => {
+    const incRes = syncFromProjectIncome();
+    const procRes = syncFromProcurement();
+    const prvRes = syncFromPRV();
+    const totalChanges =
+      incRes.addedCount +
+      incRes.updatedCount +
+      procRes.addedCount +
+      procRes.updatedCount +
+      prvRes.updatedCount;
+
+    return {
+      totalSynced: totalChanges,
+      taxInvoicesAdded: incRes.addedCount,
+      taxInvoicesUpdated: incRes.updatedCount,
+      supplierInvoicesAdded: procRes.addedCount,
+      supplierInvoicesUpdated: procRes.updatedCount,
+      prvLinksUpdated: prvRes.updatedCount,
+      message: `Cross-module synchronization complete (${totalChanges} updates processed).`
+    };
+  }, [syncFromProjectIncome, syncFromProcurement, syncFromPRV]);
 
   // Compute Dashboard Metrics
   const dashboardMetrics = useMemo((): ReceivablesPayablesDashboardMetrics => {
@@ -540,7 +1039,15 @@ export const ReceivablesPayablesProvider: React.FC<{ children: React.ReactNode }
         clearReceivablesHistory,
         clearPayablesHistory,
         clearAllHistory,
-        resetToDemoData
+        resetToDemoData,
+        syncFromProjectIncome,
+        syncFromProcurement,
+        syncFromPRV,
+        createPRVForPayable,
+        linkPayableToPRV,
+        linkPayableToProcurement,
+        linkReceivableToTaxInvoice,
+        syncAllCrossModule
       }}
     >
       {children}
