@@ -119,6 +119,9 @@ export interface Letter {
   linkedEntityId?: string;
   recipientName?: string;
   recipientOrganization?: string;
+  recipientType?: 'CLIENT' | 'BANK' | 'AUTHORITY' | 'OTHER';
+  receiverDesignation?: string; // e.g. "Provincial Director", "Chief Engineer", "Branch Manager"
+  receiverInitials?: string;    // e.g. "PD", "CE", "BM", "DG"
   recipientAddress?: string;
   attention?: string;
   senderName?: string;

@@ -198,17 +198,19 @@ export const ReceivablesDashboardView: React.FC<ReceivablesDashboardViewProps> =
               Net Position
             </span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
-              netPosition >= 0
+              netPosition > 0
                 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
-                : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                : netPosition < 0
+                ? 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
             }`}>
-              {netPosition >= 0 ? 'Surplus / Net Positive' : 'Net Deficit'}
+              {netPosition > 0 ? 'Surplus / Net Positive' : netPosition < 0 ? 'Net Deficit' : 'Balanced (Zero Net)'}
             </span>
           </div>
 
           <div className="mt-3">
             <div className={`text-3xl sm:text-4xl font-black font-mono tracking-tight ${
-              netPosition >= 0 ? 'text-emerald-400' : 'text-rose-400'
+              netPosition > 0 ? 'text-emerald-400' : netPosition < 0 ? 'text-rose-400' : 'text-slate-200'
             }`}>
               {formatMillions(netPosition)}
             </div>

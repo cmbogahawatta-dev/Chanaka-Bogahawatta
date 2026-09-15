@@ -508,7 +508,9 @@ export const QuotationRegisterView: React.FC = () => {
                       <FileText className="w-8 h-8 text-slate-600" />
                       <span className="font-semibold text-slate-300">No quotation documents found</span>
                       <span className="text-[11px] text-slate-500">
-                        Try adjusting search filters or create a new quotation/estimate.
+                        {quotations.length === 0
+                          ? 'Quotation register is empty. Create a new quotation/estimate or restore defaults in Settings.'
+                          : 'Try adjusting search filters or create a new quotation/estimate.'}
                       </span>
                     </div>
                   </td>

@@ -318,7 +318,7 @@ export const StaffProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           PHONE: m.phone,
           EMAIL: m.email,
           ACTIVE: m.status === 'Active',
-          OPENING_PETTY_CASH: 50000.0,
+          OPENING_PETTY_CASH: 0.0,
           REMARKS: m.notes || `${m.designation} - ${m.department}`,
           ASSIGNED_PROJECTS: assignedProjects,
           AVATAR_COLOR: 'emerald',

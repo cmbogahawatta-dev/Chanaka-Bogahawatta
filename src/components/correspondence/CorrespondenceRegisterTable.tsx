@@ -63,12 +63,37 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
 }) => {
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
+  const [directionFilter, setDirectionFilter] = useState<'ALL' | 'INCOMING' | 'OUTGOING'>(() => {
+    if (viewMode === 'incoming') return 'INCOMING';
+    if (viewMode === 'outgoing') return 'OUTGOING';
+    return 'ALL';
+  });
   const [projectFilter, setProjectFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
   const [docTypeFilter, setDocTypeFilter] = useState('ALL');
 
-  // Filter letters based on viewMode
+  // Keep directionFilter aligned when viewMode prop changes
+  React.useEffect(() => {
+    if (viewMode === 'incoming') setDirectionFilter('INCOMING');
+    else if (viewMode === 'outgoing') setDirectionFilter('OUTGOING');
+    else if (viewMode === 'all') setDirectionFilter('ALL');
+  }, [viewMode]);
+
+  // Real-time direction counts
+  const directionCounts = useMemo(() => {
+    let incoming = 0;
+    let outgoing = 0;
+    letters.forEach(l => {
+      const isInc = l.direction === 'Incoming' || l.direction === 'INCOMING';
+      const isOut = l.direction === 'Outgoing' || l.direction === 'OUTGOING';
+      if (isInc) incoming++;
+      else if (isOut) outgoing++;
+    });
+    return { all: letters.length, incoming, outgoing };
+  }, [letters]);
+
+  // Filter letters based on viewMode and directionFilter
   const modeFilteredLetters = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
 
@@ -76,12 +101,19 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
       const isIncoming = letter.direction === 'Incoming' || letter.direction === 'INCOMING';
       const isOutgoing = letter.direction === 'Outgoing' || letter.direction === 'OUTGOING';
 
-      if (viewMode === 'incoming') {
-        return isIncoming;
+      // Explicit direction filter overrides
+      if (directionFilter === 'INCOMING' && !isIncoming) return false;
+      if (directionFilter === 'OUTGOING' && !isOutgoing) return false;
+
+      if (directionFilter === 'ALL') {
+        if (viewMode === 'incoming') {
+          return isIncoming;
+        }
+        if (viewMode === 'outgoing') {
+          return isOutgoing && letter.status !== 'Draft';
+        }
       }
-      if (viewMode === 'outgoing') {
-        return isOutgoing && letter.status !== 'Draft';
-      }
+
       if (viewMode === 'drafts') {
         return letter.status === 'Draft' || letter.status === 'DRAFT';
       }
@@ -114,7 +146,7 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
       // 'all'
       return true;
     });
-  }, [letters, viewMode]);
+  }, [letters, viewMode, directionFilter]);
 
   // Extract distinct projects
   const projectList = useMemo(() => {
@@ -218,6 +250,14 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
 
   const headerInfo = getHeaderInfo();
 
+  const isFiltered =
+    directionFilter !== 'ALL' ||
+    projectFilter !== 'ALL' ||
+    categoryFilter !== 'ALL' ||
+    priorityFilter !== 'ALL' ||
+    docTypeFilter !== 'ALL' ||
+    searchTerm.trim().length > 0;
+
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden">
       {/* View Header Banner */}
@@ -228,6 +268,15 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${headerInfo.badgeColor}`}>
               {filteredList.length} {filteredList.length === 1 ? 'Record' : 'Records'}
             </span>
+            {directionFilter !== 'ALL' && (
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                directionFilter === 'INCOMING'
+                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+              }`}>
+                {directionFilter === 'INCOMING' ? 'Incoming Filter Active' : 'Outgoing Filter Active'}
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-400 mt-1">{headerInfo.subtitle}</p>
         </div>
@@ -242,33 +291,111 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
           </button>
           <button
             onClick={onOpenComposeModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            New Outgoing Letter
+            Log Outgoing
           </button>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
       <div className="p-4 border-b border-slate-800 bg-slate-900/90 flex flex-wrap items-center justify-between gap-3">
-        <div className="relative flex-1 min-w-[240px] max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by ref no, subject, employer, contractor, or their ref..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
-          />
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[260px]">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by ref no, subject, employer, contractor, or their ref..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          {/* Quick Direction Toggle (All / Incoming / Outgoing) */}
+          <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-800/95 border border-slate-700 shadow-xs shrink-0">
+            <button
+              type="button"
+              id="filter-direction-all-btn"
+              onClick={() => setDirectionFilter('ALL')}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                directionFilter === 'ALL'
+                  ? 'bg-slate-700 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Show All Directions"
+            >
+              All
+              <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900/70 text-slate-300">
+                {directionCounts.all}
+              </span>
+            </button>
+            <button
+              type="button"
+              id="filter-direction-incoming-btn"
+              onClick={() => setDirectionFilter('INCOMING')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                directionFilter === 'INCOMING'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-blue-400 hover:text-blue-300 hover:bg-slate-700/50'
+              }`}
+              title="Filter by Incoming Correspondence Only"
+            >
+              <ArrowDownLeft className="w-3.5 h-3.5" />
+              Incoming
+              <span className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] ${
+                directionFilter === 'INCOMING' ? 'bg-blue-800/90 text-white' : 'bg-blue-950/70 text-blue-300'
+              }`}>
+                {directionCounts.incoming}
+              </span>
+            </button>
+            <button
+              type="button"
+              id="filter-direction-outgoing-btn"
+              onClick={() => setDirectionFilter('OUTGOING')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                directionFilter === 'OUTGOING'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-700/50'
+              }`}
+              title="Filter by Outgoing Correspondence Only"
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" />
+              Outgoing
+              <span className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] ${
+                directionFilter === 'OUTGOING' ? 'bg-emerald-800/90 text-white' : 'bg-emerald-950/70 text-emerald-300'
+              }`}>
+                {directionCounts.outgoing}
+              </span>
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Direction Dropdown Filter */}
+          <select
+            id="filter-direction-select"
+            value={directionFilter}
+            onChange={e => setDirectionFilter(e.target.value as any)}
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium focus:outline-none transition-all cursor-pointer ${
+              directionFilter === 'INCOMING'
+                ? 'bg-blue-950/70 border-blue-500/60 text-blue-300 ring-1 ring-blue-500/30'
+                : directionFilter === 'OUTGOING'
+                ? 'bg-emerald-950/70 border-emerald-500/60 text-emerald-300 ring-1 ring-emerald-500/30'
+                : 'bg-slate-800 border-slate-700 text-slate-200 focus:border-indigo-500'
+            }`}
+          >
+            <option value="ALL">All Directions (Incoming & Outgoing)</option>
+            <option value="INCOMING">↙ Incoming Only ({directionCounts.incoming})</option>
+            <option value="OUTGOING">↗ Outgoing Only ({directionCounts.outgoing})</option>
+          </select>
+
           {/* Project Filter */}
           <select
             value={projectFilter}
             onChange={e => setProjectFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
           >
             <option value="ALL">All Projects</option>
             {projectList.map(p => (
@@ -282,7 +409,7 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
           <select
             value={categoryFilter}
             onChange={e => setCategoryFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
           >
             <option value="ALL">All Categories</option>
             <option value="Technical">Technical</option>
@@ -298,7 +425,7 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
           <select
             value={docTypeFilter}
             onChange={e => setDocTypeFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
           >
             <option value="ALL">All Document Types</option>
             <option value="LETTER">Letter</option>
@@ -315,13 +442,32 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
           <select
             value={priorityFilter}
             onChange={e => setPriorityFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
           >
             <option value="ALL">All Priorities</option>
             <option value="Normal">Normal</option>
             <option value="High">High</option>
             <option value="Urgent">Urgent</option>
           </select>
+
+          {/* Reset Filters button */}
+          {isFiltered && (
+            <button
+              type="button"
+              onClick={() => {
+                setDirectionFilter('ALL');
+                setProjectFilter('ALL');
+                setCategoryFilter('ALL');
+                setPriorityFilter('ALL');
+                setDocTypeFilter('ALL');
+                setSearchTerm('');
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer"
+              title="Reset all active filters"
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
       </div>
 
@@ -329,22 +475,34 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
       <div className="flex-1 overflow-auto">
         <table className="w-full text-left text-xs text-slate-300 border-collapse">
           <thead className="bg-slate-950/80 text-slate-400 font-semibold border-b border-slate-800 sticky top-0 z-10">
-            <tr>
-              <th className="py-3 px-3.5 whitespace-nowrap">Reference & Direction</th>
-              <th className="py-3 px-3.5 whitespace-nowrap">Date / Received</th>
-              <th className="py-3 px-3.5 whitespace-nowrap">Parties / Stakeholders</th>
-              <th className="py-3 px-3.5 whitespace-nowrap min-w-[280px]">Subject & Scope</th>
-              <th className="py-3 px-3.5 whitespace-nowrap">Project</th>
-              <th className="py-3 px-3.5 whitespace-nowrap">Action Directive</th>
-              <th className="py-3 px-3.5 whitespace-nowrap">Reply Status</th>
-              <th className="py-3 px-3.5 whitespace-nowrap">Status</th>
-              <th className="py-3 px-3.5 text-right whitespace-nowrap">Actions</th>
-            </tr>
+            {viewMode === 'outgoing' ? (
+              <tr>
+                <th className="py-3 px-3.5 whitespace-nowrap">Reference</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Date</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Project</th>
+                <th className="py-3 px-3.5 whitespace-nowrap min-w-[280px]">Subject</th>
+                <th className="py-3 px-3.5 whitespace-nowrap min-w-[220px]">Related Incoming</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Status</th>
+                <th className="py-3 px-3.5 text-right whitespace-nowrap">Actions</th>
+              </tr>
+            ) : (
+              <tr>
+                <th className="py-3 px-3.5 whitespace-nowrap">Reference & Direction</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Date / Received</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Parties / Stakeholders</th>
+                <th className="py-3 px-3.5 whitespace-nowrap min-w-[280px]">Subject & Scope</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Project</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Action Directive</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Reply Status</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Status</th>
+                <th className="py-3 px-3.5 text-right whitespace-nowrap">Actions</th>
+              </tr>
+            )}
           </thead>
           <tbody className="divide-y divide-slate-800/60">
             {filteredList.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-12 text-center text-slate-500 text-xs">
+                <td colSpan={viewMode === 'outgoing' ? 7 : 9} className="py-12 text-center text-slate-500 text-xs">
                   <FileText className="w-8 h-8 mx-auto mb-2 text-slate-600" />
                   No correspondence records found matching the active criteria.
                 </td>
@@ -357,6 +515,149 @@ export const CorrespondenceRegisterTable: React.FC<CorrespondenceRegisterTablePr
                 const openActions = hasActions
                   ? letter.actionItems!.filter(a => a.status === 'OPEN' || a.status === 'IN_PROGRESS')
                   : [];
+
+                // Resolve related incoming letter if exists
+                const relatedInc = letters.find(
+                  l =>
+                    (l.direction === 'Incoming' || l.direction === 'INCOMING') &&
+                    (l.id === letter.parentCorrespondenceId ||
+                      l.id === letter.replyToLetterId ||
+                      (letter.relatedCorrespondenceIds && letter.relatedCorrespondenceIds.includes(l.id)))
+                );
+
+                if (viewMode === 'outgoing') {
+                  return (
+                    <tr
+                      key={letter.id}
+                      onClick={() => onSelectLetter(letter)}
+                      className={`hover:bg-slate-800/50 cursor-pointer transition-colors ${
+                        isSelected ? 'bg-indigo-950/30 font-medium' : ''
+                      }`}
+                    >
+                      {/* 1. Reference */}
+                      <td className="py-3 px-3.5">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                            <span className="font-mono text-xs font-bold text-slate-100">
+                              {letter.letterNumber || letter.ourReference}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px]">
+                            <span className="px-1.5 py-0.2 rounded font-semibold bg-emerald-500/20 text-emerald-300">
+                              OUTGOING
+                            </span>
+                            {letter.documentType && (
+                              <span className="px-1.5 py-0.2 rounded bg-slate-800 text-purple-300 font-mono">
+                                {letter.documentType}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 2. Date */}
+                      <td className="py-3 px-3.5 whitespace-nowrap font-mono text-xs text-slate-200">
+                        {letter.date}
+                      </td>
+
+                      {/* 3. Project */}
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <span className="px-2 py-1 rounded bg-slate-800 text-purple-300 border border-slate-700 font-mono text-[11px] font-bold">
+                          {letter.projectCode || letter.projectAffix || 'PIDM26'}
+                        </span>
+                      </td>
+
+                      {/* 4. Subject */}
+                      <td className="py-3 px-3.5">
+                        <div className="max-w-[340px]">
+                          <p className="text-xs font-semibold text-slate-100 line-clamp-2">
+                            {letter.subject}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <div className="text-[10px] text-slate-400 flex items-center gap-1.5 flex-wrap">
+                              <span className="truncate max-w-[180px]">
+                                {letter.recipientType === 'BANK'
+                                  ? 'Bank'
+                                  : letter.recipientType === 'AUTHORITY'
+                                  ? 'Auth'
+                                  : 'To'}: <strong className="text-slate-300 font-semibold">{letter.clientName || letter.recipientOrganization || 'Client'}</strong>
+                              </span>
+                              {letter.receiverDesignation && (
+                                <span className="text-cyan-400 font-medium truncate max-w-[140px]">
+                                  • {letter.receiverDesignation}
+                                </span>
+                              )}
+                            </div>
+                            {letter.attachments && letter.attachments.length > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded font-mono">
+                                <Paperclip className="w-2.5 h-2.5" />
+                                {letter.attachments.length} doc{letter.attachments.length === 1 ? '' : 's'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 5. Related Incoming (Clickable to open incoming record) */}
+                      <td className="py-3 px-3.5">
+                        {relatedInc ? (
+                          <div
+                            onClick={e => {
+                              e.stopPropagation();
+                              onSelectLetter(relatedInc);
+                            }}
+                            className="p-1.5 rounded-lg bg-blue-950/40 hover:bg-blue-900/50 border border-blue-500/30 hover:border-blue-400 transition-all cursor-pointer group max-w-[260px]"
+                            title="Click to view related incoming correspondence"
+                          >
+                            <div className="font-mono text-[11px] font-bold text-blue-400 group-hover:text-blue-300 flex items-center gap-1">
+                              <ArrowDownLeft className="w-3 h-3 text-blue-400" />
+                              {relatedInc.letterNumber || relatedInc.theirReference}
+                            </div>
+                            <p className="text-[10px] text-slate-300 truncate mt-0.5 group-hover:text-white">
+                              {relatedInc.subject}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-500 italic">—</span>
+                        )}
+                      </td>
+
+                      {/* 6. Status */}
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono">
+                          {letter.status || 'Issued'}
+                        </span>
+                      </td>
+
+                      {/* 7. Action Buttons */}
+                      <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              onOpenThreadView(letter);
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-indigo-400 transition-colors"
+                            title="View Contractual Thread"
+                          >
+                            <GitBranch className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              onSelectLetter(letter);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-medium transition-colors"
+                            title="View Register Details"
+                          >
+                            Details
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
 
                 return (
                   <tr

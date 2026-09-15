@@ -15,6 +15,24 @@ export function formatLKR(amount: number): string {
   }).format(amount).replace('LKR', 'LKR ');
 }
 
+export function formatCompactCurrency(amount: number, includeCurrency = false): string {
+  if (isNaN(amount) || amount === null || amount === undefined) {
+    return includeCurrency ? 'LKR 0' : '0';
+  }
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? '-' : '';
+  const prefix = includeCurrency ? `${sign}LKR ` : sign;
+  if (abs >= 1_000_000) {
+    const m = (abs / 1_000_000).toFixed(1);
+    return `${prefix}${m.endsWith('.0') ? m.slice(0, -2) : m}M`;
+  }
+  if (abs >= 1_000) {
+    const k = (abs / 1_000).toFixed(1);
+    return `${prefix}${k.endsWith('.0') ? k.slice(0, -2) : k}K`;
+  }
+  return `${prefix}${abs.toLocaleString('en-LK')}`;
+}
+
 export function formatDate(dateString: string): string {
   if (!dateString) return 'N/A';
   try {

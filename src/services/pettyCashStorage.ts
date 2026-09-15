@@ -22,7 +22,10 @@ export const STORAGE_KEYS = {
   EXPENSES_V1: 'ema_petty_expenses_v1',
   INCOME_V1: 'ema_petty_income_v1',
   MIGRATION_V2_FLAG: 'ema_petty_expenses_migrated_v2',
-  STORAGE_QUOTA_NOTICE: 'ema_petty_storage_quota_notice'
+  STORAGE_QUOTA_NOTICE: 'ema_petty_storage_quota_notice',
+  EXPENSES_CLEARED: 'ema_petty_expenses_cleared',
+  INCOME_CLEARED: 'ema_petty_income_cleared',
+  INITIALIZED: 'ema_petty_cash_initialized_v2'
 } as const;
 
 export interface StoredAttachment {
@@ -655,32 +658,38 @@ export async function performSafePettyCashMigration(): Promise<{
   try {
     const db = await getDB();
 
-    // 1. Read existing v1 expenses from localStorage
+    // 1. Read existing v1 expenses from localStorage (unless cleared)
     let existingExpenses: Expense[] = [];
-    try {
-      const rawExpenses = localStorage.getItem(STORAGE_KEYS.EXPENSES_V1);
-      if (rawExpenses) {
-        const parsed = JSON.parse(rawExpenses);
-        if (Array.isArray(parsed)) {
-          existingExpenses = parsed;
+    const isExpensesCleared = typeof window !== 'undefined' && localStorage.getItem(STORAGE_KEYS.EXPENSES_CLEARED) === 'true';
+    if (!isExpensesCleared) {
+      try {
+        const rawExpenses = localStorage.getItem(STORAGE_KEYS.EXPENSES_V1);
+        if (rawExpenses) {
+          const parsed = JSON.parse(rawExpenses);
+          if (Array.isArray(parsed)) {
+            existingExpenses = parsed;
+          }
         }
+      } catch (err: any) {
+        errors.push(`Failed to parse localStorage expenses: ${err.message}`);
       }
-    } catch (err: any) {
-      errors.push(`Failed to parse localStorage expenses: ${err.message}`);
     }
 
-    // 2. Read existing v1 income from localStorage
+    // 2. Read existing v1 income from localStorage (unless cleared)
     let existingIncome: Income[] = [];
-    try {
-      const rawIncome = localStorage.getItem(STORAGE_KEYS.INCOME_V1);
-      if (rawIncome) {
-        const parsed = JSON.parse(rawIncome);
-        if (Array.isArray(parsed)) {
-          existingIncome = parsed;
+    const isIncomeCleared = typeof window !== 'undefined' && localStorage.getItem(STORAGE_KEYS.INCOME_CLEARED) === 'true';
+    if (!isIncomeCleared) {
+      try {
+        const rawIncome = localStorage.getItem(STORAGE_KEYS.INCOME_V1);
+        if (rawIncome) {
+          const parsed = JSON.parse(rawIncome);
+          if (Array.isArray(parsed)) {
+            existingIncome = parsed;
+          }
         }
+      } catch (err: any) {
+        errors.push(`Failed to parse localStorage income: ${err.message}`);
       }
-    } catch (err: any) {
-      errors.push(`Failed to parse localStorage income: ${err.message}`);
     }
 
     // Check if IndexedDB already has records

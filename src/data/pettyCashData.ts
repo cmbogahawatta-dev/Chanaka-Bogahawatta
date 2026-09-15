@@ -8,8 +8,8 @@ export const initialSupervisors: Supervisor[] = [
     PHONE: '+94 77 342 1890',
     EMAIL: 'buddika@company.com',
     ACTIVE: true,
-    OPENING_PETTY_CASH: 100000.00,
-    CURRENT_BALANCE: 104265.00,
+    OPENING_PETTY_CASH: 0.00,
+    CURRENT_BALANCE: 0.00,
     REMARKS: 'Lead Civil Supervisor - Southern Province & PIDM Projects',
     ASSIGNED_PROJECTS: ['PIDM 26', 'PIDM 28', 'RDA-DIT-MAH-27'],
     AVATAR_COLOR: 'emerald'
@@ -21,8 +21,8 @@ export const initialSupervisors: Supervisor[] = [
     PHONE: '+94 71 892 4432',
     EMAIL: 'gayani@company.com',
     ACTIVE: true,
-    OPENING_PETTY_CASH: 75000.00,
-    CURRENT_BALANCE: 67700.00,
+    OPENING_PETTY_CASH: 0.00,
+    CURRENT_BALANCE: 0.00,
     REMARKS: 'Quantity Surveyor & Procurement Site Supervisor',
     ASSIGNED_PROJECTS: ['PIDB 26', 'PIDM 2', 'RDA-RD-BDL-01'],
     AVATAR_COLOR: 'indigo'
@@ -34,8 +34,8 @@ export const initialSupervisors: Supervisor[] = [
     PHONE: '+94 76 512 9081',
     EMAIL: 'geeth@company.com',
     ACTIVE: true,
-    OPENING_PETTY_CASH: 50000.00,
-    CURRENT_BALANCE: 33728.00,
+    OPENING_PETTY_CASH: 0.00,
+    CURRENT_BALANCE: 0.00,
     REMARKS: 'Structural & Earthworks Supervisor',
     ASSIGNED_PROJECTS: ['RDA-DIT-MON-28', 'RDA-RD-BDL-15'],
     AVATAR_COLOR: 'amber'
@@ -47,8 +47,8 @@ export const initialSupervisors: Supervisor[] = [
     PHONE: '+94 77 901 3245',
     EMAIL: 'lasantha@company.com',
     ACTIVE: true,
-    OPENING_PETTY_CASH: 50000.00,
-    CURRENT_BALANCE: -9721.07,
+    OPENING_PETTY_CASH: 0.00,
+    CURRENT_BALANCE: 0.00,
     REMARKS: 'Site Operations & Asphalt Laying Supervisor',
     ASSIGNED_PROJECTS: ['PIDM 26', 'RDA-RDA-AKK-05'],
     AVATAR_COLOR: 'rose'
@@ -807,21 +807,7 @@ export const initialIncome: Income[] = [
   }
 ];
 
-export const initialTransfers: InternalTransfer[] = [
-  {
-    id: 'trf-1',
-    TRANSFER_ID: 'TRF-202608-001',
-    DATE: '22/08/2026',
-    DATE_REF: '2026-08-22',
-    FROM_SUPERVISOR: 'LASANTHA',
-    TO_SUPERVISOR: 'BUDDIKA',
-    AMOUNT: 30000.00,
-    STATUS: 'Completed',
-    REMARKS: 'Site cash handover for Matara asphalt batching plant fuel purchase',
-    CREATED_BY: 'lasantha@company.com',
-    CREATED_DATE: '22/08/2026 16:30:00'
-  }
-];
+export const initialTransfers: InternalTransfer[] = [];
 
 export const initialGoogleSheetsConfig: GoogleSheetsConfig = {
   spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',

@@ -493,19 +493,41 @@ export const ReceivablesPayablesProvider: React.FC<{ children: React.ReactNode }
 
   // Clear History functions
   const clearReceivablesHistory = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.RECEIVABLES, JSON.stringify([]));
+    } catch (e) {
+      console.error('Error saving empty receivables to localStorage', e);
+    }
     setReceivables([]);
   }, []);
 
   const clearPayablesHistory = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PAYABLES, JSON.stringify([]));
+    } catch (e) {
+      console.error('Error saving empty payables to localStorage', e);
+    }
     setPayables([]);
   }, []);
 
   const clearAllHistory = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.RECEIVABLES, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.PAYABLES, JSON.stringify([]));
+    } catch (e) {
+      console.error('Error clearing all in localStorage', e);
+    }
     setReceivables([]);
     setPayables([]);
   }, []);
 
   const resetToDemoData = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.RECEIVABLES, JSON.stringify(INITIAL_RECEIVABLE_INVOICES));
+      localStorage.setItem(STORAGE_KEYS.PAYABLES, JSON.stringify(INITIAL_PAYABLE_BILLS));
+    } catch (e) {
+      console.error('Error resetting demo data in localStorage', e);
+    }
     setReceivables(INITIAL_RECEIVABLE_INVOICES);
     setPayables(INITIAL_PAYABLE_BILLS);
   }, []);

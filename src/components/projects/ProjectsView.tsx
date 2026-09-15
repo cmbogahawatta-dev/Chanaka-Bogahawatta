@@ -90,40 +90,54 @@ export const ProjectsView: React.FC = () => {
 
   // Calculate project cost breakdowns dynamically
   const projectSummaries = useMemo(() => {
+    const hasExpensesImported = expenses && expenses.length > 0;
+
     return projects.map(proj => {
       // 1. Direct Petty Cash Expenses
-      const projExpenses = expenses.filter(
-        e => (e.PROJECT === proj.PROJECT_CODE || e.PROJECT === proj.PROJECT_NAME) &&
-             e.PAYMENT_STATUS !== 'Rejected' && e.PAYMENT_STATUS !== 'Draft'
-      );
+      const projExpenses = hasExpensesImported
+        ? expenses.filter(
+            e => (e.PROJECT === proj.PROJECT_CODE || e.PROJECT === proj.PROJECT_NAME) &&
+                 e.PAYMENT_STATUS !== 'Rejected' && e.PAYMENT_STATUS !== 'Draft'
+          )
+        : [];
       const pettyCashSpent = projExpenses.reduce((acc, curr) => acc + (curr.AMOUNT || 0), 0);
 
       // 2. Direct Fuel from Fleet
-      const projFuel = fuelRecords.filter(f => f.siteOrProject === proj.PROJECT_CODE || f.siteOrProject === proj.PROJECT_NAME);
+      const projFuel = hasExpensesImported
+        ? fuelRecords.filter(f => f.siteOrProject === proj.PROJECT_CODE || f.siteOrProject === proj.PROJECT_NAME)
+        : [];
       const fuelSpent = projFuel.reduce((acc, curr) => acc + (curr.totalCost || 0), 0);
 
       // 3. Maintenance on vehicles assigned to project
       const projVehicles = vehicles.filter(v => v.currentSite === proj.PROJECT_CODE || v.currentSite === proj.PROJECT_NAME);
       const projVehicleIds = projVehicles.map(v => v.id);
-      const projMaintenance = maintenanceLogs.filter(m => projVehicleIds.includes(m.vehicleId));
+      const projMaintenance = hasExpensesImported
+        ? maintenanceLogs.filter(m => projVehicleIds.includes(m.vehicleId))
+        : [];
       const maintenanceSpent = projMaintenance.reduce((acc, curr) => acc + (curr.cost || 0), 0);
 
       // 4. Procurement Orders
-      const projProcurement = procurementOrders.filter(p => p.PROJECT_CODE === proj.PROJECT_CODE && p.STATUS !== 'Cancelled');
+      const projProcurement = hasExpensesImported
+        ? procurementOrders.filter(p => p.PROJECT_CODE === proj.PROJECT_CODE && p.STATUS !== 'Cancelled')
+        : [];
       const procurementSpent = projProcurement.reduce((acc, curr) => acc + (curr.TOTAL_AMOUNT || 0), 0);
 
       // 5. Payment Vouchers
-      const projPayments = paymentVouchers.filter(p => p.PROJECT_CODE === proj.PROJECT_CODE && p.STATUS !== 'Rejected');
+      const projPayments = hasExpensesImported
+        ? paymentVouchers.filter(p => p.PROJECT_CODE === proj.PROJECT_CODE && p.STATUS !== 'Rejected')
+        : [];
       const paymentsSpent = projPayments.reduce((acc, curr) => acc + (curr.AMOUNT || 0), 0);
 
-      const totalActualCost = pettyCashSpent + fuelSpent + maintenanceSpent + procurementSpent + paymentsSpent;
+      const totalActualCost = hasExpensesImported
+        ? (pettyCashSpent + fuelSpent + maintenanceSpent + procurementSpent + paymentsSpent)
+        : 0;
       const budget = (proj.CONTRACT_VALUE !== undefined && proj.CONTRACT_VALUE !== null)
         ? Number(proj.CONTRACT_VALUE)
         : (proj.BUDGET ?? 15000000);
       const pettyCashBudget = (proj.BUDGET_PETTY_CASH !== undefined && proj.BUDGET_PETTY_CASH !== null)
         ? Number(proj.BUDGET_PETTY_CASH)
         : (proj.BUDGET ?? 2500000);
-      const percentUsed = budget > 0 ? (totalActualCost / budget) * 100 : 0;
+      const percentUsed = (hasExpensesImported && budget > 0) ? (totalActualCost / budget) * 100 : 0;
 
       return {
         ...proj,

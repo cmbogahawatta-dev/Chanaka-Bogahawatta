@@ -42,6 +42,8 @@ import { usePettyCash } from '../../context/PettyCashContext';
 import { useFleet } from '../../context/FleetContext';
 import { usePRV } from '../../context/PRVContext';
 import { useStaff } from '../../context/StaffContext';
+import { useReceivablesPayables } from '../../context/ReceivablesPayablesContext';
+import { formatCompactCurrency } from '../../utils/helpers';
 import { EnterpriseModule } from '../../types/enterpriseTypes';
 
 interface GlobalCommandPaletteModalProps {
@@ -74,6 +76,7 @@ export const GlobalCommandPaletteModal: React.FC<GlobalCommandPaletteModalProps>
   const { vehicles = [] } = useFleet();
   const { paymentRequests = [], setActiveSubTab } = usePRV();
   const { staffMembers = [] } = useStaff();
+  const { dashboardMetrics } = useReceivablesPayables();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -242,7 +245,7 @@ export const GlobalCommandPaletteModal: React.FC<GlobalCommandPaletteModalProps>
       id: 'nav-receivables-payables',
       type: 'Navigation',
       title: '11. Receivables & Payables (AR / AP)',
-      subtitle: 'Accounts Receivable (Inflow LKR 25.4M), Accounts Payable (Outflow LKR 17.8M), Net Position (LKR 7.6M)',
+      subtitle: `Accounts Receivable (Inflow ${formatCompactCurrency(dashboardMetrics?.totalReceivable ?? 0, true)}), Accounts Payable (Outflow ${formatCompactCurrency(dashboardMetrics?.totalPayable ?? 0, true)}), Net Position (${formatCompactCurrency(dashboardMetrics?.netPosition ?? 0, true)})`,
       icon: Scale,
       color: 'text-blue-400',
       action: () => { setCurrentModule('receivables-payables'); onClose(); }

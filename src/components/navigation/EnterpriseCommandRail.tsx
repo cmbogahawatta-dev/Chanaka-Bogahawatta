@@ -43,6 +43,7 @@ import { useQuotation } from '../../context/QuotationContext';
 import { useSupplier } from '../../context/SupplierContext';
 import { useInventory } from '../../context/InventoryContext';
 import { useReceivablesPayables } from '../../context/ReceivablesPayablesContext';
+import { formatLKR, formatCompactCurrency } from '../../utils/helpers';
 import { EnterpriseModule } from '../../types/enterpriseTypes';
 import { PRVSubMenu } from '../../types/prvTypes';
 import { useAuth } from '../../context/AuthContext';
@@ -81,6 +82,10 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
   const { suppliers = [] } = useSupplier();
   const { lowStockAlerts = [] } = useInventory();
   const { dashboardMetrics } = useReceivablesPayables();
+  const rpNetPosition = dashboardMetrics?.netPosition ?? 0;
+  const rpTotalReceivable = dashboardMetrics?.totalReceivable ?? 0;
+  const rpTotalPayable = dashboardMetrics?.totalPayable ?? 0;
+  const formattedNet = formatCompactCurrency(rpNetPosition);
 
   const pendingPRVsCount = (paymentRequests || []).filter(
     p => p.status === 'SUBMITTED' || p.status === 'ACCOUNTS_L1_APPROVED' || p.status === 'ACCOUNTS_L2_APPROVED' || p.status === 'PAYMENT_PROOF_PENDING'
@@ -571,13 +576,28 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
             </div>
 
             {!isCollapsed && (
-              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono leading-none bg-blue-950 text-blue-300 border border-blue-800">
-                Net 7.6M
+              <span
+                id="sidebar-net-position-badge"
+                title={`Live Net Position: ${formatLKR(rpNetPosition)} (Receivables: ${formatLKR(rpTotalReceivable)} | Payables: ${formatLKR(rpTotalPayable)})`}
+                className={`px-1.5 py-0.5 rounded text-[9px] font-mono leading-none border shrink-0 flex flex-col items-center justify-center min-w-[36px] transition-colors ${
+                  rpNetPosition > 0
+                    ? 'bg-blue-950 text-blue-300 border-blue-800'
+                    : rpNetPosition < 0
+                    ? 'bg-rose-950 text-rose-300 border-rose-800'
+                    : 'bg-slate-900 text-slate-400 border-slate-700'
+                }`}
+              >
+                <span className="text-[8px] font-medium leading-tight">Net</span>
+                <span className="font-bold leading-tight">{formattedNet}</span>
               </span>
             )}
 
             {isCollapsed && (
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-400 ring-2 ring-slate-950" />
+              <span
+                className={`absolute top-1 right-1 w-2 h-2 rounded-full ring-2 ring-slate-950 ${
+                  rpNetPosition < 0 ? 'bg-rose-400' : 'bg-blue-400'
+                }`}
+              />
             )}
           </button>
 
@@ -588,8 +608,16 @@ export const EnterpriseCommandRail: React.FC<EnterpriseCommandRailProps> = ({
               <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-1 py-0.2 rounded border border-slate-800">
                 AR / AP
               </span>
-              <span className="text-[10px] font-mono px-1 rounded bg-blue-950 text-blue-300 border border-blue-800">
-                Net 7.6M
+              <span
+                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                  rpNetPosition > 0
+                    ? 'bg-blue-950 text-blue-300 border-blue-800'
+                    : rpNetPosition < 0
+                    ? 'bg-rose-950 text-rose-300 border-rose-800'
+                    : 'bg-slate-900 text-slate-400 border-slate-700'
+                }`}
+              >
+                Net {formattedNet}
               </span>
             </div>
           )}

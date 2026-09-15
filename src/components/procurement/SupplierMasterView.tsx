@@ -22,7 +22,8 @@ import {
   Award,
   Landmark,
   ShoppingCart,
-  Receipt
+  Receipt,
+  RotateCcw
 } from 'lucide-react';
 import { useSupplier } from '../../context/SupplierContext';
 import { useEnterprise } from '../../context/EnterpriseContext';
@@ -42,7 +43,7 @@ interface SupplierMasterViewProps {
 }
 
 export const SupplierMasterView: React.FC<SupplierMasterViewProps> = ({ onNavigateToPO }) => {
-  const { suppliers, deleteSupplier, categories, clearSuppliersHistory } = useSupplier();
+  const { suppliers, deleteSupplier, categories, clearSuppliersHistory, resetSuppliersData } = useSupplier();
   const { currentRole } = useEnterprise();
   const isAdmin = currentRole === 'ADMIN' || currentRole === 'OWNER';
 
@@ -190,6 +191,23 @@ export const SupplierMasterView: React.FC<SupplierMasterViewProps> = ({ onNaviga
             onClear={() => clearSuppliersHistory()}
           />
 
+          {isAdmin && (
+            <button
+              type="button"
+              id="btn-admin-reset-demo-suppliers"
+              onClick={() => {
+                if (confirm('Restore default demo suppliers, categories, sample invoices, and goods received notes?')) {
+                  resetSuppliersData();
+                }
+              }}
+              title="Admin: Restore default sample suppliers and data"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 text-xs font-semibold border border-slate-700 transition-all"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+              <span>Reset Demo Data</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setIsCategoryModalOpen(true)}
@@ -316,10 +334,39 @@ export const SupplierMasterView: React.FC<SupplierMasterViewProps> = ({ onNaviga
 
       {/* 4. Main Listing: Grid or Table */}
       {filteredSuppliers.length === 0 ? (
-        <div className="p-12 text-center text-slate-400 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-2">
+        <div className="p-12 text-center text-slate-400 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3">
           <Building2 className="w-10 h-10 text-slate-600 mx-auto" />
           <h3 className="text-sm font-bold text-slate-200">No suppliers found</h3>
-          <p className="text-xs text-slate-500">Try adjusting your search filters or register a new vendor.</p>
+          <p className="text-xs text-slate-500">
+            {suppliers.length === 0
+              ? 'Supplier directory is currently empty. Register a new vendor or restore sample records.'
+              : 'Try adjusting your search filters or register a new vendor.'}
+          </p>
+          {suppliers.length === 0 && (
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={handleOpenNewSupplier}
+                className="px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold shadow-sm"
+              >
+                + Register Supplier
+              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Restore default demo suppliers, categories, sample invoices, and goods received notes?')) {
+                      resetSuppliersData();
+                    }
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 text-xs font-semibold border border-slate-700 flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Restore Demo Suppliers</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

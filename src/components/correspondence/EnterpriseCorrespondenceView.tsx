@@ -53,9 +53,8 @@ import { exportLetterToWord } from '../../services/export/wordExportService';
 import { UniversalDeleteModal } from '../common/UniversalDeleteModal';
 import { AdminClearHistoryButton } from '../common/AdminClearHistoryButton';
 import { CorrespondenceFolderTree } from './CorrespondenceFolderTree';
-import { CorrespondenceComposeModal } from './CorrespondenceComposeModal';
-import { LetterheadManagerView } from './LetterheadManagerView';
-import { LetterheadPreviewModal } from './LetterheadPreviewModal';
+import { OutgoingCorrespondenceLogModal } from './OutgoingCorrespondenceLogModal';
+import { OutgoingCorrespondenceDetailPanel } from './OutgoingCorrespondenceDetailPanel';
 import { CorrespondenceAttachmentModal } from './CorrespondenceAttachmentModal';
 import { CorrespondencePriorDownloadModal } from './CorrespondencePriorDownloadModal';
 import { CorrespondenceWorkflowBar } from './CorrespondenceWorkflowBar';
@@ -108,12 +107,11 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
   const { profile } = useEnterpriseCompany();
   const { currentEnterprise } = useEnterprise();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'register' | 'outbox' | 'templates' | 'letterheads'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'register' | 'outbox'>('dashboard');
   const [registerViewMode, setRegisterViewMode] = useState<
     'all' | 'incoming' | 'outgoing' | 'drafts' | 'pending_action' | 'pending_reply' | 'overdue'
   >('all');
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(letters[0] || null);
-  const [previewLetterheadModalTarget, setPreviewLetterheadModalTarget] = useState<LetterheadTemplate | null>(null);
 
   // New Contractual Action & Thread Modals
   const [isIntakeModalOpen, setIsIntakeModalOpen] = useState<boolean>(false);
@@ -192,7 +190,7 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
   const [selectedProjectKey, setSelectedProjectKey] = useState<string | null>(null);
   const [showFolderSidebar, setShowFolderSidebar] = useState<boolean>(true);
 
-  // Compose Modal State
+  // Log Outgoing Modal State
   const [isComposeModalOpen, setIsComposeModalOpen] = useState<boolean>(false);
   const [composeModalParams, setComposeModalParams] = useState<{
     clientAffix?: string;
@@ -201,6 +199,7 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
     projectCode?: string;
     projectName?: string;
     letterheadId?: string;
+    relatedIncomingId?: string;
   }>({});
 
   // Deletion Target State for Strict Admin Security Key Authorization
@@ -299,7 +298,7 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
     });
   }, [letters, folderHierarchy, selectedClientKey, selectedProjectKey, searchQuery, statusFilter]);
 
-  // Handle open compose modal with preset parameters
+  // Handle open log outgoing modal with preset parameters
   const handleOpenCompose = (params?: {
     clientAffix?: string;
     clientName?: string;
@@ -307,6 +306,7 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
     projectCode?: string;
     projectName?: string;
     letterheadId?: string;
+    relatedIncomingId?: string;
   }) => {
     if (params) {
       setComposeModalParams(params);
@@ -418,7 +418,8 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
       projectAffix: parentLetter.projectAffix,
       projectCode: parentLetter.projectCode,
       projectName: parentLetter.projectName,
-      letterheadId: parentLetter.letterheadId
+      letterheadId: parentLetter.letterheadId,
+      relatedIncomingId: parentLetter.id
     });
     setIsComposeModalOpen(true);
   };
@@ -454,9 +455,9 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-100 flex items-center gap-2">
-              Official Correspondence & Letterhead Studio
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-medium border border-purple-500/30">
-                AI Powered
+              Official Correspondence Register & Archive
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-medium border border-emerald-500/30">
+                Official Register
               </span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-400">
@@ -503,35 +504,10 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
                   ? 'bg-purple-600 text-white shadow-md font-semibold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
-              title="Editor & Letterhead Studio"
+              title="Correspondence Folders & Document Inspector"
             >
-              <FileText className="w-3.5 h-3.5 text-purple-300" />
-              <span>Studio</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('templates')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                activeTab === 'templates'
-                  ? 'bg-purple-600 text-white shadow-md font-semibold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5 text-purple-300" />
-              <span>Templates ({templates.length})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('letterheads')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                activeTab === 'letterheads'
-                  ? 'bg-purple-600 text-white shadow-md font-semibold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title="Manage Official Company Stationery & Letterheads"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-300" />
-              <span>Letterheads ({letterheads.length})</span>
+              <FolderTree className="w-3.5 h-3.5 text-purple-300" />
+              <span>Folders</span>
             </button>
           </div>
 
@@ -561,13 +537,13 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
             <span>Log Incoming</span>
           </button>
 
-          {/* Compose Outgoing Button */}
+          {/* Log Outgoing Button */}
           <button
             onClick={() => handleOpenCompose()}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-emerald-600/20"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-emerald-600/20 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Compose Letter</span>
+            <span>Log Outgoing</span>
           </button>
 
           {/* Admin Clear History Button */}
@@ -752,9 +728,9 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
                       <button
                         onClick={() => handleOpenCompose()}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm cursor-pointer"
                       >
-                        <Plus className="w-3.5 h-3.5" /> Compose New Letter
+                        <Plus className="w-3.5 h-3.5" /> Log Outgoing Letter
                       </button>
                       {letters.length === 0 && (
                         <button
@@ -865,7 +841,32 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
             </div>
 
             {/* COLUMN 3: Active Letter Preview & Action Controls */}
-            {selectedLetter ? (
+            {selectedLetter && (selectedLetter.direction === 'Outgoing' || selectedLetter.direction === 'OUTGOING') ? (
+              <div className="flex-1 flex flex-col overflow-y-auto bg-slate-950 p-4 sm:p-6">
+                <OutgoingCorrespondenceDetailPanel
+                  letter={activeSelectedLetter || selectedLetter}
+                  relatedIncomingLetter={
+                    letters.find(
+                      l =>
+                        (l.direction === 'Incoming' || l.direction === 'INCOMING') &&
+                        (l.id === selectedLetter.parentCorrespondenceId ||
+                          l.id === selectedLetter.replyToLetterId ||
+                          (selectedLetter.relatedCorrespondenceIds && selectedLetter.relatedCorrespondenceIds.includes(l.id)))
+                    ) || null
+                  }
+                  onSelectIncomingLetter={incLetter => setSelectedLetter(incLetter)}
+                  onOpenThread={l => setThreadModalLetter(l)}
+                  onOpenActionTracker={l => setActionTrackerLetter(l)}
+                  onAttachDocs={() => setIsAttachmentModalOpen(true)}
+                  onDelete={l =>
+                    setDeleteTarget({
+                      id: l.id,
+                      title: `${l.letterNumber || l.ourReference}: ${l.subject}`
+                    })
+                  }
+                />
+              </div>
+            ) : selectedLetter ? (
               <div className="flex-1 flex flex-col overflow-y-auto bg-slate-950 p-4 sm:p-6">
                 {/* PIPELINE STATUS VISUALIZATION (Requirement 2) */}
                 {activeSelectedLetter && (
@@ -930,37 +931,6 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
                       ))}
                     </div>
 
-                    {/* Letterhead Stationery Selector */}
-                    <div className="flex items-center gap-1.5 bg-slate-800 rounded-lg px-2.5 py-1 border border-slate-700 text-xs">
-                      <span className="text-[11px] text-slate-400 font-medium">Letterhead:</span>
-                      <select
-                        value={resolvedLetterheadForSelectedLetter?.id || ''}
-                        onChange={(e) => {
-                          if (selectedLetter) {
-                            updateLetter(selectedLetter.id, { letterheadId: e.target.value });
-                            setSelectedLetter(prev => prev ? { ...prev, letterheadId: e.target.value } : null);
-                          }
-                        }}
-                        className="bg-transparent text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[190px] truncate"
-                        title="Switch Letterhead Stationery for this letter"
-                      >
-                        {letterheads.filter(l => l.active).map(lh => (
-                          <option key={lh.id} value={lh.id} className="bg-slate-900 text-slate-200">
-                            [{lh.scope}] {lh.name} {lh.isDefault ? '★' : ''}
-                          </option>
-                        ))}
-                      </select>
-                      {resolvedLetterheadForSelectedLetter && (
-                        <button
-                          type="button"
-                          onClick={() => setPreviewLetterheadModalTarget(resolvedLetterheadForSelectedLetter)}
-                          className="text-purple-400 hover:text-purple-300 p-0.5 ml-0.5"
-                          title="Preview full A4 letterhead sheet"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
 
                     {/* VIEW PRIOR TO DOWNLOAD BUTTON */}
                     <button
@@ -1928,76 +1898,11 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
             )}
           </div>
         )}
-
-        {/* VIEW 2: STANDARD TEMPLATES REPOSITORY */}
-        {activeTab === 'templates' && (
-          <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-100">Standard Corporate & Contractual Templates</h3>
-                <p className="text-xs text-slate-400">
-                  Pre-approved templates for Claims, Submissions, Banking Facilities, and Site Transmittals
-                </p>
-              </div>
-              <button
-                onClick={() => handleOpenCompose()}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold"
-              >
-                <Plus className="w-4 h-4" /> Custom Letter
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {templates.map(tpl => (
-                <div
-                  key={tpl.id}
-                  className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5 hover:border-purple-500/40 transition-all flex flex-col justify-between"
-                >
-                  <div>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 font-semibold border border-purple-500/20 uppercase tracking-wider">
-                      {tpl.category}
-                    </span>
-                    <h4 className="text-base font-bold text-slate-100 mt-3">{tpl.name}</h4>
-                    <p className="text-xs font-semibold text-emerald-400 mt-1">
-                      {tpl.subjectTemplate || tpl.name}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-2 line-clamp-3 italic">{tpl.description}</p>
-                  </div>
-
-                  <div className="mt-5 pt-3 border-t border-slate-700/40 flex justify-end">
-                    <button
-                      onClick={() => {
-                        handleOpenCompose();
-                        setActiveTab('outbox');
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-medium transition-colors"
-                    >
-                      <Copy className="w-3.5 h-3.5" /> Use Template
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 3: OFFICIAL LETTERHEAD STATIONERY STUDIO */}
-        {activeTab === 'letterheads' && (
-          <div className="flex-1 overflow-hidden">
-            <LetterheadManagerView
-              onBackToCorrespondence={() => setActiveTab('outbox')}
-              onComposeWithLetterhead={lhId => {
-                handleOpenCompose({ letterheadId: lhId });
-                setActiveTab('outbox');
-              }}
-            />
-          </div>
-        )}
       </div>
 
-      {/* MODAL: COMPOSE CORRESPONDENCE UNDER PROJECT AND CLIENT BASIS */}
+      {/* MODAL: LOG OUTGOING CORRESPONDENCE REGISTER */}
       {isComposeModalOpen && (
-        <CorrespondenceComposeModal
+        <OutgoingCorrespondenceLogModal
           isOpen={isComposeModalOpen}
           onClose={() => setIsComposeModalOpen(false)}
           initialClientAffix={composeModalParams.clientAffix}
@@ -2005,20 +1910,11 @@ export const EnterpriseCorrespondenceView: React.FC = () => {
           initialProjectAffix={composeModalParams.projectAffix}
           initialProjectCode={composeModalParams.projectCode}
           initialProjectName={composeModalParams.projectName}
-          initialLetterheadId={composeModalParams.letterheadId}
+          initialRelatedIncomingId={composeModalParams.relatedIncomingId}
           onLetterCreated={createdLetter => {
             setSelectedLetter(createdLetter);
             setActiveTab('outbox');
           }}
-        />
-      )}
-
-      {/* MODAL: PREVIEW FULL LETTERHEAD SHEET */}
-      {previewLetterheadModalTarget && (
-        <LetterheadPreviewModal
-          isOpen={!!previewLetterheadModalTarget}
-          onClose={() => setPreviewLetterheadModalTarget(null)}
-          letterhead={previewLetterheadModalTarget}
         />
       )}
 

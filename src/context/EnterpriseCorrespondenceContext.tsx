@@ -18,7 +18,10 @@ import {
   formatCorrespondenceReference,
   getNextLetterSuffix,
   extractClientAffix,
-  extractProjectAffix
+  extractProjectAffix,
+  formatEmaCorrespondenceReference,
+  getNextEmaLetterSuffix,
+  extractReceiverInitials
 } from '../utils/correspondenceUtils';
 import { defaultLetterheads, resolveRecommendedLetterhead } from '../utils/letterheadUtils';
 import { AuditService } from '../services/audit/auditService';
@@ -72,6 +75,9 @@ interface EnterpriseCorrespondenceContextType {
   generateCorrespondenceReference: (params: {
     clientAffix?: string;
     projectAffix?: string;
+    projectCode?: string;
+    projectId?: string;
+    direction?: LetterDirection;
     year?: string | number;
     customSuffix?: string;
   }) => {
@@ -81,7 +87,24 @@ interface EnterpriseCorrespondenceContextType {
     year: string;
     suffix: string;
   };
-  getNextSuffix: (clientAffix: string, projectAffix: string, year: string | number) => string;
+  generateEmaCorrespondenceReference: (params: {
+    clientInitials: string;
+    projectInitials?: string;
+    receiverInitials: string;
+    customSuffix?: string;
+  }) => {
+    reference: string;
+    clientInitials: string;
+    projectInitials: string;
+    receiverInitials: string;
+    suffix: string;
+  };
+  getNextSuffix: (
+    clientAffix: string,
+    projectAffix: string,
+    year: string | number,
+    options?: { projectCode?: string; projectId?: string; direction?: LetterDirection }
+  ) => string;
   draftLetterWithAi: (params: {
     enterpriseId: string;
     recipientOrganization: string;
@@ -227,7 +250,7 @@ const defaultTemplates: LetterTemplate[] = [
 const initialLetters: Letter[] = [
   {
     id: 'ltr-001',
-    letterNumber: 'EMA/RDA/PIDM26/2026/001',
+    letterNumber: 'EMA/RDA/PIDM26/PD/001',
     direction: 'Outgoing',
     documentType: 'SUBMISSION',
     contractualCategory: 'Technical',
@@ -242,11 +265,13 @@ const initialLetters: Letter[] = [
     projectAffix: 'PIDM26',
     sequenceYear: '2026',
     sequenceNumber: 1,
+    receiverDesignation: 'Project Director',
+    receiverInitials: 'PD',
     recipientOrganization: 'Road Development Authority (RDA)',
     recipientAddress: 'Maganeguma Mahamedura, Battaramulla',
     attention: 'Eng. H. M. Karunaratne (Project Director)',
     subject: 'Submission of Revised Pavement Sub-base Methodology and Traffic Management Plan',
-    ourReference: 'EMA/RDA/PIDM26/2026/001',
+    ourReference: 'EMA/RDA/PIDM26/PD/001',
     theirReference: 'RDA/PD/CEP/TECH/410',
     date: '2026-08-14',
     priority: 'Normal',
@@ -303,7 +328,7 @@ const initialLetters: Letter[] = [
     recipientOrganization: 'Apex Global Logistics Corp',
     subject: 'Approval of Revised Pavement Sub-base Methodology with Conditions',
     theirReference: 'RDA/PD/CEP/TECH/425',
-    ourReference: 'EMA/RDA/PIDM26/2026/002',
+    ourReference: 'EMA/RDA/PIDM26/PD/001',
     replyToLetterId: 'ltr-001',
     parentCorrespondenceId: 'ltr-001',
     relationship: 'Reply To',
@@ -329,7 +354,7 @@ const initialLetters: Letter[] = [
       }
     ],
     bodyHtml: `<p>Dear Sirs,</p>
-<p>Reference is made to your letter EMA/RDA/PIDM26/2026/001 dated 14th August 2026.</p>
+<p>Reference is made to your letter EMA/RDA/PIDM26/PD/001 dated 14th August 2026.</p>
 <p>The Resident Engineer has reviewed your revised Method Statement and grants conditional approval, subject to mandatory 24-hour illuminated signboards and police traffic liaison at Chainage 15+000.</p>`,
     preparedBy: 'RDA Engineering Directorate',
     status: 'Issued',
@@ -341,7 +366,7 @@ const initialLetters: Letter[] = [
   },
   {
     id: 'ltr-003',
-    letterNumber: 'EMA/CECB/CWP01/2026/001',
+    letterNumber: 'EMA/CECB/CWP01/CRC/001',
     direction: 'Outgoing',
     documentType: 'SUBMISSION',
     contractualCategory: 'QA/QC',
@@ -356,11 +381,13 @@ const initialLetters: Letter[] = [
     projectAffix: 'CWP01',
     sequenceYear: '2026',
     sequenceNumber: 1,
+    receiverDesignation: 'Chief Resident Consultant',
+    receiverInitials: 'CRC',
     recipientOrganization: 'Central Engineering Consultancy Bureau (CECB)',
     recipientAddress: 'No. 415, Bauddhaloka Mawatha, Colombo 07',
     attention: 'Eng. D. Bandara (Chief Resident Consultant)',
     subject: 'Submission of Hydrostatic Pressure Test Certificates for Sector 4 Pipeline',
-    ourReference: 'EMA/CECB/CWP01/2026/001',
+    ourReference: 'EMA/CECB/CWP01/CRC/001',
     date: '2026-08-29',
     priority: 'High',
     confidentiality: 'Normal',
@@ -394,7 +421,7 @@ const initialLetters: Letter[] = [
   },
   {
     id: 'ltr-004',
-    letterNumber: 'EMA/COMBANK/CORP/2026/001',
+    letterNumber: 'EMA/COMBANK/CORP/SM/001',
     direction: 'Outgoing',
     documentType: 'LETTER',
     contractualCategory: 'Commercial',
@@ -407,13 +434,15 @@ const initialLetters: Letter[] = [
     projectName: 'Corporate Banking & Trade Finance',
     sequenceYear: '2026',
     sequenceNumber: 1,
+    receiverDesignation: 'Senior Manager',
+    receiverInitials: 'SM',
     linkedEntityType: 'BANK_ACCOUNT',
     linkedEntityId: 'bank-01',
     recipientOrganization: 'Commercial Bank of Ceylon PLC',
     recipientAddress: 'Level 1, World Trade Centre, Colombo 01',
     attention: 'Senior Manager - Corporate Credit',
     subject: 'Extension of Fleet Asset Financing Facility & Letter of Credit Ceiling',
-    ourReference: 'EMA/COMBANK/CORP/2026/001',
+    ourReference: 'EMA/COMBANK/CORP/SM/001',
     date: '2026-09-02',
     priority: 'High',
     confidentiality: 'Confidential',
@@ -435,11 +464,11 @@ const initialLetters: Letter[] = [
   },
   {
     id: 'ltr-005',
-    letterNumber: 'EMA/RDA/PIDM26/2026/003',
+    letterNumber: 'EMA/RDA/PIDM26/PD/002',
     direction: 'Outgoing',
     documentType: 'EOT',
     contractualCategory: 'EOT',
-    partyType: 'Engineer',
+    partyType: 'Client',
     category: 'Project',
     clientId: 'cl-rda',
     clientName: 'Road Development Authority (RDA)',
@@ -449,12 +478,14 @@ const initialLetters: Letter[] = [
     projectName: 'Kadawatha - Mirigama Expressway Rehabilitation',
     projectAffix: 'PIDM26',
     sequenceYear: '2026',
-    sequenceNumber: 3,
-    recipientOrganization: 'Resource Development Consultants (Engineer)',
-    recipientAddress: 'Consultant Resident Office, Kadawatha Interchange Site',
-    attention: 'Eng. P. Senanayake (The Engineer)',
+    sequenceNumber: 2,
+    receiverDesignation: 'Project Director',
+    receiverInitials: 'PD',
+    recipientOrganization: 'Road Development Authority (RDA)',
+    recipientAddress: 'Maganeguma Mahamedura, Battaramulla',
+    attention: 'Eng. H. M. Karunaratne (Project Director)',
     subject: 'FIDIC Cl. 8.4 & 20.1: Notice of Claim for Extension of Time (EOT-01) - Unforeseen Geological Fault',
-    ourReference: 'EMA/RDA/PIDM26/2026/003',
+    ourReference: 'EMA/RDA/PIDM26/PD/002',
     theirReference: 'ENG/CEP/SITE/2026/78',
     date: '2026-08-18',
     priority: 'Urgent',
@@ -512,7 +543,7 @@ const initialLetters: Letter[] = [
     recipientOrganization: 'Apex Global Logistics Corp',
     subject: 'Engineer Assessment on EOT-01 Notice & Request for Contemporaneous Records',
     theirReference: 'RDC/CEP/ENG/2026/092',
-    ourReference: 'EMA/RDA/PIDM26/2026/003',
+    ourReference: 'EMA/RDA/PIDM26/PD/002',
     replyToLetterId: 'ltr-005',
     parentCorrespondenceId: 'ltr-005',
     relationship: 'Reply To',
@@ -539,7 +570,7 @@ const initialLetters: Letter[] = [
       }
     ],
     bodyHtml: `<p>Dear Sirs,</p>
-<p>We acknowledge receipt of your Cl. 20.1 Notice of Claim (Ref: EMA/RDA/PIDM26/2026/003) dated 18th August 2026.</p>
+<p>We acknowledge receipt of your Cl. 20.1 Notice of Claim (Ref: EMA/RDA/PIDM26/PD/002) dated 18th August 2026.</p>
 <p>Without prejudice to liability, the Engineer instructs you to maintain detailed contemporaneous records in accordance with Clause 20.1. Please submit your fully detailed claim with Primavera P6 native XER schedule files and weather meteorological data within the contractual 42-day period.</p>`,
     preparedBy: 'Eng. P. Senanayake (The Engineer)',
     status: 'Issued',
@@ -551,11 +582,11 @@ const initialLetters: Letter[] = [
   },
   {
     id: 'ltr-007',
-    letterNumber: 'EMA/RDA/PIDM26/2026/004',
+    letterNumber: 'EMA/RDA/PIDM26/CE/001',
     direction: 'Outgoing',
     documentType: 'VARIATION',
     contractualCategory: 'Variation',
-    partyType: 'Engineer',
+    partyType: 'Client',
     category: 'Project',
     clientId: 'cl-rda',
     clientName: 'Road Development Authority (RDA)',
@@ -565,12 +596,14 @@ const initialLetters: Letter[] = [
     projectName: 'Kadawatha - Mirigama Expressway Rehabilitation',
     projectAffix: 'PIDM26',
     sequenceYear: '2026',
-    sequenceNumber: 5,
-    recipientOrganization: 'Resource Development Consultants (Engineer)',
-    recipientAddress: 'Consultant Resident Office, Kadawatha Interchange Site',
-    attention: 'Eng. P. Senanayake (The Engineer)',
+    sequenceNumber: 1,
+    receiverDesignation: 'Chief Engineer',
+    receiverInitials: 'CE',
+    recipientOrganization: 'Road Development Authority (RDA)',
+    recipientAddress: 'Maganeguma Mahamedura, Battaramulla',
+    attention: 'Eng. K. Wickremasinghe (Chief Engineer)',
     subject: 'Variation Proposal VP-02: Reinforced Concrete Retaining Wall In Lieu of Soil Slope at CH 14+350',
-    ourReference: 'EMA/RDA/PIDM26/2026/004',
+    ourReference: 'EMA/RDA/PIDM26/CE/001',
     date: '2026-09-04',
     priority: 'Normal',
     confidentiality: 'Normal',
@@ -634,6 +667,108 @@ const initialLetters: Letter[] = [
     attachedDocumentIds: [],
     createdAt: '2026-08-20T08:00:00Z',
     issuedAt: '2026-08-20T08:00:00Z'
+  },
+  {
+    id: 'ltr-009',
+    letterNumber: 'EMA/CGF/PIDM26/GM/001',
+    direction: 'Outgoing',
+    documentType: 'LETTER',
+    contractualCategory: 'Financial',
+    partyType: 'CGF',
+    category: 'Government',
+    recipientType: 'AUTHORITY',
+    recipientOrganization: 'Construction Guarantee Fund (CGF)',
+    clientName: 'Construction Guarantee Fund (CGF)',
+    clientAffix: 'CGF',
+    receiverDesignation: 'General Manager',
+    receiverInitials: 'GM',
+    attention: 'General Manager',
+    subject: 'Application for Issuance of Advance Payment Guarantee - Kadawatha Rehabilitation',
+    ourReference: 'EMA/CGF/PIDM26/GM/001',
+    projectId: 'PRJ-2026-001',
+    projectCode: 'PIDM26',
+    projectName: 'Kadawatha - Mirigama Expressway Rehabilitation',
+    projectAffix: 'PIDM26',
+    sequenceYear: '2026',
+    sequenceNumber: 1,
+    date: '2026-09-08',
+    priority: 'High',
+    confidentiality: 'Normal',
+    replyRequired: true,
+    replyDueDate: '2026-09-22',
+    replyStatus: 'Pending',
+    status: 'Issued',
+    version: 1,
+    isLocked: true,
+    attachments: [
+      {
+        id: 'att-cgf-001',
+        letterId: 'ltr-009',
+        name: 'Signed_CGF_Application_Letter_APG.pdf',
+        size: 245600,
+        fileType: 'application/pdf',
+        uploadedAt: '2026-09-08T09:30:00Z',
+        uploadedBy: 'Corporate Officer',
+        category: 'SIGNED_SCAN',
+        description: 'Signed official request letter and security schedules'
+      }
+    ],
+    attachedDocumentIds: ['att-cgf-001'],
+    bodyHtml: '<p>Attached official signed submission to CGF General Manager.</p>',
+    preparedBy: 'Corporate Officer',
+    createdAt: '2026-09-08T09:30:00Z',
+    issuedAt: '2026-09-08T09:30:00Z'
+  },
+  {
+    id: 'ltr-010',
+    letterNumber: 'EMA/BOC/PIDM26/BM/001',
+    direction: 'Outgoing',
+    documentType: 'LETTER',
+    contractualCategory: 'Commercial',
+    partyType: 'Bank',
+    category: 'Bank',
+    recipientType: 'BANK',
+    recipientOrganization: 'Bank of Ceylon (BOC)',
+    clientName: 'Bank of Ceylon (BOC)',
+    clientAffix: 'BOC',
+    receiverDesignation: 'Branch Manager',
+    receiverInitials: 'BM',
+    attention: 'Branch Manager',
+    subject: 'Request for Issuance of Performance Security Bond in Favor of RDA',
+    ourReference: 'EMA/BOC/PIDM26/BM/001',
+    projectId: 'PRJ-2026-001',
+    projectCode: 'PIDM26',
+    projectName: 'Kadawatha - Mirigama Expressway Rehabilitation',
+    projectAffix: 'PIDM26',
+    sequenceYear: '2026',
+    sequenceNumber: 1,
+    date: '2026-09-10',
+    priority: 'High',
+    confidentiality: 'Confidential',
+    replyRequired: true,
+    replyDueDate: '2026-09-24',
+    replyStatus: 'Pending',
+    status: 'Issued',
+    version: 1,
+    isLocked: true,
+    attachments: [
+      {
+        id: 'att-boc-001',
+        letterId: 'ltr-010',
+        name: 'EMA_BOC_PIDM26_BM_001_Bank_Guarantee_Request.pdf',
+        size: 312400,
+        fileType: 'application/pdf',
+        uploadedAt: '2026-09-10T11:15:00Z',
+        uploadedBy: 'Finance Dept',
+        category: 'FINAL_DOCUMENT',
+        description: 'Executed formal letter with debit authorization'
+      }
+    ],
+    attachedDocumentIds: ['att-boc-001'],
+    bodyHtml: '<p>Attached official signed request to BOC Branch Manager.</p>',
+    preparedBy: 'Finance Dept',
+    createdAt: '2026-09-10T11:15:00Z',
+    issuedAt: '2026-09-10T11:15:00Z'
   }
 ];
 
@@ -645,7 +780,31 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
   const [letters, setLetters] = useState<Letter[]>(() => {
     try {
       const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_letters`);
-      if (saved !== null) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Normalize legacy 2026 format if found in stored items
+          return parsed.map((l: Letter) => {
+            const isOutgoing = l.direction === 'Outgoing' || l.direction === 'OUTGOING';
+            const ref = (l.letterNumber || l.ourReference || '').trim();
+            const parts = ref.split('/');
+            if (isOutgoing && parts.length >= 5 && parts[0].toUpperCase() === 'EMA' && parts[3] === '2026') {
+              const rInit = (l as any).receiverInitials ||
+                (l.receiverDesignation ? extractReceiverInitials(l.receiverDesignation) : '') ||
+                (l.attention ? extractReceiverInitials(l.attention) : 'DIR');
+              const upgradedRef = `EMA/${parts[1]}/${parts[2]}/${rInit}/${parts[4]}`;
+              return {
+                ...l,
+                letterNumber: upgradedRef,
+                ourReference: upgradedRef,
+                receiverInitials: rInit,
+                receiverDesignation: l.receiverDesignation || l.attention || 'Receiver Direction'
+              };
+            }
+            return l;
+          });
+        }
+      }
     } catch {}
     return initialLetters;
   });
@@ -939,28 +1098,99 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
   const generateCorrespondenceReference = (params: {
     clientAffix?: string;
     projectAffix?: string;
+    projectCode?: string;
+    projectId?: string;
+    direction?: LetterDirection;
     year?: string | number;
     customSuffix?: string;
   }) => {
     const cAffix = (params.clientAffix || 'CLIENT').trim().toUpperCase();
     const pAffix = (params.projectAffix || 'GEN').trim().toUpperCase();
     const yStr = String(params.year || new Date().getFullYear());
+    const targetDirection = params.direction || 'Outgoing';
+
     const sStr = params.customSuffix
       ? String(params.customSuffix).padStart(3, '0')
-      : getNextLetterSuffix(letters, cAffix, pAffix, yStr);
+      : getNextLetterSuffix(letters, cAffix, pAffix, yStr, {
+          projectId: params.projectId,
+          projectCode: params.projectCode,
+          direction: targetDirection
+        });
 
-    const reference = formatCorrespondenceReference(cAffix, pAffix, yStr, sStr);
+    let suffixNum = parseInt(sStr, 10) || 1;
+    let finalSuffix = String(suffixNum).padStart(3, '0');
+    let reference = formatCorrespondenceReference(cAffix, pAffix, yStr, finalSuffix);
+
+    // Section 17: Technical Requirement - Uniqueness guarantee
+    // Check against existing letters to prevent duplicate reference numbers
+    const existingRefNumbers = new Set(
+      letters
+        .filter(l => (targetDirection === 'Outgoing' ? (l.direction === 'Outgoing' || l.direction === 'OUTGOING') : true))
+        .map(l => (l.letterNumber || l.ourReference || '').trim().toUpperCase())
+    );
+
+    while (existingRefNumbers.has(reference.toUpperCase())) {
+      suffixNum++;
+      finalSuffix = String(suffixNum).padStart(3, '0');
+      reference = formatCorrespondenceReference(cAffix, pAffix, yStr, finalSuffix);
+    }
+
     return {
       reference,
       clientAffix: cAffix,
       projectAffix: pAffix,
       year: yStr,
-      suffix: sStr
+      suffix: finalSuffix
     };
   };
 
-  const getNextSuffix = (clientAffix: string, projectAffix: string, year: string | number): string => {
-    return getNextLetterSuffix(letters, clientAffix, projectAffix, year);
+  const generateEmaCorrespondenceReference = (params: {
+    clientInitials: string;
+    projectInitials?: string;
+    receiverInitials: string;
+    customSuffix?: string;
+  }) => {
+    const cInit = (params.clientInitials || 'CLIENT').trim().toUpperCase();
+    const pInit = (params.projectInitials || 'GEN').trim().toUpperCase();
+    const rInit = (params.receiverInitials || 'DIR').trim().toUpperCase();
+
+    const sStr = params.customSuffix
+      ? String(params.customSuffix).padStart(3, '0')
+      : getNextEmaLetterSuffix(letters, cInit, pInit, rInit);
+
+    let suffixNum = parseInt(sStr, 10) || 1;
+    let finalSuffix = String(suffixNum).padStart(3, '0');
+    let reference = formatEmaCorrespondenceReference(cInit, pInit, rInit, finalSuffix);
+
+    // Ensure reference is unique
+    const existingRefs = new Set(
+      letters
+        .filter(l => l.direction === 'Outgoing' || l.direction === 'OUTGOING')
+        .map(l => (l.letterNumber || l.ourReference || '').trim().toUpperCase())
+    );
+
+    while (existingRefs.has(reference.toUpperCase())) {
+      suffixNum++;
+      finalSuffix = String(suffixNum).padStart(3, '0');
+      reference = formatEmaCorrespondenceReference(cInit, pInit, rInit, finalSuffix);
+    }
+
+    return {
+      reference,
+      clientInitials: cInit,
+      projectInitials: pInit,
+      receiverInitials: rInit,
+      suffix: finalSuffix
+    };
+  };
+
+  const getNextSuffix = (
+    clientAffix: string,
+    projectAffix: string,
+    year: string | number,
+    options?: { projectCode?: string; projectId?: string; direction?: LetterDirection }
+  ): string => {
+    return getNextLetterSuffix(letters, clientAffix, projectAffix, year, options);
   };
 
   const createLetter = (
@@ -1873,6 +2103,7 @@ export const EnterpriseCorrespondenceProvider: React.FC<{ children: ReactNode }>
         generateNextLetterNumber,
         getNextLetterNumber,
         generateCorrespondenceReference,
+        generateEmaCorrespondenceReference,
         getNextSuffix,
         draftLetterWithAi,
         transformLetterWithAi,

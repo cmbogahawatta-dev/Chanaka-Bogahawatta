@@ -239,18 +239,18 @@ export const CorrespondenceDashboardView: React.FC<CorrespondenceDashboardViewPr
           <button
             id="btn-dash-incoming-intake"
             onClick={onOpenIncomingIntake}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 rounded-xl text-xs sm:text-sm font-semibold transition-all hover:border-blue-400 shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 rounded-xl text-xs sm:text-sm font-semibold transition-all hover:border-blue-400 shadow-sm cursor-pointer"
           >
             <ArrowDownLeft className="w-4 h-4 text-blue-400" />
-            Log Incoming Letter
+            Log Incoming
           </button>
           <button
             id="btn-dash-outgoing-compose"
             onClick={onOpenOutgoingCompose}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-lg shadow-emerald-600/20"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-lg shadow-emerald-600/20 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            New Outgoing Letter
+            Log Outgoing
           </button>
         </div>
       </div>

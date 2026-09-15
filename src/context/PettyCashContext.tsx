@@ -346,6 +346,11 @@ interface PettyCashContextType {
 const STORAGE_KEYS = {
   EXPENSES: 'ema_petty_expenses_v1',
   INCOME: 'ema_petty_income_v1',
+  EXPENSES_V1: 'ema_petty_expenses_v1',
+  INCOME_V1: 'ema_petty_income_v1',
+  EXPENSES_CLEARED: 'ema_petty_expenses_cleared',
+  INCOME_CLEARED: 'ema_petty_income_cleared',
+  INITIALIZED: 'ema_petty_cash_initialized_v2',
   SUPERVISORS: 'ema_petty_supervisors_v1',
   ALLOCATIONS: 'ema_petty_allocations_v1',
   PROJECTS: 'ema_petty_projects_v1',
@@ -528,10 +533,19 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // State Initialization from LocalStorage (initial paint) and asynchronous IndexedDB hydration
   const [expenses, setExpenses] = useState<Expense[]>(() => {
     try {
+      if (localStorage.getItem(STORAGE_KEYS.EXPENSES_CLEARED) === 'true') {
+        return [];
+      }
       const saved = localStorage.getItem(STORAGE_KEYS.EXPENSES);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(migrateHistoricalExpense);
+        if (Array.isArray(parsed)) {
+          if (parsed.length === 0) return [];
+          return parsed.map(migrateHistoricalExpense);
+        }
+      }
+      if (localStorage.getItem(STORAGE_KEYS.INITIALIZED) === 'true') {
+        return [];
       }
     } catch (e) {
       console.error('Error loading expenses from storage', e);
@@ -541,10 +555,19 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const [income, setIncome] = useState<Income[]>(() => {
     try {
+      if (localStorage.getItem(STORAGE_KEYS.INCOME_CLEARED) === 'true') {
+        return [];
+      }
       const saved = localStorage.getItem(STORAGE_KEYS.INCOME);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(migrateHistoricalIncome);
+        if (Array.isArray(parsed)) {
+          if (parsed.length === 0) return [];
+          return parsed.map(migrateHistoricalIncome);
+        }
+      }
+      if (localStorage.getItem(STORAGE_KEYS.INITIALIZED) === 'true') {
+        return [];
       }
     } catch (e) {
       console.error('Error loading income from storage', e);
@@ -581,18 +604,38 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ]);
 
         if (isMounted) {
+          const isExpensesCleared = localStorage.getItem(STORAGE_KEYS.EXPENSES_CLEARED) === 'true';
+          const isIncomeCleared = localStorage.getItem(STORAGE_KEYS.INCOME_CLEARED) === 'true';
+          const isInitialized = localStorage.getItem(STORAGE_KEYS.INITIALIZED) === 'true';
+
           if (dbExpenses && dbExpenses.length > 0) {
             setExpenses(dbExpenses.map(migrateHistoricalExpense));
+          } else if (isExpensesCleared || isInitialized) {
+            // User explicitly cleared history or initialized before, NEVER auto-restore default expenses!
+            setExpenses([]);
           } else if (expenses.length > 0) {
-            // Seed IndexedDB with initial expenses
+            // Seed IndexedDB with initial expenses on first run
             await saveExpensesToIndexedDB(expenses);
+          } else {
+            setExpenses([]);
           }
 
           if (dbIncome && dbIncome.length > 0) {
             setIncome(dbIncome.map(migrateHistoricalIncome));
+          } else if (isIncomeCleared || isInitialized) {
+            // User explicitly cleared history or initialized before, NEVER auto-restore default top-ups!
+            setIncome([]);
           } else if (income.length > 0) {
-            // Seed IndexedDB with initial income
+            // Seed IndexedDB with initial income on first run
             await saveIncomeToIndexedDB(income);
+          } else {
+            setIncome([]);
+          }
+
+          try {
+            localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+          } catch {
+            // ignore
           }
         }
       } catch (err) {
@@ -610,8 +653,17 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [allocations, setAllocations] = useState<Record<string, number>>(() => {
     const initialMap: Record<string, number> = {};
 
-    // 1. Try loading saved allocations
+    // 1. Try loading saved allocations (unless cleared)
     try {
+      const isCleared = (typeof localStorage !== 'undefined') && (
+        localStorage.getItem(STORAGE_KEYS.EXPENSES_CLEARED) === 'true' ||
+        localStorage.getItem(STORAGE_KEYS.INCOME_CLEARED) === 'true' ||
+        localStorage.getItem(STORAGE_KEYS.EXPENSES) === '[]'
+      );
+      if (isCleared) {
+        return {};
+      }
+
       const saved = localStorage.getItem(STORAGE_KEYS.ALLOCATIONS);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -650,7 +702,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     legacySupervisors.forEach(s => {
       const supName = (s.SUPERVISOR_NAME || '').trim().toUpperCase();
       const supId = s.SUPERVISOR_ID || s.id;
-      const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 50000;
+      const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 0;
 
       if (supName && initialMap[supName] === undefined) initialMap[supName] = opening;
       if (supId && initialMap[supId] === undefined) initialMap[supId] = opening;
@@ -659,6 +711,14 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     return initialMap;
   });
+
+  // Sync allocations to empty {} if no expenses and no income exist in the system
+  useEffect(() => {
+    if (expenses.length === 0 && income.length === 0) {
+      setAllocations({});
+      safeSetLocalStorage(STORAGE_KEYS.ALLOCATIONS, JSON.stringify({}));
+    }
+  }, [expenses.length, income.length]);
 
   // Supervisors state derived from Staff Directory (All active employees)
   // Preserving historical compatibility with existing petty cash float allocations
@@ -672,6 +732,9 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return true;
     });
 
+    // When there are no inserted expenses and no income, all opening floats and balances sync to 0
+    const hasTransactions = expenses.length > 0 || income.length > 0;
+
     return uniqueStaff.map(m => {
       const assignedProjects = m.assignedProjectCodes && m.assignedProjectCodes.length > 0
         ? m.assignedProjectCodes
@@ -681,10 +744,10 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const supervisorName = (m.preferredName || m.fullName.split(' ')[0]).toUpperCase();
 
-      const customOpening = allocations[m.id] ?? allocations[m.employeeCode] ?? allocations[m.supervisorId || ''] ?? (m.legacySupervisorId ? allocations[m.legacySupervisorId] : undefined) ?? allocations[supervisorName];
-      const opening = customOpening !== undefined ? customOpening : (
-        ['BUDDIKA', 'GAYANI', 'GEETH', 'LASANTHA'].includes(supervisorName) || m.role === 'SUPERVISOR' || m.isSupervisor ? 50000.0 : 0.0
-      );
+      const customOpening = hasTransactions
+        ? (allocations[m.id] ?? allocations[m.employeeCode] ?? allocations[m.supervisorId || ''] ?? (m.legacySupervisorId ? allocations[m.legacySupervisorId] : undefined) ?? allocations[supervisorName])
+        : 0.0;
+      const opening = (hasTransactions && customOpening !== undefined) ? customOpening : 0.0;
 
       return {
         id: m.id,
@@ -708,7 +771,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         designation: m.designation
       };
     });
-  }, [staffMembers, allocations]);
+  }, [staffMembers, allocations, expenses.length, income.length]);
 
   const [projects, setProjects] = useState<Project[]>(() => {
     try {
@@ -964,40 +1027,42 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       isOverdrawn: boolean;
     }> = {};
 
+    const hasTransactions = expenses.length > 0 || income.length > 0;
+
     supervisors.forEach(sup => {
       const supName = sup.SUPERVISOR_NAME.trim().toUpperCase();
-      const opening = sup.OPENING_PETTY_CASH || 0;
+      const opening = hasTransactions ? (sup.OPENING_PETTY_CASH || 0) : 0;
 
       // Income / Top-ups to this supervisor (excluding project invoice revenue)
-      const incomeTotal = income
+      const incomeTotal = hasTransactions ? income
         .filter(inc => isIncomeForSupervisor(inc, sup) && inc.TRANSACTION_TYPE !== 'PROJECT_INVOICE_INCOME' && inc.INCOME_SOURCE !== 'Project Income / Invoice')
-        .reduce((sum, inc) => sum + (Number(inc.AMOUNT) || 0), 0);
+        .reduce((sum, inc) => sum + (Number(inc.AMOUNT) || 0), 0) : 0;
 
       // Internal Transfers In
-      const transfersIn = transfers
+      const transfersIn = hasTransactions ? transfers
         .filter(trf => (trf.TO_SUPERVISOR?.trim().toUpperCase() === supName || trf.TO_SUPERVISOR === sup.SUPERVISOR_ID || trf.TO_SUPERVISOR === sup.employeeCode) && trf.STATUS === 'Completed')
-        .reduce((sum, trf) => sum + (Number(trf.AMOUNT) || 0), 0);
+        .reduce((sum, trf) => sum + (Number(trf.AMOUNT) || 0), 0) : 0;
 
       // Internal Transfers Out
-      const transfersOut = transfers
+      const transfersOut = hasTransactions ? transfers
         .filter(trf => (trf.FROM_SUPERVISOR?.trim().toUpperCase() === supName || trf.FROM_SUPERVISOR === sup.SUPERVISOR_ID || trf.FROM_SUPERVISOR === sup.employeeCode) && trf.STATUS === 'Completed')
-        .reduce((sum, trf) => sum + (Number(trf.AMOUNT) || 0), 0);
+        .reduce((sum, trf) => sum + (Number(trf.AMOUNT) || 0), 0) : 0;
 
       // Approved / Paid / Reimbursed expenses
-      const approvedExpenses = expenses
+      const approvedExpenses = hasTransactions ? expenses
         .filter(exp => 
           isExpenseForSupervisor(exp, sup) && 
           (exp.PAYMENT_STATUS === 'Approved' || exp.PAYMENT_STATUS === 'Paid' || exp.PAYMENT_STATUS === 'Reimbursed')
         )
-        .reduce((sum, exp) => sum + (Number(exp.AMOUNT) || 0), 0);
+        .reduce((sum, exp) => sum + (Number(exp.AMOUNT) || 0), 0) : 0;
 
       // Pending expenses (tracked separately, does not deduct yet)
-      const pendingExpenses = expenses
+      const pendingExpenses = hasTransactions ? expenses
         .filter(exp => 
           isExpenseForSupervisor(exp, sup) && 
           exp.PAYMENT_STATUS === 'Pending'
         )
-        .reduce((sum, exp) => sum + (Number(exp.AMOUNT) || 0), 0);
+        .reduce((sum, exp) => sum + (Number(exp.AMOUNT) || 0), 0) : 0;
 
       const currentBalance = opening + incomeTotal + transfersIn - approvedExpenses - transfersOut;
 
@@ -1588,7 +1653,8 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const getSupervisorStatement = (supervisorName: string): PettyCashStatementRow[] => {
     const supName = supervisorName.trim().toUpperCase();
     const sup = supervisors.find(s => s.SUPERVISOR_NAME.trim().toUpperCase() === supName);
-    const openingBal = sup?.OPENING_PETTY_CASH || 0;
+    const hasTransactions = expenses.length > 0 || income.length > 0;
+    const openingBal = hasTransactions ? (sup?.OPENING_PETTY_CASH || 0) : 0;
 
     interface RawItem {
       date: string;
@@ -1867,7 +1933,21 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       CREATED_DATE: new Date().toLocaleString('en-GB')
     };
 
-    setExpenses(prev => [newExpense, ...prev]);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.EXPENSES_CLEARED);
+    } catch {
+      // ignore
+    }
+
+    setExpenses(prev => {
+      const next = [newExpense, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
     saveSingleExpenseToIndexedDB(newExpense);
     return newExpense;
   };
@@ -1897,7 +1977,18 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteExpense = (id: string) => {
-    setExpenses(prev => prev.filter(exp => exp.id !== id));
+    setExpenses(prev => {
+      const next = prev.filter(exp => exp.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(next));
+        if (next.length === 0) {
+          localStorage.setItem(STORAGE_KEYS.EXPENSES_CLEARED, 'true');
+        }
+      } catch {
+        // ignore
+      }
+      return next;
+    });
     deleteSingleExpenseFromIndexedDB(id);
   };
 
@@ -1984,7 +2075,21 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       CREATED_DATE: new Date().toLocaleString('en-GB')
     };
 
-    setIncome(prev => [newInc, ...prev]);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.INCOME_CLEARED);
+    } catch {
+      // ignore
+    }
+
+    setIncome(prev => {
+      const next = [newInc, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
     saveSingleIncomeToIndexedDB(newInc);
     return newInc;
   };
@@ -2015,7 +2120,18 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteIncome = (id: string) => {
-    setIncome(prev => prev.filter(inc => inc.id !== id));
+    setIncome(prev => {
+      const next = prev.filter(inc => inc.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(next));
+        if (next.length === 0) {
+          localStorage.setItem(STORAGE_KEYS.INCOME_CLEARED, 'true');
+        }
+      } catch {
+        // ignore
+      }
+      return next;
+    });
     deleteSingleIncomeFromIndexedDB(id);
   };
 
@@ -2416,6 +2532,16 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const resetPettyCashData = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.EXPENSES_CLEARED);
+      localStorage.removeItem(STORAGE_KEYS.INCOME_CLEARED);
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(initialExpenses));
+      localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(initialIncome));
+      localStorage.removeItem(STORAGE_KEYS.EXPENSES_V1);
+      localStorage.removeItem(STORAGE_KEYS.INCOME_V1);
+    } catch {
+      // ignore
+    }
     saveExpensesToIndexedDB(initialExpenses).catch(console.error);
     saveIncomeToIndexedDB(initialIncome).catch(console.error);
     safeSetLocalStorage(STORAGE_KEYS.PROJECTS, JSON.stringify(initialProjects));
@@ -2429,7 +2555,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     initialSupervisors.forEach(s => {
       const supName = (s.SUPERVISOR_NAME || '').trim().toUpperCase();
       const supId = s.SUPERVISOR_ID || s.id;
-      const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 50000;
+      const opening = typeof s.OPENING_PETTY_CASH === 'number' ? s.OPENING_PETTY_CASH : 0;
       if (supName) initialMap[supName] = opening;
       if (supId) initialMap[supId] = opening;
       if (s.id) initialMap[s.id] = opening;
@@ -2449,15 +2575,30 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (supervisorName || projectCode) {
       setExpenses(prev => {
         const next = prev.filter(e => {
-          if (supervisorName && e.SUPERVISOR_NAME === supervisorName) return false;
-          if (projectCode && e.PROJECT === projectCode) return false;
+          if (supervisorName && (e.SUPERVISOR_NAME === supervisorName || e.SUPERVISOR === supervisorName)) return false;
+          if (projectCode && (e.PROJECT === projectCode || e.PROJECT_CODE === projectCode)) return false;
           return true;
         });
         saveExpensesToIndexedDB(next).catch(console.error);
+        try {
+          localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(next));
+          if (next.length === 0) {
+            localStorage.setItem(STORAGE_KEYS.EXPENSES_CLEARED, 'true');
+          }
+        } catch {
+          // ignore
+        }
         return next;
       });
     } else {
       clearExpensesFromIndexedDB().catch(console.error);
+      try {
+        localStorage.setItem(STORAGE_KEYS.EXPENSES_CLEARED, 'true');
+        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
+        localStorage.removeItem(STORAGE_KEYS.EXPENSES_V1);
+      } catch {
+        // ignore
+      }
       setExpenses([]);
     }
   };
@@ -2465,12 +2606,31 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const clearIncomeHistory = (supervisorName?: string) => {
     if (supervisorName) {
       setIncome(prev => {
-        const next = prev.filter(i => i.SUPERVISOR_NAME !== supervisorName);
+        const supUpper = supervisorName.trim().toUpperCase();
+        const next = prev.filter(i => {
+          const s = (i.SUPERVISOR || (i as any).SUPERVISOR_NAME || '').trim().toUpperCase();
+          return s !== supUpper;
+        });
         saveIncomeToIndexedDB(next).catch(console.error);
+        try {
+          localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(next));
+          if (next.length === 0) {
+            localStorage.setItem(STORAGE_KEYS.INCOME_CLEARED, 'true');
+          }
+        } catch {
+          // ignore
+        }
         return next;
       });
     } else {
       clearIncomeFromIndexedDB().catch(console.error);
+      try {
+        localStorage.setItem(STORAGE_KEYS.INCOME_CLEARED, 'true');
+        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify([]));
+        localStorage.removeItem(STORAGE_KEYS.INCOME_V1);
+      } catch {
+        // ignore
+      }
       setIncome([]);
     }
   };
@@ -2540,6 +2700,16 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const clearAllPettyCashHistory = () => {
     clearAllPettyCashIndexedDB().catch(console.error);
     safeSetLocalStorage(STORAGE_KEYS.TRANSFERS, JSON.stringify([]));
+    try {
+      localStorage.setItem(STORAGE_KEYS.EXPENSES_CLEARED, 'true');
+      localStorage.setItem(STORAGE_KEYS.INCOME_CLEARED, 'true');
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify([]));
+      localStorage.removeItem(STORAGE_KEYS.EXPENSES_V1);
+      localStorage.removeItem(STORAGE_KEYS.INCOME_V1);
+    } catch {
+      // ignore
+    }
     setExpenses([]);
     setIncome([]);
     setTransfers([]);
@@ -2622,6 +2792,11 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
 
     setExpenses(result.updatedExpenses);
+    if (result.updatedExpenses && result.updatedExpenses.length > 0) {
+      try {
+        localStorage.removeItem(STORAGE_KEYS.EXPENSES_CLEARED);
+      } catch {}
+    }
     setProjects(result.updatedProjects);
     if (result.updatedSupervisors) {
       setAllocations(prev => {
@@ -3011,7 +3186,7 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       imported.forEach((s, i) => {
         const supName = (s.SUPERVISOR_NAME || (s as any).NAME || `SUPERVISOR_${i + 1}`).toUpperCase().trim();
         const supId = s.SUPERVISOR_ID || s.id || `SUP-${String(i + 1).padStart(3, '0')}`;
-        const opening = Number(s.OPENING_PETTY_CASH || (s as any).OPENING_FLOAT) || 100000;
+        const opening = Number(s.OPENING_PETTY_CASH || (s as any).OPENING_FLOAT) || 0;
         if (supName) next[supName] = opening;
         if (supId) next[supId] = opening;
         if (s.id) next[s.id] = opening;
@@ -3045,8 +3220,19 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     });
 
+    try {
+      localStorage.removeItem(STORAGE_KEYS.EXPENSES_CLEARED);
+    } catch {
+      // ignore
+    }
+
     setExpenses(prev => {
       const merged = [...newItems, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(merged));
+      } catch {
+        // ignore
+      }
       saveExpensesToIndexedDB(merged).catch(console.error);
       return merged;
     });
@@ -3073,8 +3259,19 @@ export const PettyCashProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     });
 
+    try {
+      localStorage.removeItem(STORAGE_KEYS.INCOME_CLEARED);
+    } catch {
+      // ignore
+    }
+
     setIncome(prev => {
       const merged = [...newItems, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.INCOME, JSON.stringify(merged));
+      } catch {
+        // ignore
+      }
       saveIncomeToIndexedDB(merged).catch(console.error);
       return merged;
     });

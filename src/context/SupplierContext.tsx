@@ -133,9 +133,9 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_SUPPLIERS);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     try {
@@ -148,10 +148,13 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [categories, setCategories] = useState<SupplierCategory[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CATEGORIES);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(INITIAL_SUPPLIER_CATEGORIES));
     } catch {}
     return INITIAL_SUPPLIER_CATEGORIES;
   });
@@ -160,10 +163,13 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [invoices, setInvoices] = useState<SupplierInvoice[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_INVOICES);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEY_INVOICES, JSON.stringify(INITIAL_SUPPLIER_INVOICES));
     } catch {}
     return INITIAL_SUPPLIER_INVOICES;
   });
@@ -191,10 +197,13 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     try {
       const saved = localStorage.getItem(STORAGE_KEY_GRN);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return normalizeGRNs(parsed);
+        if (Array.isArray(parsed)) return normalizeGRNs(parsed);
       }
+    } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEY_GRN, JSON.stringify(INITIAL_GOODS_RECEIVED_NOTES));
     } catch {}
     return normalizeGRNs(INITIAL_GOODS_RECEIVED_NOTES);
   });
@@ -899,6 +908,11 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const clearInvoicesHistory = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY_INVOICES, JSON.stringify([]));
+    } catch (e) {
+      console.error('Failed to clear supplier invoices in localStorage:', e);
+    }
     setInvoices([]);
   };
 
@@ -926,6 +940,11 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
   const deleteGRN = deleteGoodsReceivedNote;
 
   const clearGRNHistory = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY_GRN, JSON.stringify([]));
+    } catch (e) {
+      console.error('Failed to clear GRNs in localStorage:', e);
+    }
     setGoodsReceivedNotes([]);
   };
 
@@ -1155,10 +1174,14 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // Admin Data Reset
   const resetSuppliersData = () => {
-    localStorage.setItem(STORAGE_KEY_SUPPLIERS, JSON.stringify(INITIAL_SUPPLIERS));
-    localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(INITIAL_SUPPLIER_CATEGORIES));
-    localStorage.setItem(STORAGE_KEY_INVOICES, JSON.stringify(INITIAL_SUPPLIER_INVOICES));
-    localStorage.setItem(STORAGE_KEY_GRN, JSON.stringify(INITIAL_GOODS_RECEIVED_NOTES));
+    try {
+      localStorage.setItem(STORAGE_KEY_SUPPLIERS, JSON.stringify(INITIAL_SUPPLIERS));
+      localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(INITIAL_SUPPLIER_CATEGORIES));
+      localStorage.setItem(STORAGE_KEY_INVOICES, JSON.stringify(INITIAL_SUPPLIER_INVOICES));
+      localStorage.setItem(STORAGE_KEY_GRN, JSON.stringify(INITIAL_GOODS_RECEIVED_NOTES));
+    } catch (e) {
+      console.error('Failed to reset supplier data in localStorage:', e);
+    }
 
     setSuppliers(INITIAL_SUPPLIERS);
     setCategories(INITIAL_SUPPLIER_CATEGORIES);
@@ -1167,9 +1190,13 @@ export const SupplierProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const clearSuppliersHistory = () => {
-    localStorage.setItem(STORAGE_KEY_SUPPLIERS, JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_INVOICES, JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_GRN, JSON.stringify([]));
+    try {
+      localStorage.setItem(STORAGE_KEY_SUPPLIERS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEY_INVOICES, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEY_GRN, JSON.stringify([]));
+    } catch (e) {
+      console.error('Failed to clear suppliers in localStorage:', e);
+    }
     setSuppliers([]);
     setInvoices([]);
     setGoodsReceivedNotes([]);

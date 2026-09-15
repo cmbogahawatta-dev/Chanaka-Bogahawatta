@@ -72,141 +72,11 @@ interface EnterpriseContextType {
 
 const EnterpriseContext = createContext<EnterpriseContextType | undefined>(undefined);
 
-// Initial Sample Data for Procurement
-const INITIAL_PROCUREMENT: ProcurementOrder[] = [
-  {
-    id: 'po-1',
-    PO_NUMBER: 'PO-202608-010',
-    DATE: '2026-08-25',
-    PROJECT_CODE: 'PIDM 26',
-    REQUESTED_BY: 'BUDDIKA',
-    SUPPLIER_ID: 'sup-001',
-    SUPPLIER_NAME: 'Lanka ReadyMix (Pvt) Ltd',
-    ITEM_DESCRIPTION: 'Grade 30 Ready Mix Concrete for Culvert Base',
-    QUANTITY: 18,
-    UNIT: 'Cubes',
-    UNIT_PRICE: 28500,
-    TOTAL_AMOUNT: 513000,
-    ITEMS: [
-      {
-        id: 'po-item-1-1',
-        description: 'Grade 30 Ready Mix Concrete for Culvert Base',
-        quantity: 18,
-        unit: 'Cubes',
-        unitPrice: 28500,
-        totalAmount: 513000
-      }
-    ],
-    STATUS: 'Approved',
-    PRIORITY: 'High',
-    DELIVERY_LOCATION: 'PIDM 26 Site Yard, Ch 14+200',
-    REMARKS: 'Required urgently for structural inspection'
-  },
-  {
-    id: 'po-2',
-    PO_NUMBER: 'PO-202608-011',
-    DATE: '2026-08-26',
-    PROJECT_CODE: 'PIDM 28',
-    REQUESTED_BY: 'GEETH',
-    SUPPLIER_ID: 'sup-002',
-    SUPPLIER_NAME: 'Tokyo Super Cement PLC',
-    ITEM_DESCRIPTION: 'Portland Hydraulic Cement 50kg Bags',
-    QUANTITY: 250,
-    UNIT: 'Bags',
-    UNIT_PRICE: 2450,
-    TOTAL_AMOUNT: 612500,
-    ITEMS: [
-      {
-        id: 'po-item-2-1',
-        description: 'Portland Hydraulic Cement 50kg Bags',
-        quantity: 250,
-        unit: 'Bags',
-        unitPrice: 2450,
-        totalAmount: 612500
-      }
-    ],
-    STATUS: 'Delivered',
-    PRIORITY: 'Medium',
-    DELIVERY_LOCATION: 'PIDM 28 Central Warehouse, Gampaha',
-    REMARKS: 'Batch testing reports attached'
-  },
-  {
-    id: 'po-3',
-    PO_NUMBER: 'PO-202608-012',
-    DATE: '2026-08-27',
-    PROJECT_CODE: 'PIDM 27',
-    REQUESTED_BY: 'LASANTHA',
-    SUPPLIER_ID: 'sup-003',
-    SUPPLIER_NAME: 'Maha Oya River Sand Suppliers',
-    ITEM_DESCRIPTION: 'River Sand for Masonry and Plastering',
-    QUANTITY: 8,
-    UNIT: 'Cubes',
-    UNIT_PRICE: 32000,
-    TOTAL_AMOUNT: 256000,
-    ITEMS: [
-      {
-        id: 'po-item-3-1',
-        description: 'River Sand for Masonry and Plastering',
-        quantity: 8,
-        unit: 'Cubes',
-        unitPrice: 32000,
-        totalAmount: 256000
-      }
-    ],
-    STATUS: 'Pending Approval',
-    PRIORITY: 'High',
-    DELIVERY_LOCATION: 'PIDM 27 Bridge Abutment Section',
-    REMARKS: 'Awaiting site engineer quantity certification'
-  }
-];
+// Initial Sample Data for Procurement (default empty until user enters or imports data)
+const INITIAL_PROCUREMENT: ProcurementOrder[] = [];
 
-// Initial Sample Data for Payments
-const INITIAL_PAYMENTS: PaymentVoucher[] = [
-  {
-    id: 'pay-1',
-    PAYMENT_ID: 'PAY-202608-001',
-    DATE: '2026-08-20',
-    PROJECT_CODE: 'PIDM 26',
-    BENEFICIARY: 'Ceylinco General Insurance PLC',
-    CATEGORY: 'Vehicle & Equipment Comprehensive Insurance',
-    AMOUNT: 185000,
-    PAYMENT_METHOD: 'Direct Bank Transfer',
-    CHEQUE_OR_REF_NO: 'TXN-BOC-884219',
-    STATUS: 'Settled',
-    REQUESTED_BY: 'Finance Officer',
-    APPROVED_BY: 'Managing Director',
-    REMARKS: 'Annual fleet policy renewal for WP-CAB-4521 and WP-NA-8842'
-  },
-  {
-    id: 'pay-2',
-    PAYMENT_ID: 'PAY-202608-002',
-    DATE: '2026-08-24',
-    PROJECT_CODE: 'PIDM 28',
-    BENEFICIARY: 'Toyota Lanka (Pvt) Ltd',
-    CATEGORY: 'Heavy Vehicle Maintenance & Engine Overhaul',
-    AMOUNT: 142500,
-    PAYMENT_METHOD: 'Cheque',
-    CHEQUE_OR_REF_NO: 'CHQ-741952',
-    STATUS: 'Settled',
-    REQUESTED_BY: 'Fleet Manager',
-    APPROVED_BY: 'Operations Director',
-    REMARKS: 'Scheduled 60,000km major service and timing belt replacement for WP-PX-9921',
-    LINKED_VEHICLE_ID: 'veh-1'
-  },
-  {
-    id: 'pay-3',
-    PAYMENT_ID: 'PAY-202608-003',
-    DATE: '2026-08-27',
-    PROJECT_CODE: 'PIDM 26',
-    BENEFICIARY: 'Lanka IOC Petroleum',
-    CATEGORY: 'Monthly Bulk Diesel Depot Refill',
-    AMOUNT: 480000,
-    PAYMENT_METHOD: 'Direct Bank Transfer',
-    STATUS: 'Pending Approval',
-    REQUESTED_BY: 'BUDDIKA',
-    REMARKS: 'Monthly fuel allocation for site excavators, dump trucks, and roller compactors'
-  }
-];
+// Initial Sample Data for Payments (default empty until user enters or imports data)
+const INITIAL_PAYMENTS: PaymentVoucher[] = [];
 
 // Initial Sample Documents
 const INITIAL_DOCUMENTS: EnterpriseDocument[] = [
@@ -380,35 +250,73 @@ export const EnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     try {
+      const isExpensesCleared = (typeof localStorage !== 'undefined') && (
+        localStorage.getItem('ema_petty_expenses_cleared') === 'true' ||
+        localStorage.getItem('ema_enterprise_procurement_cleared') === 'true'
+      );
+      if (isExpensesCleared) {
+        localStorage.setItem('ema_enterprise_procurement_v1', JSON.stringify([]));
+        return [];
+      }
+
       const saved = localStorage.getItem('ema_enterprise_procurement_v1');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return normalizeProcurementList(parsed);
+        if (Array.isArray(parsed)) {
+          // Filter out legacy sample records
+          const filtered = parsed.filter(p => !['po-1', 'po-2', 'po-3'].includes(p.id));
+          return normalizeProcurementList(filtered);
+        }
       }
     } catch {
       // fallback to initial
     }
     try {
-      localStorage.setItem('ema_enterprise_procurement_v1', JSON.stringify(INITIAL_PROCUREMENT));
+      localStorage.setItem('ema_enterprise_procurement_v1', JSON.stringify([]));
     } catch {}
-    return normalizeProcurementList(INITIAL_PROCUREMENT);
+    return [];
   });
 
   const [paymentVouchers, setPaymentVouchers] = useState<PaymentVoucher[]>(() => {
     try {
+      const isExpensesCleared = (typeof localStorage !== 'undefined') && (
+        localStorage.getItem('ema_petty_expenses_cleared') === 'true' ||
+        localStorage.getItem('ema_enterprise_payments_cleared') === 'true'
+      );
+      if (isExpensesCleared) {
+        localStorage.setItem('ema_enterprise_payments_v1', JSON.stringify([]));
+        return [];
+      }
+
       const saved = localStorage.getItem('ema_enterprise_payments_v1');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          // Filter out legacy sample records
+          const filtered = parsed.filter(p => !['pay-1', 'pay-2', 'pay-3'].includes(p.id));
+          return filtered;
+        }
       }
     } catch {
       // fallback to initial
     }
     try {
-      localStorage.setItem('ema_enterprise_payments_v1', JSON.stringify(INITIAL_PAYMENTS));
+      localStorage.setItem('ema_enterprise_payments_v1', JSON.stringify([]));
     } catch {}
-    return INITIAL_PAYMENTS;
+    return [];
   });
+
+  // Sync payments and procurement to clean 0 if expenses were cleared
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('ema_petty_expenses_cleared') === 'true') {
+        setPaymentVouchers([]);
+        setProcurementOrders([]);
+        localStorage.setItem('ema_enterprise_payments_v1', JSON.stringify([]));
+        localStorage.setItem('ema_enterprise_procurement_v1', JSON.stringify([]));
+      }
+    } catch {}
+  }, []);
 
   const [documents, setDocuments] = useState<EnterpriseDocument[]>(() => {
     try {

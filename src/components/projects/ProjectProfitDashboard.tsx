@@ -235,16 +235,19 @@ export const ProjectProfitDashboard: React.FC<ProjectProfitDashboardProps> = ({
       // ==========================================
       // 2. EXPENSES (Comprehensive Cost Aggregation)
       // ==========================================
+      // Strict rule: If no expenses have been imported into the system, sync and set all project expenses as 0
+      const hasExpensesImported = expenses && expenses.length > 0;
+
       // A. Direct Site Petty Cash Expenses
-      const projExpenses = expenses.filter(
-        e => (e.PROJECT === pCode || e.PROJECT === pName) && e.PAYMENT_STATUS !== 'Rejected' && e.PAYMENT_STATUS !== 'Draft'
-      );
+      const projExpenses = hasExpensesImported
+        ? expenses.filter(e => (e.PROJECT === pCode || e.PROJECT === pName) && e.PAYMENT_STATUS !== 'Rejected' && e.PAYMENT_STATUS !== 'Draft')
+        : [];
       const pettyCashCost = projExpenses.reduce((sum, e) => sum + Number(e.AMOUNT || 0), 0);
 
       // B. Fleet Fuel Costs
-      const projFuel = fuelRecords.filter(
-        f => f.siteOrProject === pCode || f.siteOrProject === pName
-      );
+      const projFuel = hasExpensesImported
+        ? fuelRecords.filter(f => f.siteOrProject === pCode || f.siteOrProject === pName)
+        : [];
       const fuelCost = projFuel.reduce((sum, f) => sum + Number(f.totalCost || 0), 0);
 
       // C. Heavy Equipment & Vehicle Maintenance
@@ -252,26 +255,30 @@ export const ProjectProfitDashboard: React.FC<ProjectProfitDashboardProps> = ({
         v => v.currentSite === pCode || v.currentSite === pName
       );
       const projVehicleIds = projVehicles.map(v => v.id);
-      const projMaintenance = maintenanceLogs.filter(
-        m => projVehicleIds.includes(m.vehicleId)
-      );
+      const projMaintenance = hasExpensesImported
+        ? maintenanceLogs.filter(m => projVehicleIds.includes(m.vehicleId))
+        : [];
       const maintenanceCost = projMaintenance.reduce((sum, m) => sum + Number(m.cost || 0), 0);
 
       // D. Site Procurement Orders (Materials / POs)
-      const projProcurement = procurementOrders.filter(
-        p => p.PROJECT_CODE === pCode && p.STATUS !== 'Cancelled'
-      );
+      const projProcurement = hasExpensesImported
+        ? procurementOrders.filter(p => p.PROJECT_CODE === pCode && p.STATUS !== 'Cancelled')
+        : [];
       const procurementCost = projProcurement.reduce((sum, p) => sum + Number(p.TOTAL_AMOUNT || 0), 0);
 
       // E. Payment Vouchers / Subcontractors (PRVs)
-      const projVouchers = paymentVouchers.filter(
-        p => p.PROJECT_CODE === pCode && p.STATUS !== 'Rejected'
-      );
+      const projVouchers = hasExpensesImported
+        ? paymentVouchers.filter(p => p.PROJECT_CODE === pCode && p.STATUS !== 'Rejected')
+        : [];
       const paymentVouchersCost = projVouchers.reduce((sum, p) => sum + Number(p.AMOUNT || 0), 0);
 
-      // Total Expenses
-      const totalExpenses = pettyCashCost + fuelCost + maintenanceCost + procurementCost + paymentVouchersCost;
-      const inputVat = projExpenses.reduce((sum, e) => sum + Number(e.vatAmount || 0), 0);
+      // Total Expenses - strictly 0 until expenses are imported
+      const totalExpenses = hasExpensesImported
+        ? (pettyCashCost + fuelCost + maintenanceCost + procurementCost + paymentVouchersCost)
+        : 0;
+      const inputVat = hasExpensesImported
+        ? projExpenses.reduce((sum, e) => sum + Number(e.vatAmount || 0), 0)
+        : 0;
       const expensesExclVat = totalExpenses - inputVat;
 
       // ==========================================
@@ -279,13 +286,16 @@ export const ProjectProfitDashboard: React.FC<ProjectProfitDashboardProps> = ({
       // ==========================================
       // Standard Formula: Net Profit = Earned Recognized Income (Excl Advances) - Total Incurred Expenses
       // If netEarnedRevenue is 0 (unbilled project), use grossBilledRevenue or compare with 0
-      const netProfit = (netEarnedRevenue > 0 ? netEarnedRevenue : grossBilledRevenue) - totalExpenses;
+      const revenueBase = (netEarnedRevenue > 0 ? netEarnedRevenue : grossBilledRevenue);
+      const netProfit = revenueBase - totalExpenses;
       const grossProfit = grossBilledRevenue - totalExpenses;
-      const earnedBase = netEarnedRevenue > 0 ? netEarnedRevenue : (grossBilledRevenue > 0 ? grossBilledRevenue : 1);
-      const profitMarginPercent = earnedBase > 1 ? (netProfit / earnedBase) * 100 : (totalExpenses > 0 ? -100 : 0);
+      const earnedBase = revenueBase > 0 ? revenueBase : 0;
+      const profitMarginPercent = earnedBase > 0
+        ? (netProfit / earnedBase) * 100
+        : (totalExpenses > 0 ? -100 : 0);
 
       const contractValue = Number(proj.CONTRACT_VALUE || 15000000);
-      const budgetUtilization = contractValue > 0 ? (totalExpenses / contractValue) * 100 : 0;
+      const budgetUtilization = (hasExpensesImported && contractValue > 0) ? (totalExpenses / contractValue) * 100 : 0;
 
       // Cash Flow vs Profit Variance
       const netCashFlow = totalCashInflow - totalExpenses;
@@ -909,9 +919,10 @@ export const ProjectProfitDashboard: React.FC<ProjectProfitDashboardProps> = ({
                 </tr>
               ) : (
                 filteredProjects.map((p, idx) => {
-                  const isProfitable = p.netProfit >= 0;
-                  const isHealthy = p.profitMarginPercent >= 15;
-                  const isLoss = p.netProfit < 0;
+                  const isZeroActivity = p.totalExpenses === 0 && (p.netEarnedRevenue || p.grossBilledRevenue) === 0;
+                  const isProfitable = !isZeroActivity && p.netProfit >= 0;
+                  const isHealthy = !isZeroActivity && p.profitMarginPercent >= 15;
+                  const isLoss = !isZeroActivity && p.netProfit < 0;
 
                   return (
                     <tr
@@ -964,7 +975,7 @@ export const ProjectProfitDashboard: React.FC<ProjectProfitDashboardProps> = ({
 
                       {/* Net Profit */}
                       <td className="py-3 px-4 text-right font-mono font-black">
-                        <span className={isProfitable ? 'text-emerald-400' : 'text-rose-400'}>
+                        <span className={isZeroActivity ? 'text-slate-400' : isProfitable ? 'text-emerald-400' : 'text-rose-400'}>
                           {formatLKR(p.netProfit)}
                         </span>
                       </td>
@@ -972,7 +983,9 @@ export const ProjectProfitDashboard: React.FC<ProjectProfitDashboardProps> = ({
                       {/* Margin % */}
                       <td className="py-3 px-4 text-center">
                         <span className={`inline-block px-2 py-0.5 rounded-full font-mono text-[10px] font-bold ${
-                          isHealthy
+                          isZeroActivity
+                            ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                            : isHealthy
                             ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
                             : isProfitable
                             ? 'bg-blue-950 text-blue-300 border border-blue-800'
@@ -984,7 +997,11 @@ export const ProjectProfitDashboard: React.FC<ProjectProfitDashboardProps> = ({
 
                       {/* Status */}
                       <td className="py-3 px-4 text-center">
-                        {isLoss ? (
+                        {isZeroActivity ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                            <span>Zero Spend</span>
+                          </span>
+                        ) : isLoss ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-400">
                             <AlertCircle className="w-3 h-3" />
                             <span>Overrun</span>
